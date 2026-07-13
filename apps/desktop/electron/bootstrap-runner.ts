@@ -39,6 +39,10 @@ import https from 'node:https'
 import path from 'node:path'
 
 const IS_WINDOWS = process.platform === 'win32'
+// Public runtime mirror used by VanYue packages. The branded desktop source
+// stays private, while fresh installs can fetch the pinned backend without
+// embedding a GitHub token in every employee installer.
+const BOOTSTRAP_REPOSITORY = 'Donge-wx/hermes-agent'
 
 function hiddenWindowsChildOptions(options = {}) {
   if (!IS_WINDOWS || Object.prototype.hasOwnProperty.call(options, 'windowsHide')) {
@@ -128,7 +132,7 @@ function downloadInstallScript(commit, destPath) {
   // is immutable (unlike a branch ref), so we don't need integrity
   // verification beyond "did the file we wrote pass a syntax probe."
   const scriptName = installScriptName()
-  const url = `https://raw.githubusercontent.com/NousResearch/hermes-agent/${commit}/scripts/${scriptName}`
+  const url = `https://raw.githubusercontent.com/${BOOTSTRAP_REPOSITORY}/${commit}/scripts/${scriptName}`
 
   return new Promise((resolve, reject) => {
     fs.mkdirSync(path.dirname(destPath), { recursive: true })
