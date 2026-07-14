@@ -9,12 +9,12 @@ const CHUNK_PATH = '/api/session-attachments/upload-chunk'
 const FINISH_PATH = '/api/session-attachments/upload-finish'
 const CANCEL_PATH = '/api/session-attachments/upload-cancel'
 
-// Keep the managed desktop transport at the public-path-proven request size.
-// The backend may advertise a smaller value, in which case the smaller value
-// always wins.  The backend accepts up to eight MiB, but four MiB remains the
-// safe client cap until the external ingress path has passed a full 100 MiB
-// stability test at a larger request size.
-export const WEIJIA_HTTP_CHUNK_BYTES = 4 * 1024 * 1024
+// Keep each public request below the size that can stall behind Cloudflare and
+// the managed reverse tunnel on constrained uplinks. Four persistent workers
+// preserve aggregate throughput, while a 512 KiB request completed reliably
+// where one, four, and eight MiB requests were disconnected mid-body. The
+// backend may advertise a smaller value, in which case the smaller value wins.
+export const WEIJIA_HTTP_CHUNK_BYTES = 512 * 1024
 const MAX_PARALLEL_HTTP_CHUNKS = 4
 const REQUEST_TIMEOUT_MS = 120_000
 const MAX_JSON_RESPONSE_BYTES = 2 * 1024 * 1024
