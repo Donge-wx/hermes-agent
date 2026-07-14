@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
+import json
 import threading
 import uuid
 from pathlib import Path
@@ -90,9 +92,14 @@ def test_raw_http_upload_roundtrip_uses_employee_session_workspace(employee_http
     assert capabilities.status_code == 200
     assert capabilities.json()["enabled"] is True
     assert capabilities.json()["max_chunk_bytes"] == 4 * 1024 * 1024
+    assert capabilities.json()["parallel_chunks"] is True
 
     started = _begin(client, session_id, "client-report.bin", len(payload))
     upload_id = started["upload_id"]
+    assert started["parallel_chunks"] is True
+    restart_guard = workspace.parent / ".hermes" / "upload-restart-guard.json"
+    assert restart_guard.is_file()
+    assert upload_id in json.loads(restart_guard.read_text(encoding="utf-8"))["uploads"]
     first = client.post(
         "/api/session-attachments/upload-chunk",
         params={"upload_id": upload_id, "session_id": session_id, "offset": 0},
@@ -124,12 +131,72 @@ def test_raw_http_upload_roundtrip_uses_employee_session_workspace(employee_http
     assert result["bytes"] == len(payload)
     assert target.read_bytes() == payload
     assert not list((workspace / ".hermes" / "desktop-attachments" / ".uploads").glob("*.part"))
+    assert not restart_guard.exists()
+
+
+def test_raw_http_upload_accepts_out_of_order_parallel_chunks(employee_http_upload):
+    client, workspace, (session_id, _other_session, _outside_session) = employee_http_upload
+    payload = b"abcdefghij"
+    started = _begin(client, session_id, "parallel.bin", len(payload))
+    upload_id = started["upload_id"]
+
+    for offset, chunk, expected_received in ((4, b"efgh", 4), (0, b"abcd", 8), (8, b"ij", 10)):
+        response = client.post(
+            "/api/session-attachments/upload-chunk",
+            params={"upload_id": upload_id, "session_id": session_id, "offset": offset},
+            content=chunk,
+            headers={"content-type": "application/octet-stream"},
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["received"] == expected_received
+
+    completed = client.post(
+        "/api/session-attachments/upload-finish",
+        json={"upload_id": upload_id, "session_id": session_id},
+    )
+    assert completed.status_code == 200, completed.text
+    result = completed.json()
+    assert result["bytes"] == len(payload)
+    assert (workspace / result["path"]).read_bytes() == payload
+
+
+def test_raw_http_upload_accepts_four_concurrent_chunks(employee_http_upload):
+    client, workspace, (session_id, _other_session, _outside_session) = employee_http_upload
+    chunk_size = 2 * 1024 * 1024
+    payload = b"".join(bytes([65 + index]) * chunk_size for index in range(4))
+    started = _begin(client, session_id, "concurrent.bin", len(payload))
+    upload_id = started["upload_id"]
+
+    def upload_chunk(offset: int, chunk: bytes):
+        return client.post(
+            "/api/session-attachments/upload-chunk",
+            params={"upload_id": upload_id, "session_id": session_id, "offset": offset},
+            content=chunk,
+            headers={"content-type": "application/octet-stream"},
+        )
+
+    chunks = [
+        (offset, payload[offset : offset + chunk_size])
+        for offset in range(0, len(payload), chunk_size)
+    ]
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        responses = list(executor.map(lambda item: upload_chunk(*item), chunks))
+
+    assert all(response.status_code == 200 for response in responses)
+    assert all(0 < response.json()["received"] <= len(payload) for response in responses)
+    completed = client.post(
+        "/api/session-attachments/upload-finish",
+        json={"upload_id": upload_id, "session_id": session_id},
+    )
+    assert completed.status_code == 200, completed.text
+    assert (workspace / completed.json()["path"]).read_bytes() == payload
 
 
 def test_upload_id_is_bound_to_the_session_for_chunk_finish_and_cancel(employee_http_upload):
-    client, _workspace, (session_id, other_session, _outside_session) = employee_http_upload
+    client, workspace, (session_id, other_session, _outside_session) = employee_http_upload
     started = _begin(client, session_id, "private.bin", 3)
     upload_id = started["upload_id"]
+    restart_guard = workspace.parent / ".hermes" / "upload-restart-guard.json"
 
     wrong_chunk = client.post(
         "/api/session-attachments/upload-chunk",
@@ -147,6 +214,8 @@ def test_upload_id_is_bound_to_the_session_for_chunk_finish_and_cancel(employee_
         json={"upload_id": upload_id, "session_id": other_session},
     )
     assert wrong_cancel.status_code == 200
+    assert wrong_cancel.json()["found"] is False
+    assert upload_id in json.loads(restart_guard.read_text(encoding="utf-8"))["uploads"]
 
     cancelled = client.post(
         "/api/session-attachments/upload-cancel",
@@ -154,6 +223,8 @@ def test_upload_id_is_bound_to_the_session_for_chunk_finish_and_cancel(employee_
     )
     assert cancelled.status_code == 200, cancelled.text
     assert cancelled.json()["cancelled"] is True
+    assert cancelled.json()["found"] is True
+    assert not restart_guard.exists()
 
 
 def test_http_begin_reuses_the_tui_upload_lifecycle_and_session_cleanup(
@@ -183,8 +254,10 @@ def test_http_begin_reuses_the_tui_upload_lifecycle_and_session_cleanup(
     upload = uploads[first.json()["upload_id"]]
     reservation_token = upload["disk_reservation_token"]
     temp_path = Path(upload["path"])
+    restart_guard = workspace.parent / ".hermes" / "upload-restart-guard.json"
     assert temp_path.is_file()
     assert reservation_token in tui_server._file_attach_disk_reservations
+    assert restart_guard.is_file()
 
     # This is the same cleanup path invoked by session close; it proves the
     # HTTP transport did not create a second, app-level staging registry.
@@ -193,6 +266,7 @@ def test_http_begin_reuses_the_tui_upload_lifecycle_and_session_cleanup(
     assert reservation_token not in tui_server._file_attach_disk_reservations
     assert uploads == {}
     assert not list((workspace / ".hermes" / "desktop-attachments" / ".uploads").glob("*.part"))
+    assert not restart_guard.exists()
 
 
 def test_request_id_only_cancel_recovers_a_lost_begin_response(employee_http_upload):
@@ -226,6 +300,7 @@ def test_request_id_only_cancel_recovers_a_lost_begin_response(employee_http_upl
     )
     assert cancelled.status_code == 200, cancelled.text
     assert cancelled.json()["cancelled"] is True
+    assert cancelled.json()["found"] is True
     assert upload_id not in tui_server._file_attach_uploads(session)
     assert not temp_path.exists()
     assert reservation_token not in tui_server._file_attach_disk_reservations

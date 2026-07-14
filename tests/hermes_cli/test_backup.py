@@ -694,9 +694,7 @@ class TestImport:
         ).read_text() == live_state
 
     def test_preserves_runtime_pid_and_process_files(self, tmp_path, monkeypatch):
-        """gateway.pid / cron.pid / gateway.lock / processes.json from a backup
-        reference the source machine's process namespace and must never be
-        written over the target's."""
+        """Volatile runtime files from a backup must not land on the target."""
         hermes_home = tmp_path / ".hermes"
         hermes_home.mkdir()
         monkeypatch.setenv("HERMES_HOME", str(hermes_home))
@@ -705,6 +703,7 @@ class TestImport:
         # Live runtime files belonging to the target's own processes.
         (hermes_home / "gateway.pid").write_text("4242")
         (hermes_home / "processes.json").write_text('{"live": true}')
+        (hermes_home / "upload-restart-guard.json").write_text('{"uploads": {"live": 1}}')
 
         zip_path = tmp_path / "backup.zip"
         self._make_backup_zip(zip_path, {
@@ -713,6 +712,7 @@ class TestImport:
             "cron.pid": "8888",
             "gateway.lock": "7777",
             "processes.json": '{"stale": true}',
+            "upload-restart-guard.json": '{"uploads": {"stale": 9999999999}}',
         })
 
         args = Namespace(zipfile=str(zip_path), force=True)
@@ -723,6 +723,7 @@ class TestImport:
         # Live runtime files are untouched; the backup's foreign ones never land.
         assert (hermes_home / "gateway.pid").read_text() == "4242"
         assert (hermes_home / "processes.json").read_text() == '{"live": true}'
+        assert (hermes_home / "upload-restart-guard.json").read_text() == '{"uploads": {"live": 1}}'
         # cron.pid / gateway.lock had no live copy and were not seeded.
         assert not (hermes_home / "cron.pid").exists()
         assert not (hermes_home / "gateway.lock").exists()

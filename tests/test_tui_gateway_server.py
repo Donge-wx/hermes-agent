@@ -5034,7 +5034,7 @@ def test_file_attach_cancel_accepts_request_id_and_tombstones_it(tmp_path):
                 "params": {"session_id": "sid", "request_id": request_id},
             }
         )
-        assert cancelled["result"] == {"cancelled": True}
+        assert cancelled["result"] == {"cancelled": True, "found": True}
         assert not temp_path.exists()
 
         replay = server.handle_request(
@@ -5070,7 +5070,7 @@ def test_file_attach_cancel_tombstone_blocks_later_begin(tmp_path):
                 "params": {"session_id": "sid", "request_id": request_id},
             }
         )
-        assert cancelled["result"] == {"cancelled": True}
+        assert cancelled["result"] == {"cancelled": True, "found": False}
 
         replay = server.handle_request(
             {
@@ -5448,6 +5448,80 @@ def test_file_attach_chunk_retry_is_idempotent_but_rejects_changed_bytes(tmp_pat
         assert Path(upload["path"]).read_bytes() == b"hello"
     finally:
         server._sessions.pop("sid", None)
+
+
+def test_parallel_http_file_attach_accepts_out_of_order_chunks(tmp_path):
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    server._sessions["sid"] = _session(cwd=str(workspace))
+    payload = b"abcdefghij"
+
+    try:
+        begin = server.handle_request(
+            {
+                "id": "begin",
+                "method": "file.attach.begin",
+                "params": {
+                    "request_id": str(uuid.uuid4()),
+                    "session_id": "sid",
+                    "name": "parallel.bin",
+                    "size": len(payload),
+                    "parallel_http": True,
+                },
+            }
+        )
+        assert begin["result"]["parallel_chunks"] is True
+        upload_id = begin["result"]["upload_id"]
+
+        for index, (offset, chunk, expected_received) in enumerate(
+            ((4, b"efgh", 4), (0, b"abcd", 8), (8, b"ij", 10))
+        ):
+            response = server.handle_request(
+                {
+                    "id": f"chunk-{index}",
+                    "method": "file.attach.chunk",
+                    "params": {
+                        "content_base64": base64.b64encode(chunk).decode("ascii"),
+                        "offset": offset,
+                        "session_id": "sid",
+                        "upload_id": upload_id,
+                    },
+                }
+            )
+            assert response["result"]["received"] == expected_received
+
+        retry = server.handle_request(
+            {
+                "id": "retry",
+                "method": "file.attach.chunk",
+                "params": {
+                    "content_base64": base64.b64encode(b"efgh").decode("ascii"),
+                    "offset": 4,
+                    "session_id": "sid",
+                    "upload_id": upload_id,
+                },
+            }
+        )
+        assert retry["result"] == {
+            "upload_id": upload_id,
+            "received": len(payload),
+            "duplicate": True,
+        }
+
+        finished = server.handle_request(
+            {
+                "id": "finish",
+                "method": "file.attach.finish",
+                "params": {"session_id": "sid", "upload_id": upload_id},
+            }
+        )
+        assert finished["result"]["attached"] is True
+        assert finished["result"]["bytes"] == len(payload)
+        assert Path(finished["result"]["path"]).read_bytes() == payload
+    finally:
+        session = server._sessions.pop("sid", None)
+        if session is not None:
+            server._cleanup_file_attach_uploads(session)
 
 
 def test_file_attach_chunk_partial_write_truncate_failure_retains_ownership(monkeypatch, tmp_path):

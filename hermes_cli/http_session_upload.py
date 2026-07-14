@@ -242,6 +242,7 @@ def register_http_session_upload(
             "max_bytes": max_bytes,
             "max_chunk_bytes": max_chunk_bytes,
             "max_inflight_chunks": _configured_max_inflight(),
+            "parallel_chunks": True,
             "begin_endpoint": "/api/session-attachments/upload-begin",
             "chunk_endpoint": "/api/session-attachments/upload-chunk",
             "finish_endpoint": "/api/session-attachments/upload-finish",
@@ -279,12 +280,16 @@ def register_http_session_upload(
                 "request_id": request_id,
                 "session_id": session_id,
                 "size": size,
+                "parallel_http": True,
             },
         )
         result["max_chunk_bytes"] = min(
             max_chunk_bytes, int(result.get("max_chunk_bytes") or max_chunk_bytes)
         )
         result["max_bytes"] = max_bytes
+        result["parallel_chunks"] = bool(result.get("parallel_chunks"))
+        if not str(result.get("upload_id") or ""):
+            raise HTTPException(status_code=502, detail="gateway did not return an upload id")
         return result
 
     @app.post("/api/session-attachments/upload-chunk")

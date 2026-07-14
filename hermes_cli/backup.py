@@ -82,10 +82,12 @@ _EXCLUDED_SUFFIXES = (
     ".db-journal",
 )
 
-# File names to skip (runtime state that's meaningless on another machine)
+# File names to skip (runtime state that's meaningless on another machine or
+# could incorrectly defer a managed restart after it has already expired).
 _EXCLUDED_NAMES = {
     "gateway.pid",
     "cron.pid",
+    "upload-restart-guard.json",
 }
 
 # File names that ``hermes import`` must never overwrite, matched by basename so
@@ -110,6 +112,10 @@ _EXCLUDED_NAMES = {
 #     numerically-equal PID in the new environment is a different process.
 #     These mirror exactly what ``container_boot._STALE_RUNTIME_FILES`` already
 #     sweeps on every container boot.
+#   - ``upload-restart-guard.json`` is a short-lived managed-upload lease.  It
+#     must never be restored from another machine or an old snapshot because a
+#     fresh watchdog would then defer recovery for an upload that no longer
+#     exists.
 #
 # Older backups predate the backup-side exclusions, so we filter on import too
 # rather than trusting the archive's contents.
@@ -119,6 +125,7 @@ _IMPORT_SKIP_NAMES = {
     "cron.pid",
     "gateway.lock",
     "processes.json",
+    "upload-restart-guard.json",
 }
 
 # zipfile.open() drops Unix mode bits on extract; restore tightens these to 0600.

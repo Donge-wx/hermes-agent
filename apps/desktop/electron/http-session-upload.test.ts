@@ -109,6 +109,254 @@ test('streams a 49 MiB file as thirteen authenticated raw HTTP chunks', async t 
   assert.equal(receivedHash.digest('hex'), crypto.createHash('sha256').update(source).digest('hex'))
 })
 
+test('uses a bounded parallel worker pool when the managed backend opts in', async t => {
+  const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'hermes-http-upload-parallel-'))
+  const filePath = path.join(tempDir, 'parallel.bin')
+  const source = Buffer.alloc(WEIJIA_HTTP_CHUNK_BYTES * 4 + 17, 0x5a)
+  await fs.promises.writeFile(filePath, source)
+  t.after(() => fs.promises.rm(tempDir, { force: true, recursive: true }))
+
+  const receivedChunks = new Map<number, Buffer>()
+  let activeChunks = 0
+  let maximumActiveChunks = 0
+
+  const server = http.createServer(async (request, response) => {
+    const url = new URL(request.url || '/', 'http://127.0.0.1')
+    assert.equal(request.headers['x-hermes-session-token'], TOKEN)
+
+    if (url.pathname.endsWith('/upload-capabilities')) {
+      json(response, {
+        enabled: true,
+        max_bytes: 1024 ** 3,
+        max_chunk_bytes: WEIJIA_HTTP_CHUNK_BYTES,
+        max_inflight_chunks: 4,
+        parallel_chunks: true
+      })
+
+      return
+    }
+
+    if (url.pathname.endsWith('/upload-begin')) {
+      json(response, {
+        upload_id: 'parallel-upload',
+        max_chunk_bytes: WEIJIA_HTTP_CHUNK_BYTES,
+        parallel_chunks: true
+      })
+
+      return
+    }
+
+    if (url.pathname.endsWith('/upload-chunk')) {
+      activeChunks += 1
+      maximumActiveChunks = Math.max(maximumActiveChunks, activeChunks)
+
+      try {
+        await new Promise(resolve => setTimeout(resolve, 25))
+        const offset = Number(url.searchParams.get('offset'))
+        receivedChunks.set(offset, await readBody(request))
+        const received = [...receivedChunks.values()].reduce((total, chunk) => total + chunk.length, 0)
+        json(response, { received })
+      } finally {
+        activeChunks -= 1
+      }
+
+      return
+    }
+
+    if (url.pathname.endsWith('/upload-finish')) {
+      const assembled = Buffer.concat(
+        [...receivedChunks.entries()]
+          .sort(([left], [right]) => left - right)
+          .map(([, chunk]) => chunk)
+      )
+
+      assert.deepEqual(assembled, source)
+      json(response, { attached: true, bytes: source.length, uploaded: true })
+
+      return
+    }
+
+    if (url.pathname.endsWith('/upload-cancel')) {
+      json(response, { cancelled: true })
+
+      return
+    }
+
+    json(response, { detail: 'not found' }, 404)
+  })
+
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+  t.after(() => new Promise<void>(resolve => server.close(() => resolve())))
+  const address = server.address()
+  assert.ok(address && typeof address === 'object')
+
+  const result = await uploadSessionAttachmentHttp({
+    baseUrl: `http://127.0.0.1:${address.port}`,
+    filePath,
+    name: 'parallel.bin',
+    sessionId: 'session-wang',
+    token: TOKEN
+  })
+
+  assert.equal(result?.attached, true)
+  assert.equal(receivedChunks.size, 5)
+  assert.ok(maximumActiveChunks >= 2)
+  assert.ok(maximumActiveChunks <= 4)
+})
+
+test('retries a transient chunk response without cancelling the upload', async t => {
+  const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'hermes-http-upload-retry-'))
+  const filePath = path.join(tempDir, 'retry.bin')
+  const source = Buffer.from('retry-this-attachment')
+  await fs.promises.writeFile(filePath, source)
+  t.after(() => fs.promises.rm(tempDir, { force: true, recursive: true }))
+
+  let chunkAttempts = 0
+  let cancelCalls = 0
+
+  const server = http.createServer(async (request, response) => {
+    const url = new URL(request.url || '/', 'http://127.0.0.1')
+
+    if (url.pathname.endsWith('/upload-capabilities')) {
+      json(response, { enabled: true, max_bytes: 1024 ** 3, max_chunk_bytes: WEIJIA_HTTP_CHUNK_BYTES })
+
+      return
+    }
+
+    if (url.pathname.endsWith('/upload-begin')) {
+      json(response, { upload_id: 'retry-upload', max_chunk_bytes: WEIJIA_HTTP_CHUNK_BYTES })
+
+      return
+    }
+
+    if (url.pathname.endsWith('/upload-chunk')) {
+      chunkAttempts += 1
+
+      if (chunkAttempts === 1) {
+        json(response, { detail: 'temporary upstream issue' }, 503)
+
+        return
+      }
+
+      assert.deepEqual(await readBody(request), source)
+      json(response, { received: source.length })
+
+      return
+    }
+
+    if (url.pathname.endsWith('/upload-finish')) {
+      json(response, { attached: true, bytes: source.length, uploaded: true })
+
+      return
+    }
+
+    if (url.pathname.endsWith('/upload-cancel')) {
+      cancelCalls += 1
+      json(response, { cancelled: true })
+
+      return
+    }
+
+    json(response, { detail: 'not found' }, 404)
+  })
+
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+  t.after(() => new Promise<void>(resolve => server.close(() => resolve())))
+  const address = server.address()
+  assert.ok(address && typeof address === 'object')
+
+  const result = await uploadSessionAttachmentHttp({
+    baseUrl: `http://127.0.0.1:${address.port}`,
+    filePath,
+    name: 'retry.bin',
+    sessionId: 'session-wang',
+    token: TOKEN
+  })
+
+  assert.equal(result?.attached, true)
+  assert.equal(chunkAttempts, 2)
+  assert.equal(cancelCalls, 0)
+})
+
+test('retries an Electron network-reset error without cancelling the upload', async t => {
+  const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'hermes-http-upload-electron-retry-'))
+  const filePath = path.join(tempDir, 'electron-retry.bin')
+  const source = Buffer.from('retry-through-electron-net')
+  await fs.promises.writeFile(filePath, source)
+  t.after(() => fs.promises.rm(tempDir, { force: true, recursive: true }))
+
+  let chunkAttempts = 0
+  let cancelCalls = 0
+
+  const result = await uploadSessionAttachmentHttp({
+    baseUrl: 'https://wangxudong.wanyushudong.xyz',
+    filePath,
+    name: 'electron-retry.bin',
+    sessionId: 'session-wang',
+    requestJson: async (url, options) => {
+      if (url.endsWith('/upload-capabilities')) {
+        return { enabled: true, max_bytes: 1024 ** 3, max_chunk_bytes: WEIJIA_HTTP_CHUNK_BYTES }
+      }
+
+      if (url.endsWith('/upload-begin')) {
+        return { upload_id: 'electron-retry-upload', max_chunk_bytes: WEIJIA_HTTP_CHUNK_BYTES }
+      }
+
+      if (url.includes('/upload-chunk?')) {
+        chunkAttempts += 1
+
+        if (chunkAttempts === 1) {
+          throw new Error('net::ERR_CONNECTION_RESET')
+        }
+
+        assert.deepEqual(options?.body, source)
+
+        return { received: source.length }
+      }
+
+      if (url.endsWith('/upload-finish')) {
+        return { attached: true, bytes: source.length, uploaded: true }
+      }
+
+      if (url.endsWith('/upload-cancel')) {
+        cancelCalls += 1
+
+        return { cancelled: true }
+      }
+
+      throw new Error(`Unexpected request: ${url}`)
+    }
+  })
+
+  assert.equal(result?.attached, true)
+  assert.equal(chunkAttempts, 2)
+  assert.equal(cancelCalls, 0)
+})
+
+test('surfaces an enabled:false managed transport instead of falling back silently', async t => {
+  const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'hermes-http-upload-disabled-'))
+  const filePath = path.join(tempDir, 'disabled.bin')
+  await fs.promises.writeFile(filePath, Buffer.from('x'))
+  t.after(() => fs.promises.rm(tempDir, { force: true, recursive: true }))
+
+  await assert.rejects(
+    uploadSessionAttachmentHttp({
+      baseUrl: 'https://wangxudong.wanyushudong.xyz',
+      filePath,
+      name: 'disabled.bin',
+      sessionId: 'session-wang',
+      requestJson: async url => {
+        if (url.endsWith('/upload-capabilities')) {
+          return { enabled: false }
+        }
+
+        throw new Error(`Unexpected request: ${url}`)
+      }
+    }),
+    /transport is disabled/
+  )
+})
+
 test('cancels by request ID when the begin reply is lost', async t => {
   const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'hermes-http-upload-lost-begin-'))
   const filePath = path.join(tempDir, 'lost-begin.bin')
@@ -128,14 +376,18 @@ test('cancels by request ID when the begin reply is lost', async t => {
         if (url.endsWith('/upload-capabilities')) {
           return { enabled: true, max_bytes: 1024 ** 3, max_chunk_bytes: WEIJIA_HTTP_CHUNK_BYTES }
         }
+
         if (url.endsWith('/upload-begin')) {
           beginBody = options?.body as Record<string, unknown>
           throw new Error('simulated lost begin response')
         }
+
         if (url.endsWith('/upload-cancel')) {
           cancelBody = options?.body as Record<string, unknown>
+
           return { cancelled: true }
         }
+
         throw new Error(`Unexpected request: ${url}`)
       }
     }),

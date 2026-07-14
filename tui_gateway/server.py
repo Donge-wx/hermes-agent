@@ -27,6 +27,10 @@ from hermes_constants import (
     set_hermes_home_override,
 )
 from hermes_cli.env_loader import load_hermes_dotenv
+from hermes_cli.managed_upload_guard import (
+    managed_upload_restart_guard_enabled,
+    set_managed_upload_restart_guard,
+)
 from utils import is_truthy_value
 from tools.environments.local import hermes_subprocess_env
 from agent.replay_cleanup import sanitize_replay_history
@@ -10418,6 +10422,36 @@ def _append_file_attach_reserved_chunk(
     _run_file_attach_reserved_write(token, path.parent, len(payload), _append)
 
 
+def _write_file_attach_reserved_chunk_at_offset(
+    token: str,
+    path: Path,
+    expected_identity: tuple[int, int],
+    offset: int,
+    payload: bytes,
+) -> None:
+    """Write an independently validated HTTP chunk at its declared offset.
+
+    This is intentionally separate from the legacy append helper.  Managed HTTP
+    uploads can have a small number of in-flight requests, whereas the older
+    WebSocket contract remains strictly ordered and append-only.
+    """
+
+    def _write() -> None:
+        with path.open("r+b", buffering=0) as handle:
+            opened_stat = os.fstat(handle.fileno())
+            if _file_attach_object_identity(opened_stat) != expected_identity:
+                raise OSError("attachment destination identity changed after begin")
+            handle.seek(offset, os.SEEK_SET)
+            written = handle.write(payload)
+            if written != len(payload):
+                raise OSError("attachment chunk write was incomplete")
+            if os.fstat(handle.fileno()).st_size < offset + len(payload):
+                raise OSError("attachment chunk write size mismatch")
+            _assert_attachment_path_identity(path, expected_identity)
+
+    _run_file_attach_reserved_write(token, path.parent, len(payload), _write)
+
+
 def _release_file_attach_disk_reservation(token: str) -> None:
     """Idempotently release one exact reservation without touching other uploads."""
     if not token:
@@ -10905,6 +10939,24 @@ def _file_attach_lock(session: dict) -> threading.RLock:
         return lock
 
 
+def _refresh_managed_http_upload_restart_guard(upload_id: str, upload: dict) -> None:
+    """Refresh a guard only for the managed HTTP upload that owns it."""
+
+    if bool(upload.get("managed_http_restart_guard")):
+        set_managed_upload_restart_guard(upload_id, active=True)
+
+
+def _release_managed_http_upload_restart_guard(upload_id: str, upload: dict) -> None:
+    """Best-effort release after the upload lifecycle has ended in this TUI."""
+
+    if not bool(upload.get("managed_http_restart_guard")):
+        return
+    try:
+        set_managed_upload_restart_guard(upload_id, active=False)
+    except (OSError, ValueError) as exc:
+        logger.warning("Could not release managed upload restart guard %s: %s", upload_id, exc)
+
+
 def _cleanup_file_attach_uploads(session: dict) -> None:
     """Remove incomplete uploads, quarantining ownership when cleanup fails."""
     with _file_attach_lock(session):
@@ -10922,6 +10974,7 @@ def _cleanup_file_attach_uploads(session: dict) -> None:
                 _release_upload_disk_reservation(upload)
             else:
                 _quarantine_file_attach_cleanup(upload)
+            _release_managed_http_upload_restart_guard(upload_id, upload)
             uploads.pop(upload_id, None)
         if not uploads:
             session.pop("_desktop_file_uploads", None)
@@ -10944,6 +10997,7 @@ def _reap_stale_file_attach_uploads(
             upload["updated_at"] = time.time() if now is None else now
             continue
         _release_upload_disk_reservation(upload)
+        _release_managed_http_upload_restart_guard(upload_id, upload)
         uploads.pop(upload_id, None)
 
     completed = session.get("_desktop_file_upload_results")
@@ -11032,6 +11086,9 @@ def _(rid, params: dict) -> dict:
         declared_size = _optional_non_negative_int(
             params.get("size", params.get("byte_size")), "size"
         )
+        parallel_http = bool(params.get("parallel_http"))
+        if parallel_http and declared_size is None:
+            raise ValueError("parallel HTTP uploads require a declared size")
         upload_id = _file_attach_request_id(params)
         max_total_bytes = _file_attach_max_total_bytes()
         if declared_size is not None and declared_size > max_total_bytes:
@@ -11048,6 +11105,7 @@ def _(rid, params: dict) -> dict:
                 or existing.get("declared_size") != declared_size
             ):
                 raise ValueError("request_id already used for a different upload")
+            _refresh_managed_http_upload_restart_guard(upload_id, existing)
             existing["updated_at"] = time.time()
             return _ok(
                 rid,
@@ -11055,6 +11113,7 @@ def _(rid, params: dict) -> dict:
                     "upload_id": upload_id,
                     "received": int(existing.get("received") or 0),
                     "max_chunk_bytes": _file_attach_max_chunk_bytes(),
+                    "parallel_chunks": bool(existing.get("parallel_http")),
                     "duplicate": True,
                 },
             )
@@ -11083,6 +11142,9 @@ def _(rid, params: dict) -> dict:
             raise
         temp_identity = _file_attach_object_identity(os.lstat(temp_path))
         now = time.time()
+        managed_http_restart_guard = (
+            parallel_http and managed_upload_restart_guard_enabled()
+        )
         try:
             uploads[upload_id] = {
                 "created_at": now,
@@ -11092,6 +11154,9 @@ def _(rid, params: dict) -> dict:
                 "filename": filename,
                 "path": str(temp_path),
                 "path_identity": _file_attach_identity_record(temp_identity),
+                "managed_http_restart_guard": managed_http_restart_guard,
+                "parallel_chunk_ranges": {} if parallel_http else None,
+                "parallel_http": parallel_http,
                 "raw_path": raw,
                 "received": 0,
             }
@@ -11111,12 +11176,24 @@ def _(rid, params: dict) -> dict:
             raise _FileAttachCleanupError(
                 temp_path, temp_identity, registration_error, cleanup_error
             ) from registration_error
+        upload = uploads[upload_id]
+        try:
+            _refresh_managed_http_upload_restart_guard(upload_id, upload)
+        except (OSError, ValueError) as guard_error:
+            uploads.pop(upload_id, None)
+            _release_managed_http_upload_restart_guard(upload_id, upload)
+            if _unlink_file_attach_temp(upload):
+                _release_upload_disk_reservation(upload)
+            else:
+                _quarantine_file_attach_cleanup(upload)
+            raise OSError("upload restart guard is unavailable") from guard_error
         return _ok(
             rid,
             {
                 "upload_id": upload_id,
                 "received": 0,
                 "max_chunk_bytes": _file_attach_max_chunk_bytes(),
+                "parallel_chunks": parallel_http,
             },
         )
     except Exception as e:
@@ -11150,24 +11227,81 @@ def _append_desktop_file_attach_chunk(
     lock.acquire()
     try:
         upload = _desktop_file_upload_by_id(session, upload_id)
-        expected = int(upload.get("received") or 0)
         temp_path = Path(str(upload.get("path") or ""))
         temp_identity = _file_attach_expected_identity(
             upload.get("path_identity"), label=str(temp_path)
         )
         _assert_attachment_path_identity(temp_path, temp_identity)
-        try:
-            actual_size = temp_path.stat().st_size
-        except FileNotFoundError as exc:
-            raise ValueError("upload temp file missing") from exc
-        if actual_size != expected:
-            raise ValueError("upload state mismatch")
         max_chunk_bytes = _file_attach_max_chunk_bytes()
         if len(payload) > max_chunk_bytes:
             raise ValueError(
                 f"chunk too large ({len(payload)} bytes; limit {max_chunk_bytes} bytes)"
             )
         payload_sha256 = hashlib.sha256(payload).hexdigest()
+        if bool(upload.get("parallel_http")):
+            declared_size = upload.get("declared_size")
+            if declared_size is None:
+                raise ValueError("parallel HTTP upload has no declared size")
+            declared_size = int(declared_size)
+            chunk_end = offset + len(payload)
+            if chunk_end > declared_size:
+                raise ValueError("chunk exceeds declared size")
+            ranges = upload.get("parallel_chunk_ranges")
+            if not isinstance(ranges, dict):
+                raise ValueError("parallel HTTP upload state is invalid")
+            offset_key = str(offset)
+            existing = ranges.get(offset_key)
+            if isinstance(existing, dict):
+                if (
+                    int(existing.get("size") or -1) == len(payload)
+                    and str(existing.get("sha256") or "") == payload_sha256
+                ):
+                    upload["updated_at"] = time.time()
+                    _refresh_managed_http_upload_restart_guard(upload_id, upload)
+                    return {
+                        "upload_id": upload_id,
+                        "received": int(upload.get("received") or 0),
+                        "duplicate": True,
+                    }
+                raise ValueError("conflicting retry for an already received chunk")
+            for raw_offset, record in ranges.items():
+                if not isinstance(record, dict):
+                    raise ValueError("parallel HTTP upload state is invalid")
+                try:
+                    recorded_offset = int(raw_offset)
+                    recorded_size = int(record.get("size") or 0)
+                except (TypeError, ValueError) as exc:
+                    raise ValueError("parallel HTTP upload state is invalid") from exc
+                if recorded_offset < 0 or recorded_size <= 0:
+                    raise ValueError("parallel HTTP upload state is invalid")
+                recorded_end = recorded_offset + recorded_size
+                if max(offset, recorded_offset) < min(chunk_end, recorded_end):
+                    raise ValueError("parallel HTTP chunk overlaps an already received chunk")
+            _write_file_attach_reserved_chunk_at_offset(
+                str(upload.get("disk_reservation_token") or ""),
+                temp_path,
+                temp_identity,
+                offset,
+                payload,
+            )
+            ranges[offset_key] = {"sha256": payload_sha256, "size": len(payload)}
+            received = sum(
+                int(record.get("size") or 0)
+                for record in ranges.values()
+                if isinstance(record, dict)
+            )
+            upload["received"] = received
+            upload["updated_at"] = time.time()
+            _refresh_managed_http_upload_restart_guard(upload_id, upload)
+            return {"upload_id": upload_id, "received": received}
+
+        expected = int(upload.get("received") or 0)
+        try:
+            actual_size = temp_path.stat().st_size
+        except FileNotFoundError as exc:
+            raise ValueError("upload temp file missing") from exc
+        if actual_size != expected:
+            raise ValueError("upload state mismatch")
         if offset != expected:
             is_last_chunk_retry = (
                 offset == upload.get("last_chunk_offset")
@@ -11270,13 +11404,47 @@ def _(rid, params: dict) -> dict:
             upload.get("path_identity"), label=str(temp_path)
         )
         _assert_attachment_path_identity(temp_path, temp_identity)
-        received = int(upload.get("received") or 0)
-        actual_size = temp_path.stat().st_size
-        if actual_size != received:
-            raise ValueError("upload size mismatch")
         declared_size = upload.get("declared_size")
-        if declared_size is not None and received != int(declared_size):
-            raise ValueError(f"upload incomplete ({received}/{declared_size} bytes)")
+        if bool(upload.get("parallel_http")):
+            if declared_size is None:
+                raise ValueError("parallel HTTP upload has no declared size")
+            declared_size = int(declared_size)
+            ranges = upload.get("parallel_chunk_ranges")
+            if not isinstance(ranges, dict):
+                raise ValueError("parallel HTTP upload state is invalid")
+            received = 0
+            expected_offset = 0
+            try:
+                ordered_ranges = sorted(ranges.items(), key=lambda item: int(item[0]))
+            except (TypeError, ValueError) as exc:
+                raise ValueError("parallel HTTP upload state is invalid") from exc
+            for raw_offset, record in ordered_ranges:
+                if not isinstance(record, dict):
+                    raise ValueError("parallel HTTP upload state is invalid")
+                try:
+                    offset = int(raw_offset)
+                    size = int(record.get("size") or 0)
+                except (TypeError, ValueError) as exc:
+                    raise ValueError("parallel HTTP upload state is invalid") from exc
+                if offset != expected_offset or size <= 0:
+                    raise ValueError(
+                        f"upload incomplete ({received}/{declared_size} bytes)"
+                    )
+                expected_offset += size
+                received += size
+            if received != declared_size or expected_offset != declared_size:
+                raise ValueError(f"upload incomplete ({received}/{declared_size} bytes)")
+            actual_size = temp_path.stat().st_size
+            if actual_size != declared_size:
+                raise ValueError("upload size mismatch")
+            upload["received"] = received
+        else:
+            received = int(upload.get("received") or 0)
+            actual_size = temp_path.stat().st_size
+            if actual_size != received:
+                raise ValueError("upload size mismatch")
+            if declared_size is not None and received != int(declared_size):
+                raise ValueError(f"upload incomplete ({received}/{declared_size} bytes)")
         target = _publish_unique_attachment(
             temp_path,
             _desktop_attachment_dir(session),
@@ -11284,6 +11452,7 @@ def _(rid, params: dict) -> dict:
         )
         _release_upload_disk_reservation(upload)
         uploads.pop(upload_id, None)
+        _release_managed_http_upload_restart_guard(upload_id, upload)
         result = _file_attach_result(session, target.resolve(), True)
         result["bytes"] = received
         _remember_file_attach_result(session, upload_id, result)
@@ -11329,15 +11498,20 @@ def _(rid, params: dict) -> dict:
             return _ok(rid, {"cancelled": False, "completed": True})
         uploads = _file_attach_uploads(session)
         upload = uploads.get(upload_id)
+        found = isinstance(upload, dict)
         if isinstance(upload, dict):
             if not _unlink_file_attach_temp(upload):
                 detail = str(upload.get("cleanup_error") or "unknown cleanup failure")
                 return _err(rid, 5028, f"attachment cleanup failed: {detail}")
             _release_upload_disk_reservation(upload)
             uploads.pop(upload_id, None)
+            _release_managed_http_upload_restart_guard(upload_id, upload)
         if request_upload_id or isinstance(upload, dict):
             _remember_file_attach_cancelled_request(session, upload_id)
-        return _ok(rid, {"cancelled": True})
+        # ``cancelled`` remains idempotent for existing callers.  ``found``
+        # lets the HTTP adapter distinguish a real cancellation from a stale
+        # or cross-session request before removing its watchdog restart guard.
+        return _ok(rid, {"cancelled": True, "found": found})
     finally:
         lock.release()
 
