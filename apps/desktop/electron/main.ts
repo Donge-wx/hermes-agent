@@ -6249,7 +6249,7 @@ async function resolveRemoteBackend(profile) {
     }
 
     if (config.mode !== 'remote') {
-      throw new Error('尚未配置员工账号，请先运行“万域数动员工配置”。')
+      throw new Error('尚未配置员工账号，请在软件内输入员工 ID 并登录。')
     }
 
     const binding = requireManagedEmployeeBinding(config.remote?.url)

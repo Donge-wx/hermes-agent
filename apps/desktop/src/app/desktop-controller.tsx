@@ -1056,7 +1056,7 @@ export function DesktopController() {
       <RemoteDisplayBanner />
       {!isSecondaryWindow() && <ManagedEmployeeFirstRun />}
       {!isSecondaryWindow() && <DesktopInstallOverlay />}
-      {!isSecondaryWindow() && (
+      {!isSecondaryWindow() && !IS_VANYUE_MANAGED_RELEASE && (
         <DesktopOnboardingOverlay
           enabled={gatewayState === 'open'}
           onCompleted={() => {
