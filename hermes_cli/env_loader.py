@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import os
+import re
 import sys
+from dataclasses import dataclass
+from math import isfinite
 from pathlib import Path
 
-from dotenv import load_dotenv
+from dotenv import dotenv_values, load_dotenv
 from utils import atomic_replace, fast_safe_load
 
 
@@ -38,6 +41,257 @@ _SECRET_SOURCES: dict[str, str] = {}
 # config re-parse, and the ASCII sanitization sweep still ran every time.
 _APPLIED_HOMES: set[str] = set()
 
+
+# A managed employee backend is launched with these values supplied by an
+# administrator-controlled launcher.  The employee's HERMES_HOME/.env is
+# intentionally writable so it can hold normal per-user preferences, but it
+# must never be able to turn that backend into a different tenant, replace the
+# shared Codex credential location, or loosen the attachment-upload limits.
+#
+# Keep this list in one place rather than making the web and TUI entrypoints
+# individually attempt to repair the environment after they have imported
+# settings.  load_hermes_dotenv() is the common early boundary for every
+# backend entrypoint.
+_MANAGED_EMPLOYEE_MARKER = "HERMES_MANAGED_EMPLOYEE"
+_MANAGED_EMPLOYEE_DIR = "HERMES_MANAGED_DIR"
+_MANAGED_EMPLOYEE_TRUE = frozenset({"1", "true", "yes", "on"})
+_MANAGED_EMPLOYEE_FALSE = frozenset({"0", "false", "no", "off"})
+_MANAGED_EMPLOYEE_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$")
+
+# The managed directory is the locator for the protected policy file rather
+# than a key inside that policy file.  Including it in the policy would make a
+# file responsible for choosing its own trust root.  It is nevertheless kept
+# in the launcher snapshot and restored before every managed-policy lookup.
+_MANAGED_EMPLOYEE_LAUNCH_KEYS = (
+    _MANAGED_EMPLOYEE_MARKER,
+    _MANAGED_EMPLOYEE_DIR,
+    "HERMES_EMPLOYEE_NAME",
+    "HERMES_EMPLOYEE_HOME",
+    "HERMES_HOME",
+    "HERMES_SHARED_CODEX_AUTH_FILE",
+    "HERMES_ENABLE_HTTP_SESSION_UPLOAD",
+    "HERMES_SESSION_ATTACHMENT_MAX_BYTES",
+    "HERMES_SESSION_ATTACHMENT_HTTP_CHUNK_BYTES",
+    "HERMES_SESSION_ATTACHMENT_HTTP_MAX_INFLIGHT",
+    "HERMES_FILE_ATTACH_MAX_CHUNK_BYTES",
+    "HERMES_FILE_ATTACH_MAX_TOTAL_BYTES",
+    "HERMES_FILE_ATTACH_MAX_ACTIVE_UPLOADS",
+    "HERMES_FILE_ATTACH_STALE_SECONDS",
+    "HERMES_FILE_ATTACH_FREE_SPACE_RESERVE_BYTES",
+)
+
+# Every launch anchor except the policy-directory locator must be repeated in
+# the protected policy.  That makes a partially deployed employee backend fail
+# closed instead of silently falling back to a user-controlled .env value.
+_MANAGED_EMPLOYEE_POLICY_KEYS = tuple(
+    key for key in _MANAGED_EMPLOYEE_LAUNCH_KEYS if key != _MANAGED_EMPLOYEE_DIR
+)
+_MANAGED_EMPLOYEE_PATH_KEYS = frozenset(
+    {
+        _MANAGED_EMPLOYEE_DIR,
+        "HERMES_EMPLOYEE_HOME",
+        "HERMES_HOME",
+        "HERMES_SHARED_CODEX_AUTH_FILE",
+    }
+)
+_MANAGED_EMPLOYEE_BOOLEAN_KEYS = frozenset(
+    {_MANAGED_EMPLOYEE_MARKER, "HERMES_ENABLE_HTTP_SESSION_UPLOAD"}
+)
+_MANAGED_EMPLOYEE_INTEGER_KEYS = frozenset(
+    {
+        "HERMES_SESSION_ATTACHMENT_MAX_BYTES",
+        "HERMES_SESSION_ATTACHMENT_HTTP_CHUNK_BYTES",
+        "HERMES_SESSION_ATTACHMENT_HTTP_MAX_INFLIGHT",
+        "HERMES_FILE_ATTACH_MAX_CHUNK_BYTES",
+        "HERMES_FILE_ATTACH_MAX_TOTAL_BYTES",
+        "HERMES_FILE_ATTACH_MAX_ACTIVE_UPLOADS",
+        "HERMES_FILE_ATTACH_FREE_SPACE_RESERVE_BYTES",
+    }
+)
+_MANAGED_EMPLOYEE_FLOAT_KEYS = frozenset({"HERMES_FILE_ATTACH_STALE_SECONDS"})
+
+
+class ManagedEmployeeLaunchEnvironmentError(RuntimeError):
+    """A managed employee launcher or its protected policy is incomplete.
+
+    Raising at dotenv load time is intentional.  Proceeding with an employee
+    .env that can relocate the tenant or change upload quotas creates an
+    ambiguous, cross-tenant security boundary, so this deployment mode fails
+    closed instead.
+    """
+
+
+@dataclass(frozen=True)
+class _ManagedEmployeeLaunchSnapshot:
+    """Administrator-supplied environment captured before user dotenv files."""
+
+    values: dict[str, str]
+
+
+def _managed_employee_marker_is_true(value: object) -> bool:
+    return str(value or "").strip().casefold() in _MANAGED_EMPLOYEE_TRUE
+
+
+def _managed_employee_marker_is_valid(value: object) -> bool:
+    normalized = str(value or "").strip().casefold()
+    return normalized in _MANAGED_EMPLOYEE_TRUE | _MANAGED_EMPLOYEE_FALSE
+
+
+def _managed_employee_path_value(key: str, value: str) -> str:
+    """Return a normalized absolute path or fail without exposing its value."""
+    try:
+        path = Path(value).expanduser()
+        if not path.is_absolute():
+            raise ValueError("not absolute")
+        return os.path.normcase(str(path.resolve(strict=False)))
+    except (OSError, RuntimeError, ValueError) as exc:
+        raise ManagedEmployeeLaunchEnvironmentError(
+            f"Managed employee launch value {key} must be an absolute path"
+        ) from exc
+
+
+def _normalized_managed_employee_value(key: str, value: str) -> object:
+    """Validate a protected launch value and normalize it for comparison."""
+    text = str(value or "").strip()
+    if not text:
+        raise ManagedEmployeeLaunchEnvironmentError(
+            f"Managed employee launch value {key} is required"
+        )
+    if key in _MANAGED_EMPLOYEE_PATH_KEYS:
+        return _managed_employee_path_value(key, text)
+    if key in _MANAGED_EMPLOYEE_BOOLEAN_KEYS:
+        if not _managed_employee_marker_is_valid(text):
+            raise ManagedEmployeeLaunchEnvironmentError(
+                f"Managed employee launch value {key} must be a boolean"
+            )
+        return text.casefold() in _MANAGED_EMPLOYEE_TRUE
+    if key in _MANAGED_EMPLOYEE_INTEGER_KEYS:
+        try:
+            number = int(text)
+        except (TypeError, ValueError) as exc:
+            raise ManagedEmployeeLaunchEnvironmentError(
+                f"Managed employee launch value {key} must be a positive integer"
+            ) from exc
+        if number <= 0:
+            raise ManagedEmployeeLaunchEnvironmentError(
+                f"Managed employee launch value {key} must be a positive integer"
+            )
+        return number
+    if key in _MANAGED_EMPLOYEE_FLOAT_KEYS:
+        try:
+            number = float(text)
+        except (TypeError, ValueError) as exc:
+            raise ManagedEmployeeLaunchEnvironmentError(
+                f"Managed employee launch value {key} must be a positive number"
+            ) from exc
+        if not isfinite(number) or number <= 0:
+            raise ManagedEmployeeLaunchEnvironmentError(
+                f"Managed employee launch value {key} must be a positive number"
+            )
+        return number
+    if key == "HERMES_EMPLOYEE_NAME":
+        if not _MANAGED_EMPLOYEE_NAME_RE.fullmatch(text):
+            raise ManagedEmployeeLaunchEnvironmentError(
+                "Managed employee launch value HERMES_EMPLOYEE_NAME is invalid"
+            )
+        if text.casefold() == "admin":
+            raise ManagedEmployeeLaunchEnvironmentError(
+                "Managed employee launch value HERMES_EMPLOYEE_NAME cannot be admin"
+            )
+    return text
+
+
+def _capture_managed_employee_launch_snapshot(
+) -> _ManagedEmployeeLaunchSnapshot | None:
+    """Capture and validate administrator launch values before user .env loads.
+
+    Only a process that was *started* with an explicit true marker gets this
+    strict handling.  A legacy user .env with stale EMPLOYEE_* values remains
+    ordinary, preserving the existing compatibility contract.
+    """
+    marker = os.environ.get(_MANAGED_EMPLOYEE_MARKER, "")
+    if not _managed_employee_marker_is_true(marker):
+        return None
+
+    values = {
+        key: str(os.environ.get(key, "") or "").strip()
+        for key in _MANAGED_EMPLOYEE_LAUNCH_KEYS
+    }
+    # Validate every value before any user-controlled dotenv file can replace
+    # it.  The marker itself must remain explicitly true for managed mode.
+    normalized = {
+        key: _normalized_managed_employee_value(key, value)
+        for key, value in values.items()
+    }
+    if normalized[_MANAGED_EMPLOYEE_MARKER] is not True:
+        raise ManagedEmployeeLaunchEnvironmentError(
+            "Managed employee launcher must set HERMES_MANAGED_EMPLOYEE=true"
+        )
+    if normalized["HERMES_HOME"] != normalized["HERMES_EMPLOYEE_HOME"]:
+        raise ManagedEmployeeLaunchEnvironmentError(
+            "Managed employee launcher HERMES_HOME must match HERMES_EMPLOYEE_HOME"
+        )
+    return _ManagedEmployeeLaunchSnapshot(values=values)
+
+
+def _restore_managed_employee_launch_snapshot(
+    snapshot: _ManagedEmployeeLaunchSnapshot,
+) -> None:
+    """Reassert launcher anchors after an employee-writable dotenv load."""
+    os.environ.update(snapshot.values)
+
+
+def _read_managed_employee_policy(path: Path) -> dict[str, str]:
+    """Read the protected policy with the same dotenv syntax used at runtime."""
+    try:
+        raw = dotenv_values(dotenv_path=path, encoding="utf-8")
+    except UnicodeDecodeError:
+        raw = dotenv_values(dotenv_path=path, encoding="latin-1")
+    return {
+        str(key): str(value).strip()
+        for key, value in raw.items()
+        if key is not None and value is not None
+    }
+
+
+def _validate_managed_employee_policy(
+    snapshot: _ManagedEmployeeLaunchSnapshot,
+) -> None:
+    """Require a complete policy that agrees with the protected launcher."""
+    managed_dir = Path(snapshot.values[_MANAGED_EMPLOYEE_DIR]).expanduser()
+    managed_env = managed_dir / ".env"
+    if not managed_dir.is_dir():
+        raise ManagedEmployeeLaunchEnvironmentError(
+            "Managed employee policy directory is missing"
+        )
+    if not managed_env.is_file():
+        raise ManagedEmployeeLaunchEnvironmentError(
+            "Managed employee policy .env is missing"
+        )
+    try:
+        policy = _read_managed_employee_policy(managed_env)
+    except Exception as exc:  # noqa: BLE001 - policy parsing must fail closed
+        raise ManagedEmployeeLaunchEnvironmentError(
+            "Managed employee policy .env could not be read"
+        ) from exc
+    missing = [
+        key
+        for key in _MANAGED_EMPLOYEE_POLICY_KEYS
+        if not policy.get(key, "").strip()
+    ]
+    if missing:
+        raise ManagedEmployeeLaunchEnvironmentError(
+            "Managed employee policy .env is missing required keys: "
+            + ", ".join(missing)
+        )
+
+    for key in _MANAGED_EMPLOYEE_POLICY_KEYS:
+        expected = _normalized_managed_employee_value(key, snapshot.values[key])
+        actual = _normalized_managed_employee_value(key, policy[key])
+        if actual != expected:
+            raise ManagedEmployeeLaunchEnvironmentError(
+                f"Managed employee policy value for {key} does not match the launcher"
+            )
 
 def get_secret_source(env_var: str) -> str | None:
     """Return the label of the secret source that supplied ``env_var``, if any.
@@ -229,8 +483,18 @@ def load_hermes_dotenv(
     - project `.env` acts as a dev fallback and only fills missing values when
       the user env exists.
     - if no user env exists, the project `.env` also overrides stale shell vars.
+
+    A backend that was launched with ``HERMES_MANAGED_EMPLOYEE=true`` has one
+    additional invariant: its user-writable ``HERMES_HOME/.env`` may not alter
+    tenant identity, the shared Codex auth path, or attachment upload limits.
+    Those anchors are captured before any dotenv load, reasserted before the
+    protected policy is read, and required to agree with that policy.
     """
     loaded: list[Path] = []
+
+    # Must happen before resolving the user .env: HERMES_HOME itself is a
+    # protected managed-launch anchor.
+    managed_employee_snapshot = _capture_managed_employee_launch_snapshot()
 
     home_path = Path(hermes_home or os.getenv("HERMES_HOME", Path.home() / ".hermes"))
     user_env = home_path / ".env"
@@ -264,8 +528,21 @@ def load_hermes_dotenv(
         _load_dotenv_with_fallback(project_env_path, override=not loaded)
         loaded.append(project_env_path)
 
+    if managed_employee_snapshot is not None:
+        # Do this before external secret sources and managed_scope lookup.  A
+        # malicious or stale employee .env must not choose a different home,
+        # tenant, auth file, or HERMES_MANAGED_DIR for either of those steps.
+        _restore_managed_employee_launch_snapshot(managed_employee_snapshot)
+        _validate_managed_employee_policy(managed_employee_snapshot)
+
     _apply_external_secret_sources(home_path)
     _apply_managed_env()
+
+    if managed_employee_snapshot is not None:
+        # The policy was validated to be equivalent, but restoring again makes
+        # the invariant explicit even if a future managed-scope loader or
+        # secret source gains a new side effect.
+        _restore_managed_employee_launch_snapshot(managed_employee_snapshot)
 
     return loaded
 
