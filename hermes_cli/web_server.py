@@ -3630,6 +3630,35 @@ def _validate_messaging_env_value(platform_id: str, key: str, value: str) -> Non
             )
 
 
+def _require_managed_employee_gateway_lifecycle(verb: str) -> None:
+    """Keep employee dashboards from bypassing the scheduled-task gateway.
+
+    The enterprise launcher owns the employee gateway process and supplies its
+    detached-console and upload-restart-guard policy. Calling stock Hermes
+    lifecycle commands from an employee dashboard can create a second gateway
+    outside that launcher, so every lifecycle mutation must go through the
+    administrator-owned control plane instead.
+    """
+    managed = os.environ.get("HERMES_MANAGED_EMPLOYEE", "").strip().lower()
+    employee = os.environ.get("HERMES_EMPLOYEE_NAME", "").strip()
+    if managed not in {"1", "true", "yes", "on"} or not employee or employee.casefold() == "admin":
+        return
+    raise HTTPException(
+        status_code=409,
+        detail={
+            "code": "enterprise_managed_gateway_lifecycle_required",
+            "message": (
+                "This employee gateway is managed by an administrator-owned "
+                "Scheduled Task. Ask an administrator to use the enterprise "
+                "gateway lifecycle tooling."
+            ),
+            "action": verb,
+            "employee_id": employee,
+            "task_name": f"HermesEmployeeGateway-{employee}",
+        },
+    )
+
+
 def _spawn_gateway_restart(profile: Optional[str] = None) -> Tuple[subprocess.Popen, bool]:
     """Spawn ``hermes gateway restart``, reusing an in-flight restart.
 
@@ -3641,6 +3670,7 @@ def _spawn_gateway_restart(profile: Optional[str] = None) -> Tuple[subprocess.Po
 
     Returns ``(proc, reused)``.
     """
+    _require_managed_employee_gateway_lifecycle("restart")
     subcommand = _gateway_subcommand(profile, "restart")
     existing = _ACTION_PROCS.get("gateway-restart")
     if existing is not None and existing.poll() is None:
@@ -8720,6 +8750,16 @@ async def disconnect_oauth_provider(
 ):
     """Disconnect an OAuth provider. Token-protected (matches /env/reveal)."""
     _require_token(request)
+    if provider_id == "openai-codex":
+        from hermes_cli.auth import (
+            _shared_codex_auth_file_path,
+            _shared_codex_actor_is_admin,
+        )
+        if _shared_codex_auth_file_path() is not None and not _shared_codex_actor_is_admin():
+            raise HTTPException(
+                status_code=403,
+                detail="Only the enterprise administrator may disconnect shared OpenAI Codex authentication.",
+            )
 
     with _profile_scope(profile):
         catalog_by_id = {p["id"]: p for p in _build_oauth_catalog()}
@@ -9656,6 +9696,16 @@ async def start_oauth_login(
 ):
     """Initiate an OAuth login flow. Token-protected."""
     _require_token(request)
+    if provider_id == "openai-codex":
+        from hermes_cli.auth import (
+            _shared_codex_auth_file_path,
+            _shared_codex_actor_is_admin,
+        )
+        if _shared_codex_auth_file_path() is not None and not _shared_codex_actor_is_admin():
+            raise HTTPException(
+                status_code=403,
+                detail="Only the enterprise administrator may replace shared OpenAI Codex authentication.",
+            )
     _gc_oauth_sessions()
     _validate_oauth_profile(profile)
     valid = {p["id"] for p in _OAUTH_PROVIDER_CATALOG}
@@ -11719,6 +11769,7 @@ async def set_webhook_enabled(name: str, body: WebhookEnabledToggle):
 @app.post("/api/gateway/start")
 async def start_gateway(profile: Optional[str] = None):
     try:
+        _require_managed_employee_gateway_lifecycle("start")
         proc = _spawn_hermes_action(_gateway_subcommand(profile, "start"), "gateway-start")
     except HTTPException:
         raise
@@ -11731,6 +11782,7 @@ async def start_gateway(profile: Optional[str] = None):
 @app.post("/api/gateway/stop")
 async def stop_gateway(profile: Optional[str] = None):
     try:
+        _require_managed_employee_gateway_lifecycle("stop")
         proc = _spawn_hermes_action(_gateway_subcommand(profile, "stop"), "gateway-stop")
     except HTTPException:
         raise

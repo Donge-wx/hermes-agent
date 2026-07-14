@@ -669,10 +669,21 @@ class CredentialPool:
         """
         if self.provider != "openai-codex" or entry.source != "device_code":
             return entry
+        shared_path = auth_mod._shared_codex_auth_file_path()
         try:
-            with _auth_store_lock():
-                auth_store = _load_auth_store()
-                state = _load_provider_state(auth_store, "openai-codex")
+            if shared_path is not None:
+                with auth_mod._codex_auth_store_lock():
+                    auth_store = auth_mod._load_shared_codex_store(shared_path)
+                providers = auth_store.get("providers")
+                state = (
+                    providers.get("openai-codex")
+                    if isinstance(providers, dict)
+                    else None
+                )
+            else:
+                with _auth_store_lock():
+                    auth_store = _load_auth_store()
+                    state = _load_provider_state(auth_store, "openai-codex")
             if not isinstance(state, dict):
                 return entry
             tokens = state.get("tokens")
@@ -711,6 +722,8 @@ class CredentialPool:
                 self._persist()
                 return updated
         except Exception as exc:
+            if shared_path is not None:
+                raise RuntimeError("shared Codex auth re-sync failed") from exc
             logger.debug("Failed to sync Codex entry from auth.json: %s", exc)
         return entry
 
@@ -872,6 +885,39 @@ class CredentialPool:
         # device-code sources (nous, openai-codex, xAI) use ``device_code``.
         if entry.source != "device_code":
             return
+        shared_path = auth_mod._shared_codex_auth_file_path()
+        if self.provider == "openai-codex" and shared_path is not None:
+            if not auth_mod._shared_codex_actor_is_admin():
+                raise PermissionError("employees have read-only access to shared Codex auth")
+            try:
+                with auth_mod._codex_auth_store_lock():
+                    shared_store = auth_mod._load_shared_codex_store(shared_path)
+                    providers = shared_store.get("providers")
+                    state = (
+                        providers.get("openai-codex")
+                        if isinstance(providers, dict)
+                        else None
+                    )
+                    if not isinstance(state, dict):
+                        raise RuntimeError("shared Codex provider state is missing")
+                    tokens = state.get("tokens")
+                    if not isinstance(tokens, dict):
+                        raise RuntimeError("shared Codex token state is invalid")
+                    tokens["access_token"] = entry.access_token
+                    if entry.refresh_token:
+                        tokens["refresh_token"] = entry.refresh_token
+                    if entry.last_refresh:
+                        state["last_refresh"] = entry.last_refresh
+                    _store_provider_state(
+                        shared_store,
+                        "openai-codex",
+                        state,
+                        set_active=False,
+                    )
+                    _save_auth_store(shared_store, target_path=shared_path)
+                return
+            except Exception as exc:
+                raise RuntimeError("shared Codex auth persist failed") from exc
         try:
             with _auth_store_lock():
                 auth_store = _load_auth_store()
@@ -974,6 +1020,18 @@ class CredentialPool:
         # When a waiter finally acquires the lock, the in-lock re-sync below
         # picks up the rotated token the winner persisted and skips the POST.
         if self.provider == "openai-codex":
+            if (
+                auth_mod._shared_codex_auth_file_path() is not None
+                and not auth_mod._shared_codex_actor_is_admin()
+            ):
+                synced = self._sync_codex_entry_from_auth_store(entry)
+                if synced is not entry:
+                    entry = synced
+                if not force and not self._entry_needs_refresh(entry):
+                    return entry
+                raise RuntimeError(
+                    "shared Codex refresh is reserved for the administrator refresh service"
+                )
             refresh_timeout_seconds = auth_mod.env_float(
                 "HERMES_CODEX_REFRESH_TIMEOUT_SECONDS", 20
             )
@@ -981,7 +1039,7 @@ class CredentialPool:
                 float(auth_mod.AUTH_LOCK_TIMEOUT_SECONDS),
                 float(refresh_timeout_seconds) + 5.0,
             )
-            with _auth_store_lock(timeout_seconds=lock_timeout):
+            with auth_mod._codex_auth_store_lock(timeout_seconds=lock_timeout):
                 synced = self._sync_codex_entry_from_auth_store(entry)
                 if synced is not entry:
                     entry = synced
@@ -1021,6 +1079,13 @@ class CredentialPool:
                     except Exception as wexc:
                         logger.debug("Failed to write refreshed token to credentials file: %s", wexc)
             elif self.provider == "openai-codex":
+                if (
+                    auth_mod._shared_codex_auth_file_path() is not None
+                    and not auth_mod._shared_codex_actor_is_admin()
+                ):
+                    raise RuntimeError(
+                        "shared Codex refresh is reserved for the administrator refresh service"
+                    )
                 # Adopt fresher tokens from auth.json before spending the
                 # refresh_token — single-use tokens consumed by another Hermes
                 # process sharing the same auth.json singleton would otherwise
@@ -1212,10 +1277,37 @@ class CredentialPool:
                     logger.debug(
                         "Codex OAuth refresh token is terminally invalid; clearing local token state"
                     )
+                    if (
+                        auth_mod._shared_codex_auth_file_path() is not None
+                        and not auth_mod._shared_codex_actor_is_admin()
+                    ):
+                        raise RuntimeError(
+                            "shared Codex credential is invalid; administrator intervention is required"
+                        )
                     try:
-                        with _auth_store_lock():
-                            auth_store = _load_auth_store()
-                            state = _load_provider_state(auth_store, "openai-codex") or {}
+                        shared_path = auth_mod._shared_codex_auth_file_path()
+                        lock = (
+                            auth_mod._codex_auth_store_lock
+                            if shared_path is not None
+                            else _auth_store_lock
+                        )
+                        with lock():
+                            auth_store = (
+                                auth_mod._load_shared_codex_store(shared_path)
+                                if shared_path is not None
+                                else _load_auth_store()
+                            )
+                            if shared_path is not None:
+                                providers = auth_store.get("providers")
+                                state = (
+                                    providers.get("openai-codex")
+                                    if isinstance(providers, dict)
+                                    else {}
+                                )
+                            else:
+                                state = _load_provider_state(
+                                    auth_store, "openai-codex"
+                                ) or {}
                             if isinstance(state, dict):
                                 tokens = state.get("tokens") or {}
                                 if isinstance(tokens, dict):
@@ -1234,7 +1326,10 @@ class CredentialPool:
                                             "at": datetime.now(timezone.utc).isoformat(),
                                         }
                                         _save_provider_state(auth_store, "openai-codex", state)
-                                        _save_auth_store(auth_store)
+                                        _save_auth_store(
+                                            auth_store,
+                                            target_path=shared_path,
+                                        )
                     except Exception as clear_exc:
                         logger.debug(
                             "Failed to clear terminal Codex OAuth state: %s", clear_exc

@@ -985,6 +985,126 @@ def _auth_lock_path() -> Path:
 
 
 _auth_lock_holder = threading.local()
+_shared_codex_lock_holder = threading.local()
+
+
+def _shared_codex_auth_file_path() -> Optional[Path]:
+    """Return the explicit enterprise Codex store without changing HERMES_HOME.
+
+    Only OpenAI Codex call sites use this path. Every other provider keeps
+    using the employee-local auth.json selected by HERMES_HOME.
+    """
+    raw = os.environ.get("HERMES_SHARED_CODEX_AUTH_FILE", "").strip()
+    if not raw:
+        return None
+    path = Path(raw).expanduser()
+    if not path.is_absolute():
+        raise RuntimeError("HERMES_SHARED_CODEX_AUTH_FILE must be absolute")
+    path = Path(os.path.abspath(os.fspath(path)))
+    if path.name.lower() != "auth.json":
+        raise RuntimeError("shared Codex auth path must end with auth.json")
+    if path.exists():
+        info = path.lstat()
+        attributes = int(getattr(info, "st_file_attributes", 0) or 0)
+        if not path.is_file() or path.is_symlink() or attributes & 0x400:
+            raise RuntimeError("shared Codex auth path must be a regular file")
+    return path
+
+
+def _shared_codex_actor_is_admin() -> bool:
+    """Only the enterprise control process may mutate shared account shape."""
+    if _shared_codex_auth_file_path() is None:
+        return True
+    return os.environ.get("HERMES_EMPLOYEE_NAME", "").strip().lower() == "admin"
+
+
+def _require_shared_codex_admin(action: str) -> None:
+    if not _shared_codex_actor_is_admin():
+        raise PermissionError(f"only the enterprise administrator may {action} shared Codex auth")
+
+
+def _same_path(left: Path, right: Path) -> bool:
+    return os.path.normcase(os.path.abspath(os.fspath(left))) == os.path.normcase(
+        os.path.abspath(os.fspath(right))
+    )
+
+
+def _load_shared_codex_store(path: Optional[Path] = None) -> Dict[str, Any]:
+    """Strictly read the shared store; malformed JSON must fail closed."""
+    path = path or _shared_codex_auth_file_path()
+    if path is None or not path.is_file():
+        raise RuntimeError("shared Codex auth store is missing")
+
+    def reject_duplicates(pairs: list[tuple[str, Any]]) -> Dict[str, Any]:
+        result: Dict[str, Any] = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError(f"duplicate JSON property: {key}")
+            result[key] = value
+        return result
+
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8-sig"), object_pairs_hook=reject_duplicates)
+    except Exception as exc:
+        raise RuntimeError("shared Codex auth store is unreadable or malformed") from exc
+    if not isinstance(payload, dict):
+        raise RuntimeError("shared Codex auth store must contain a JSON object")
+    payload.setdefault("providers", {})
+    return payload
+
+
+def _codex_snapshot_file_path() -> Optional[Path]:
+    raw = os.environ.get("HERMES_CODEX_SNAPSHOT_FILE", "").strip()
+    if not raw:
+        return None
+    path = Path(raw).expanduser()
+    if not path.is_absolute():
+        raise RuntimeError("HERMES_CODEX_SNAPSHOT_FILE must be absolute")
+    return Path(os.path.abspath(os.fspath(path)))
+
+
+def _publish_shared_codex_snapshot(auth_store: Dict[str, Any]) -> Optional[Path]:
+    """Atomically publish an access-token-only employee snapshot."""
+    snapshot_path = _codex_snapshot_file_path()
+    if snapshot_path is None:
+        return None
+    _require_shared_codex_admin("publish")
+    providers = auth_store.get("providers")
+    state = providers.get("openai-codex") if isinstance(providers, dict) else None
+    snapshot: Dict[str, Any] = {
+        "version": AUTH_STORE_VERSION,
+        "providers": {},
+        "credential_pool": {},
+    }
+    if isinstance(state, dict):
+        tokens = state.get("tokens")
+        access_token = tokens.get("access_token") if isinstance(tokens, dict) else None
+        if isinstance(access_token, str) and access_token.strip():
+            public_tokens: Dict[str, Any] = {"access_token": access_token.strip()}
+            account_id = tokens.get("account_id") if isinstance(tokens, dict) else None
+            if isinstance(account_id, str) and account_id.strip():
+                public_tokens["account_id"] = account_id.strip()
+            public_state = {
+                "tokens": public_tokens,
+                "auth_mode": state.get("auth_mode") or "chatgpt",
+                "last_refresh": state.get("last_refresh"),
+            }
+            snapshot["providers"]["openai-codex"] = public_state
+            snapshot["credential_pool"]["openai-codex"] = [{
+                "id": "shared",
+                "label": "Enterprise Codex",
+                "auth_type": "oauth",
+                "priority": 0,
+                "source": "device_code",
+                "access_token": access_token.strip(),
+                "base_url": DEFAULT_CODEX_BASE_URL,
+                "last_refresh": state.get("last_refresh"),
+            }]
+            snapshot["active_provider"] = "openai-codex"
+    serialized = json.dumps(snapshot, ensure_ascii=False).lower()
+    if "refresh_token" in serialized or "id_token" in serialized:
+        raise RuntimeError("employee Codex snapshot contains a forbidden token field")
+    return _save_auth_store(snapshot, target_path=snapshot_path)
 
 
 @contextmanager
@@ -1078,6 +1198,29 @@ def _auth_store_lock(timeout_seconds: float = AUTH_LOCK_TIMEOUT_SECONDS):
         yield
 
 
+@contextmanager
+def _codex_auth_store_lock(timeout_seconds: float = AUTH_LOCK_TIMEOUT_SECONDS):
+    """Use one cross-process lock for the explicit shared Codex store."""
+    shared_path = _shared_codex_auth_file_path()
+    if shared_path is None:
+        with _auth_store_lock(timeout_seconds=timeout_seconds):
+            yield
+        return
+    if not _shared_codex_actor_is_admin():
+        # Employee service accounts have read-only ACLs on shared-auth.
+        # Atomic replace gives readers a complete old-or-new JSON object, so
+        # they do not need write access to the advisory lock file.
+        yield
+        return
+    with _file_lock(
+        shared_path.with_suffix(".lock"),
+        _shared_codex_lock_holder,
+        timeout_seconds,
+        "Timed out waiting for shared Codex auth store lock",
+    ):
+        yield
+
+
 def _load_auth_store(auth_file: Optional[Path] = None) -> Dict[str, Any]:
     auth_file = auth_file or _auth_file_path()
     if not auth_file.exists():
@@ -1127,6 +1270,13 @@ def _save_auth_store(auth_store: Dict[str, Any], target_path: Optional[Path] = N
     # OAuth grants (#43589) — reusing this function's atomic O_EXCL + 0o600
     # write so the root auth.json gets the same TOCTOU-safe treatment.
     auth_file = target_path if target_path is not None else _auth_file_path()
+    shared_codex = _shared_codex_auth_file_path()
+    if (
+        shared_codex is not None
+        and _same_path(auth_file, shared_codex)
+        and not _shared_codex_actor_is_admin()
+    ):
+        raise PermissionError("employees have read-only access to shared Codex auth")
     auth_file.parent.mkdir(parents=True, exist_ok=True)
     # Tighten parent dir to 0o700 so siblings can't traverse to creds.
     # No-op on Windows (POSIX mode bits not enforced); ignore failures.
@@ -1187,6 +1337,22 @@ def _load_provider_state_with_source(
     the profile would leave the global/root store stale and cause the next
     process to replay an already-consumed refresh token.
     """
+    shared_codex = _shared_codex_auth_file_path()
+    if provider_id == "openai-codex" and shared_codex is not None:
+        with _codex_auth_store_lock():
+            shared_store = _load_shared_codex_store(shared_codex)
+        shared_providers = shared_store.get("providers")
+        shared_state = (
+            shared_providers.get(provider_id)
+            if isinstance(shared_providers, dict)
+            else None
+        )
+        return (
+            (dict(shared_state), shared_codex)
+            if isinstance(shared_state, dict)
+            else (None, shared_codex)
+        )
+
     providers = auth_store.get("providers")
     if isinstance(providers, dict):
         state = providers.get(provider_id)
@@ -1235,6 +1401,20 @@ def _save_provider_state_to_source(
     source_path: Optional[Path],
 ) -> None:
     """Persist provider state back to the auth store it was read from."""
+    shared_codex = _shared_codex_auth_file_path()
+    if (
+        provider_id == "openai-codex"
+        and shared_codex is not None
+        and source_path is not None
+        and _same_path(source_path, shared_codex)
+    ):
+        _require_shared_codex_admin("write")
+        with _codex_auth_store_lock():
+            source_store = _load_shared_codex_store(shared_codex)
+            _save_provider_state(source_store, provider_id, state)
+            _save_auth_store(source_store, target_path=shared_codex)
+        return
+
     active_path = _auth_file_path()
     if source_path is None:
         source_path = active_path
@@ -1319,6 +1499,22 @@ def read_credential_pool(provider_id: Optional[str] = None) -> Dict[str, Any]:
     if not isinstance(pool, dict):
         pool = {}
 
+    shared_codex_entries: Optional[List[Dict[str, Any]]] = None
+    shared_codex = _shared_codex_auth_file_path()
+    if shared_codex is not None:
+        with _codex_auth_store_lock():
+            shared_store = _load_shared_codex_store(shared_codex)
+        shared_pool = shared_store.get("credential_pool")
+        raw_entries = (
+            shared_pool.get("openai-codex")
+            if isinstance(shared_pool, dict)
+            else None
+        )
+        shared_codex_entries = list(raw_entries) if isinstance(raw_entries, list) else []
+
+    if provider_id == "openai-codex" and shared_codex_entries is not None:
+        return shared_codex_entries
+
     global_pool: Dict[str, Any] = {}
     global_store = _load_global_auth_store()
     maybe_global_pool = global_store.get("credential_pool") if global_store else None
@@ -1335,6 +1531,8 @@ def read_credential_pool(provider_id: Optional[str] = None) -> Dict[str, Any]:
             if isinstance(existing, list) and existing:
                 continue
             merged[gp_key] = list(gp_entries)
+        if shared_codex_entries is not None:
+            merged["openai-codex"] = shared_codex_entries
         return merged
 
     provider_entries = pool.get(provider_id)
@@ -1366,8 +1564,15 @@ def write_credential_pool(
     merge does not resurrect them from the on-disk copy.
     """
     removed = {rid for rid in (removed_ids or ()) if rid}
-    with _auth_store_lock():
-        auth_store = _load_auth_store()
+    shared_codex = _shared_codex_auth_file_path()
+    use_shared = provider_id == "openai-codex" and shared_codex is not None
+    lock = _codex_auth_store_lock if use_shared else _auth_store_lock
+    with lock():
+        auth_store = (
+            _load_shared_codex_store(shared_codex)
+            if use_shared
+            else _load_auth_store()
+        )
         pool = auth_store.get("credential_pool")
         if not isinstance(pool, dict):
             pool = {}
@@ -1379,6 +1584,37 @@ def write_credential_pool(
         ]
         existing = pool.get(provider_id)
         existing_list = existing if isinstance(existing, list) else []
+        if use_shared and not _shared_codex_actor_is_admin():
+            existing_by_id = {
+                item.get("id"): item
+                for item in existing_list
+                if isinstance(item, dict) and item.get("id")
+            }
+            incoming_by_id = {
+                item.get("id"): item
+                for item in sanitized_entries
+                if isinstance(item, dict) and item.get("id")
+            }
+            if (
+                removed
+                or len(existing_by_id) != len(existing_list)
+                or len(incoming_by_id) != len(sanitized_entries)
+                or set(existing_by_id) != set(incoming_by_id)
+            ):
+                raise PermissionError(
+                    "employees may not add or remove shared Codex credentials"
+                )
+            for entry_id, old in existing_by_id.items():
+                new = incoming_by_id[entry_id]
+                if old.get("source") != new.get("source") or old.get("auth_type") != new.get("auth_type"):
+                    raise PermissionError("employees may not change shared Codex credential identity")
+                for field in ("access_token", "refresh_token", "api_key", "token"):
+                    if old.get(field) != new.get(field):
+                        raise PermissionError("employees may not change shared Codex token fields")
+            # Employee runtime status is intentionally process-local. The
+            # canonical shared pool is administrator/SYSTEM-owned and remains
+            # byte-for-byte unchanged.
+            return shared_codex
         new_ids = {
             entry.get("id")
             for entry in sanitized_entries
@@ -1393,11 +1629,25 @@ def write_credential_pool(
                 continue
             merged.append(sanitize_borrowed_credential_payload(disk_entry, provider_id))
         pool[provider_id] = merged
-        return _save_auth_store(auth_store)
+        return _save_auth_store(
+            auth_store,
+            target_path=shared_codex if use_shared else None,
+        )
 
 
 def suppress_credential_source(provider_id: str, source: str) -> None:
     """Mark a credential source as suppressed so it won't be re-seeded."""
+    shared_codex = _shared_codex_auth_file_path()
+    if provider_id == "openai-codex" and shared_codex is not None:
+        _require_shared_codex_admin("suppress")
+        with _codex_auth_store_lock():
+            auth_store = _load_shared_codex_store(shared_codex)
+            suppressed = auth_store.setdefault("suppressed_sources", {})
+            provider_list = suppressed.setdefault(provider_id, [])
+            if source not in provider_list:
+                provider_list.append(source)
+            _save_auth_store(auth_store, target_path=shared_codex)
+        return
     with _auth_store_lock():
         auth_store = _load_auth_store()
         suppressed = auth_store.setdefault("suppressed_sources", {})
@@ -1410,7 +1660,12 @@ def suppress_credential_source(provider_id: str, source: str) -> None:
 def is_source_suppressed(provider_id: str, source: str) -> bool:
     """Check if a credential source has been suppressed by the user."""
     try:
-        auth_store = _load_auth_store()
+        shared_codex = _shared_codex_auth_file_path()
+        auth_store = (
+            _load_shared_codex_store(shared_codex)
+            if provider_id == "openai-codex" and shared_codex is not None
+            else _load_auth_store()
+        )
         suppressed = auth_store.get("suppressed_sources", {})
         return source in suppressed.get(provider_id, [])
     except Exception:
@@ -1422,8 +1677,13 @@ def unsuppress_credential_source(provider_id: str, source: str) -> bool:
 
     Returns True if a marker was cleared, False if no marker existed.
     """
-    with _auth_store_lock():
-        auth_store = _load_auth_store()
+    shared_codex = _shared_codex_auth_file_path()
+    use_shared = provider_id == "openai-codex" and shared_codex is not None
+    if use_shared:
+        _require_shared_codex_admin("unsuppress")
+    lock = _codex_auth_store_lock if use_shared else _auth_store_lock
+    with lock():
+        auth_store = _load_shared_codex_store(shared_codex) if use_shared else _load_auth_store()
         suppressed = auth_store.get("suppressed_sources")
         if not isinstance(suppressed, dict):
             return False
@@ -1435,7 +1695,7 @@ def unsuppress_credential_source(provider_id: str, source: str) -> bool:
             suppressed.pop(provider_id, None)
         if not suppressed:
             auth_store.pop("suppressed_sources", None)
-        _save_auth_store(auth_store)
+        _save_auth_store(auth_store, target_path=shared_codex if use_shared else None)
         return True
 
 
@@ -1546,8 +1806,13 @@ def clear_provider_auth(provider_id: Optional[str] = None) -> bool:
     If provider_id is None, clears the active provider.
     Returns True if something was cleared.
     """
-    with _auth_store_lock():
-        auth_store = _load_auth_store()
+    shared_codex = _shared_codex_auth_file_path()
+    use_shared = provider_id == "openai-codex" and shared_codex is not None
+    if use_shared:
+        _require_shared_codex_admin("clear")
+    lock = _codex_auth_store_lock if use_shared else _auth_store_lock
+    with lock():
+        auth_store = _load_shared_codex_store(shared_codex) if use_shared else _load_auth_store()
         target = provider_id or auth_store.get("active_provider")
         if not target:
             return False
@@ -1576,7 +1841,9 @@ def clear_provider_auth(provider_id: Optional[str] = None) -> bool:
 
         if not cleared:
             return False
-        _save_auth_store(auth_store)
+        _save_auth_store(auth_store, target_path=shared_codex if use_shared else None)
+        if use_shared:
+            _publish_shared_codex_snapshot(auth_store)
     return True
 
 
@@ -3214,12 +3481,28 @@ def _read_codex_tokens(*, _lock: bool = True) -> Dict[str, Any]:
     Returns dict with 'tokens' (access_token, refresh_token) and 'last_refresh'.
     Raises AuthError if no Codex tokens are stored.
     """
+    shared_path = _shared_codex_auth_file_path()
     if _lock:
-        with _auth_store_lock():
-            auth_store = _load_auth_store()
+        with _codex_auth_store_lock():
+            auth_store = (
+                _load_shared_codex_store(shared_path)
+                if shared_path is not None
+                else _load_auth_store()
+            )
     else:
-        auth_store = _load_auth_store()
-    state = _load_provider_state(auth_store, "openai-codex")
+        auth_store = (
+            _load_shared_codex_store(shared_path)
+            if shared_path is not None
+            else _load_auth_store()
+        )
+    if shared_path is not None:
+        providers = auth_store.get("providers")
+        state = providers.get("openai-codex") if isinstance(providers, dict) else None
+        source_path = shared_path
+    else:
+        state, source_path = _load_provider_state_with_source(
+            auth_store, "openai-codex"
+        )
     if not state:
         raise AuthError(
             "No Codex credentials stored. Run `hermes auth` to authenticate.",
@@ -3244,7 +3527,11 @@ def _read_codex_tokens(*, _lock: bool = True) -> Dict[str, Any]:
             code="codex_auth_missing_access_token",
             relogin_required=True,
         )
-    if not isinstance(refresh_token, str) or not refresh_token.strip():
+    employee_snapshot = shared_path is not None and not _shared_codex_actor_is_admin()
+    if (
+        not employee_snapshot
+        and (not isinstance(refresh_token, str) or not refresh_token.strip())
+    ):
         raise AuthError(
             "Codex auth is missing refresh_token. Run `hermes auth` to re-authenticate.",
             provider="openai-codex",
@@ -3254,6 +3541,7 @@ def _read_codex_tokens(*, _lock: bool = True) -> Dict[str, Any]:
     return {
         "tokens": tokens,
         "last_refresh": state.get("last_refresh"),
+        "source_path": source_path,
     }
 
 
@@ -3312,9 +3600,21 @@ def _sync_codex_pool_entries(
     refresh_token = tokens.get("refresh_token")
     pool = auth_store.get("credential_pool")
     if not isinstance(pool, dict):
-        return
+        pool = {}
+        auth_store["credential_pool"] = pool
     entries = pool.get("openai-codex")
-    if not isinstance(entries, list):
+    if not isinstance(entries, list) or not entries:
+        pool["openai-codex"] = [{
+            "id": "shared",
+            "label": "Enterprise Codex",
+            "auth_type": "oauth",
+            "priority": 0,
+            "source": "device_code",
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "base_url": DEFAULT_CODEX_BASE_URL,
+            "last_refresh": last_refresh,
+        }]
         return
     # Previous singleton access_token (before this re-auth overwrote it) —
     # used to distinguish legacy singleton-aliases from independent accounts.
@@ -3358,13 +3658,30 @@ def _sync_codex_pool_entries(
         entry["last_error_reset_at"] = None
 
 
-def _save_codex_tokens(tokens: Dict[str, str], last_refresh: str = None, label: str = None) -> None:
-    """Save Codex OAuth tokens to Hermes auth store (~/.hermes/auth.json)."""
+def _save_codex_tokens(
+    tokens: Dict[str, str],
+    last_refresh: str = None,
+    label: str = None,
+    target_path: Optional[Path] = None,
+) -> None:
+    """Save Codex tokens to the explicit shared store when configured."""
     if last_refresh is None:
         last_refresh = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-    with _auth_store_lock():
-        auth_store = _load_auth_store()
-        state = _load_provider_state(auth_store, "openai-codex") or {}
+    shared_path = _shared_codex_auth_file_path()
+    if shared_path is not None and not _shared_codex_actor_is_admin():
+        raise PermissionError("employees have read-only access to shared Codex auth")
+    auth_path = target_path or shared_path or _auth_file_path()
+    use_shared = shared_path is not None and _same_path(auth_path, shared_path)
+    lock = _codex_auth_store_lock if use_shared else _auth_store_lock
+    with lock():
+        auth_store = (
+            _load_shared_codex_store(shared_path)
+            if use_shared
+            else _load_auth_store(auth_path)
+        )
+        providers = auth_store.get("providers")
+        state = providers.get("openai-codex") if isinstance(providers, dict) else None
+        state = dict(state) if isinstance(state, dict) else {}
         # Capture the previous singleton tokens BEFORE overwriting them.  The
         # pool-sync step uses this to distinguish legacy singleton-aliases
         # (which should be refreshed) from independent accounts that
@@ -3383,10 +3700,14 @@ def _save_codex_tokens(tokens: Dict[str, str], last_refresh: str = None, label: 
             last_refresh,
             previous_singleton_tokens=previous_singleton_tokens,
         )
-        _save_auth_store(auth_store)
+        _save_auth_store(auth_store, target_path=auth_path)
+        if use_shared:
+            _publish_shared_codex_snapshot(auth_store)
 
 
-def _recover_codex_tokens_from_cli(reason: str) -> Optional[Dict[str, str]]:
+def _recover_codex_tokens_from_cli(
+    reason: str, target_path: Optional[Path] = None
+) -> Optional[Dict[str, str]]:
     """Adopt a valid Codex CLI token pair into Hermes auth, if available."""
     imported = _import_codex_cli_tokens()
     # Require BOTH tokens before adopting: persisting a payload without a
@@ -3398,7 +3719,7 @@ def _recover_codex_tokens_from_cli(reason: str) -> Optional[Dict[str, str]]:
     ):
         return None
     logger.info("Codex auth recovered from Codex CLI auth.json (%s).", reason)
-    _save_codex_tokens(imported)
+    _save_codex_tokens(imported, target_path=target_path)
     return dict(imported)
 
 
@@ -3409,6 +3730,13 @@ def refresh_codex_oauth_pure(
     timeout_seconds: float = 20.0,
 ) -> Dict[str, Any]:
     """Refresh Codex OAuth tokens without mutating Hermes auth state."""
+    if (
+        _shared_codex_auth_file_path() is not None
+        and not _shared_codex_actor_is_admin()
+    ):
+        raise PermissionError(
+            "shared Codex refresh is reserved for the administrator refresh service"
+        )
     del access_token  # Access token is only used by callers to decide whether to refresh.
     if not isinstance(refresh_token, str) or not refresh_token.strip():
         raise AuthError(
@@ -3539,11 +3867,13 @@ def refresh_codex_oauth_pure(
 def _refresh_codex_auth_tokens(
     tokens: Dict[str, str],
     timeout_seconds: float,
+    source_path: Optional[Path] = None,
 ) -> Dict[str, str]:
     """Refresh Codex access token using the refresh token.
     
     Saves the new tokens to Hermes auth store automatically.
     """
+    source_path = source_path or _shared_codex_auth_file_path()
     try:
         refreshed = refresh_codex_oauth_pure(
             str(tokens.get("access_token", "") or ""),
@@ -3566,7 +3896,8 @@ def _refresh_codex_auth_tokens(
         if not getattr(exc, "relogin_required", False):
             raise
         imported = _recover_codex_tokens_from_cli(
-            f"refresh_token rejected: {getattr(exc, 'code', None) or 'auth_error'}"
+            f"refresh_token rejected: {getattr(exc, 'code', None) or 'auth_error'}",
+            target_path=source_path,
         )
         if not imported:
             raise
@@ -3576,7 +3907,7 @@ def _refresh_codex_auth_tokens(
     updated_tokens["access_token"] = refreshed["access_token"]
     updated_tokens["refresh_token"] = refreshed["refresh_token"]
 
-    _save_codex_tokens(updated_tokens)
+    _save_codex_tokens(updated_tokens, target_path=source_path)
     return updated_tokens
 
 
@@ -3701,8 +4032,31 @@ def resolve_codex_runtime_credentials(
     if (not should_refresh) and refresh_if_expiring:
         should_refresh = _codex_access_token_is_expiring(access_token, refresh_skew_seconds)
     if should_refresh:
+        if (
+            _shared_codex_auth_file_path() is not None
+            and not _shared_codex_actor_is_admin()
+        ):
+            # Employees must never spend the singleton refresh token. Re-read
+            # once in case the SYSTEM broker rotated it between checks, then
+            # fail closed without contacting OpenAI if it is still due.
+            data = _read_codex_tokens()
+            tokens = dict(data["tokens"])
+            access_token = str(tokens.get("access_token", "") or "").strip()
+            still_due = bool(force_refresh) or (
+                refresh_if_expiring
+                and _codex_access_token_is_expiring(access_token, refresh_skew_seconds)
+            )
+            if still_due:
+                raise AuthError(
+                    "Shared Codex authentication requires the administrator refresh service.",
+                    provider="openai-codex",
+                    code="codex_admin_refresh_required",
+                    relogin_required=False,
+                )
+            should_refresh = False
+    if should_refresh:
         # Re-read under lock to avoid racing with other Hermes processes
-        with _auth_store_lock(timeout_seconds=max(float(AUTH_LOCK_TIMEOUT_SECONDS), refresh_timeout_seconds + 5.0)):
+        with _codex_auth_store_lock(timeout_seconds=max(float(AUTH_LOCK_TIMEOUT_SECONDS), refresh_timeout_seconds + 5.0)):
             data = _read_codex_tokens(_lock=False)
             tokens = dict(data["tokens"])
             access_token = str(tokens.get("access_token", "") or "").strip()
@@ -3712,7 +4066,17 @@ def resolve_codex_runtime_credentials(
                 should_refresh = _codex_access_token_is_expiring(access_token, refresh_skew_seconds)
 
             if should_refresh:
-                tokens = _refresh_codex_auth_tokens(tokens, refresh_timeout_seconds)
+                if _shared_codex_auth_file_path() is not None:
+                    tokens = _refresh_codex_auth_tokens(
+                        tokens,
+                        refresh_timeout_seconds,
+                        source_path=data.get("source_path"),
+                    )
+                else:
+                    tokens = _refresh_codex_auth_tokens(
+                        tokens,
+                        refresh_timeout_seconds,
+                    )
                 access_token = str(tokens.get("access_token", "") or "").strip()
 
     base_url = (
@@ -3757,12 +4121,7 @@ def _codex_pool_rate_limit_status() -> Optional[Dict[str, Any]]:
         return None
 
     try:
-        with _auth_store_lock():
-            auth_store = _load_auth_store()
-        pool = auth_store.get("credential_pool")
-        if not isinstance(pool, dict):
-            return None
-        entries = pool.get("openai-codex")
+        entries = read_credential_pool("openai-codex")
         if not isinstance(entries, list):
             return None
         now = time.time()
@@ -3814,12 +4173,7 @@ def _pool_codex_access_token() -> str:
     the original AuthError).
     """
     try:
-        with _auth_store_lock():
-            auth_store = _load_auth_store()
-        pool = auth_store.get("credential_pool")
-        if not isinstance(pool, dict):
-            return ""
-        entries = pool.get("openai-codex")
+        entries = read_credential_pool("openai-codex")
         if not isinstance(entries, list):
             return ""
 
