@@ -115,8 +115,8 @@ test('streams a 49 MiB file as authenticated raw HTTP chunks', async t => {
   assert.equal(receivedHash.digest('hex'), crypto.createHash('sha256').update(source).digest('hex'))
 })
 
-test('honors a smaller 4 MiB chunk cap advertised by an older managed backend', async t => {
-  const legacyChunkBytes = 4 * 1024 * 1024
+test('honors a smaller 2 MiB chunk cap advertised by an older managed backend', async t => {
+  const legacyChunkBytes = 2 * 1024 * 1024
   const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'hermes-http-upload-legacy-cap-'))
   const filePath = path.join(tempDir, 'legacy-cap.bin')
   const source = Buffer.alloc(legacyChunkBytes + 17, 0x4b)

@@ -9,11 +9,12 @@ const CHUNK_PATH = '/api/session-attachments/upload-chunk'
 const FINISH_PATH = '/api/session-attachments/upload-finish'
 const CANCEL_PATH = '/api/session-attachments/upload-cancel'
 
-// Keep the managed desktop transport at the largest backend-validated size.
+// Keep the managed desktop transport at the public-path-proven request size.
 // The backend may advertise a smaller value, in which case the smaller value
-// always wins.  Eight MiB cuts a 100 MiB upload from 25 requests to 13 while
-// retaining the bounded four-worker safety limit below.
-export const WEIJIA_HTTP_CHUNK_BYTES = 8 * 1024 * 1024
+// always wins.  The backend accepts up to eight MiB, but four MiB remains the
+// safe client cap until the external ingress path has passed a full 100 MiB
+// stability test at a larger request size.
+export const WEIJIA_HTTP_CHUNK_BYTES = 4 * 1024 * 1024
 const MAX_PARALLEL_HTTP_CHUNKS = 4
 const REQUEST_TIMEOUT_MS = 120_000
 const MAX_JSON_RESPONSE_BYTES = 2 * 1024 * 1024
@@ -22,7 +23,7 @@ const TRANSIENT_RETRY_BASE_MS = 250
 
 // Upload chunks are deliberately sent by at most four workers.  Use the same
 // bound for persistent sockets so each worker can retain a direct HTTPS path
-// through Cloudflare instead of paying a new TCP/TLS setup for every 8 MiB
+// through Cloudflare instead of paying a new TCP/TLS setup for every 4 MiB
 // chunk.  A remote peer may still close an idle socket; the existing retry
 // policy treats that as a recoverable transport error.
 const HTTP_UPLOAD_AGENT_OPTIONS = {
