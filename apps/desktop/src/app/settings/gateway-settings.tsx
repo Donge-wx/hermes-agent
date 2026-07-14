@@ -1017,6 +1017,7 @@ export function GatewaySettings() {
           <ListRow
             action={
               <Input
+                autoFocus={IS_VANYUE_MANAGED_RELEASE && !employeeId}
                 className={cn('h-8', CONTROL_TEXT)}
                 disabled={state.envOverride}
                 onChange={event => {
@@ -1025,7 +1026,11 @@ export function GatewaySettings() {
 
                     if (/^[a-z0-9-]{0,63}$/.test(nextEmployeeId)) {
                       setEmployeeId(nextEmployeeId)
-                      setState(current => ({ ...current, mode: 'remote', remoteUrl: employeeGatewayUrl(nextEmployeeId) }))
+                      setState(current => ({
+                        ...current,
+                        mode: 'remote',
+                        remoteUrl: employeeGatewayUrl(nextEmployeeId)
+                      }))
                     }
 
                     return
@@ -1064,9 +1069,7 @@ export function GatewaySettings() {
               />
             }
             description={
-              IS_VANYUE_MANAGED_RELEASE
-                ? '客户端会自动连接该员工的独立数据空间，不显示其他员工。'
-                : g.remoteUrlDesc
+              IS_VANYUE_MANAGED_RELEASE ? '客户端会自动连接该员工的独立数据空间，不显示其他员工。' : g.remoteUrlDesc
             }
             title={IS_VANYUE_MANAGED_RELEASE ? '员工 ID' : g.remoteUrlTitle}
           />
