@@ -1,10 +1,10 @@
 {
   "name": "hermes",
-  "productName": "Hermes",
+  "productName": "万域数动",
   "private": true,
-  "version": "0.17.0",
-  "description": "Native desktop shell for Hermes Agent.",
-  "author": "Nous Research",
+  "version": "0.17.1",
+  "description": "VanYue Space Digital desktop shell powered by Hermes Agent.",
+  "author": "VanYue Space Digital",
   "type": "module",
   "main": "dist/electron-main.mjs",
   "engines": {
@@ -21,7 +21,7 @@
     "prebuild": "tsc -b . --clean",
     "build": "node scripts/assert-root-install.mjs && node scripts/write-build-stamp.mjs && vite build && node scripts/bundle-electron-main.mjs && node scripts/stage-native-deps.mjs",
     "postbuild": "node scripts/assert-dist-built.mjs",
-    "prebuilder": "node scripts/patch-electron-builder-mac-binary.mjs",
+    "prebuilder": "node scripts/prepare-mac-icon.mjs && node scripts/patch-electron-builder-mac-binary.mjs",
     "builder": "cross-env NODE_OPTIONS=--max-old-space-size=16384 node scripts/run-electron-builder.mjs",
     "pack": "npm run build && npm run builder -- --dir",
     "dist": "npm run build && npm run builder",
@@ -38,7 +38,7 @@
     "test:desktop:nsis": "node scripts/test-desktop.mjs nsis",
     "test:desktop:existing": "node scripts/test-desktop.mjs existing",
     "test:desktop:fresh": "node scripts/test-desktop.mjs fresh",
-    "test:desktop:platforms": "node --test electron/bootstrap-platform.test.ts electron/hardening.test.ts electron/backend-env.test.ts electron/backend-probes.test.ts electron/backend-ready.test.ts electron/bootstrap-runner.test.ts electron/connection-config.test.ts electron/dashboard-token.test.ts electron/gateway-ws-probe.test.ts electron/oauth-net-request.test.ts electron/desktop-uninstall.test.ts electron/session-windows.test.ts electron/link-title-window.test.ts electron/workspace-cwd.test.ts electron/fs-read-dir.test.ts electron/git-root.test.ts electron/git-worktree-ops.test.ts electron/windows-child-process.test.ts electron/update-remote.test.ts electron/update-count.test.ts electron/update-rebuild.test.ts electron/update-marker.test.ts electron/update-relaunch.test.ts electron/windows-user-env.test.ts electron/wsl-clipboard-image.test.ts electron/titlebar-overlay-width.test.ts electron/window-state.test.ts electron/zoom.test.ts electron/windows-hermes-resolution.test.ts electron/oauth-session-request.test.ts",
+    "test:desktop:platforms": "tsx --test electron/bootstrap-platform.test.ts electron/hardening.test.ts electron/backend-env.test.ts electron/backend-probes.test.ts electron/backend-ready.test.ts electron/bootstrap-runner.test.ts electron/connection-config.test.ts electron/managed-employee.test.ts electron/http-session-upload.test.ts electron/dashboard-token.test.ts electron/gateway-ws-probe.test.ts electron/oauth-net-request.test.ts electron/desktop-uninstall.test.ts electron/session-windows.test.ts electron/link-title-window.test.ts electron/workspace-cwd.test.ts electron/fs-read-dir.test.ts electron/git-root.test.ts electron/git-worktree-ops.test.ts electron/windows-child-process.test.ts electron/update-remote.test.ts electron/update-count.test.ts electron/update-rebuild.test.ts electron/update-marker.test.ts electron/update-relaunch.test.ts electron/windows-user-env.test.ts electron/wsl-clipboard-image.test.ts electron/titlebar-overlay-width.test.ts electron/window-state.test.ts electron/zoom.test.ts electron/windows-hermes-resolution.test.ts electron/oauth-session-request.test.ts",
     "typecheck": "tsc -p . --noEmit && tsc -p tsconfig.electron.json --noEmit",
     "lint": "eslint src/ electron/",
     "lint:fix": "eslint src/ electron/ --fix",
@@ -152,18 +152,18 @@
   },
   "build": {
     "electronVersion": "40.10.2",
-    "appId": "com.nousresearch.hermes",
-    "productName": "Hermes",
-    "executableName": "Hermes",
+    "appId": "com.vanyue.spacedigital.employee",
+    "productName": "万域数动",
+    "executableName": "VanYueSpaceDigital",
     "protocols": [
       {
-        "name": "Hermes Protocol",
+        "name": "VanYue Space Digital Protocol",
         "schemes": [
-          "hermes"
+          "vanyue"
         ]
       }
     ],
-    "artifactName": "Hermes-${version}-${os}-${arch}.${ext}",
+    "artifactName": "VanYue-Space-Digital-${version}-${os}-${arch}.${ext}",
     "icon": "assets/icon",
     "directories": {
       "output": "release"
@@ -198,12 +198,13 @@
       "category": "public.app-category.developer-tools",
       "entitlements": "electron/entitlements.mac.plist",
       "entitlementsInherit": "electron/entitlements.mac.inherit.plist",
+      "notarize": false,
       "extendInfo": {
-        "CFBundleDisplayName": "Hermes",
-        "CFBundleExecutable": "Hermes",
-        "CFBundleName": "Hermes",
-        "NSAudioCaptureUsageDescription": "Hermes uses audio capture for voice conversations.",
-        "NSMicrophoneUsageDescription": "Hermes uses the microphone for voice input and voice conversations."
+        "CFBundleDisplayName": "万域数动",
+        "CFBundleExecutable": "VanYueSpaceDigital",
+        "CFBundleName": "万域数动",
+        "NSAudioCaptureUsageDescription": "万域数动使用音频采集进行语音对话。",
+        "NSMicrophoneUsageDescription": "万域数动需要麦克风权限用于语音输入和语音对话。"
       },
       "gatekeeperAssess": false,
       "hardenedRuntime": true,
@@ -213,7 +214,7 @@
       ]
     },
     "dmg": {
-      "title": "Install Hermes",
+      "title": "安装万域数动",
       "backgroundColor": "#f5f5f7",
       "iconSize": 96,
       "window": {
@@ -235,7 +236,7 @@
       ]
     },
     "win": {
-      "legalTrademarks": "Hermes",
+      "legalTrademarks": "VanYue Space Digital",
       "target": [
         "nsis",
         "msi"
@@ -256,8 +257,8 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "perMachine": false,
-      "shortcutName": "Hermes",
-      "uninstallDisplayName": "Hermes",
+      "shortcutName": "万域数动",
+      "uninstallDisplayName": "万域数动",
       "warningsAsErrors": false
     }
   }

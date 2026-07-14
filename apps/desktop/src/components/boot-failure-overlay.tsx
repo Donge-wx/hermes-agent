@@ -1,5 +1,6 @@
 import { useStore } from '@nanostores/react'
 import { useEffect, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 
 import { Button } from '@/components/ui/button'
 import { ErrorIcon } from '@/components/ui/error-state'
@@ -7,6 +8,8 @@ import { LogView } from '@/components/ui/log-view'
 import type { DesktopConnectionConfig } from '@/global'
 import { useI18n } from '@/i18n'
 import { FileText, Loader2, LogIn, RefreshCw, Wrench } from '@/lib/icons'
+import { IS_VANYUE_MANAGED_RELEASE } from '@/lib/managed-release'
+import { SETTINGS_ROUTE } from '@/app/routes'
 import { $desktopBoot } from '@/store/boot'
 import { notify, notifyError } from '@/store/notifications'
 import { $desktopOnboarding } from '@/store/onboarding'
@@ -35,6 +38,8 @@ export function BootFailureOverlay() {
   const [logs, setLogs] = useState<string[]>([])
   const [showLogs, setShowLogs] = useState(false)
   const [remoteReauth, setRemoteReauth] = useState<RemoteReauth | null>(null)
+  const location = useLocation()
+  const navigate = useNavigate()
 
   const visible = Boolean(boot.error) && !boot.running
   // While first-run onboarding owns the picker/flow we let it surface its own
@@ -106,7 +111,11 @@ export function BootFailureOverlay() {
     }
   }, [visible])
 
-  if (!visible || suppressed) {
+  if (
+    !visible ||
+    suppressed ||
+    (IS_VANYUE_MANAGED_RELEASE && location.pathname === SETTINGS_ROUTE)
+  ) {
     return null
   }
 
@@ -179,10 +188,14 @@ export function BootFailureOverlay() {
           <ErrorIcon className="mt-0.5" size="1.25rem" />
           <div>
             <h2 className="text-[0.9375rem] font-semibold tracking-tight">
-              {remoteReauth ? copy.remoteTitle : copy.title}
+              {IS_VANYUE_MANAGED_RELEASE ? '员工网关需要设置' : remoteReauth ? copy.remoteTitle : copy.title}
             </h2>
             <p className="mt-1 text-[0.8125rem] leading-5 text-(--ui-text-tertiary)">
-              {remoteReauth ? copy.remoteDescription : copy.description}
+              {IS_VANYUE_MANAGED_RELEASE
+                ? '请设置或重新登录公司分配的员工 ID，客户端会严格限定到该员工的数据空间。'
+                : remoteReauth
+                  ? copy.remoteDescription
+                  : copy.description}
             </p>
           </div>
         </div>
@@ -199,28 +212,41 @@ export function BootFailureOverlay() {
                   {busy === 'signin' ? <Loader2 className="animate-spin" /> : <LogIn />}
                   {label}
                 </Button>
+              ) : IS_VANYUE_MANAGED_RELEASE ? (
+                <Button disabled={Boolean(busy)} onClick={() => navigate(`${SETTINGS_ROUTE}?tab=gateway`)}>
+                  <LogIn />
+                  设置员工账号
+                </Button>
               ) : (
                 <Button disabled={Boolean(busy)} onClick={() => void retry()}>
                   {busy === 'retry' ? <Loader2 className="animate-spin" /> : <RefreshCw />}
                   {copy.retry}
                 </Button>
               )}
-              {!remoteReauth ? (
+              {!IS_VANYUE_MANAGED_RELEASE && !remoteReauth ? (
                 <Button disabled={Boolean(busy)} onClick={() => void repair()} variant="secondary">
                   {busy === 'repair' ? <Loader2 className="animate-spin" /> : <Wrench />}
                   {copy.repairInstall}
                 </Button>
               ) : null}
-              <Button disabled={Boolean(busy)} onClick={() => void switchToLocalGateway()} variant="secondary">
-                {busy === 'local' ? <Loader2 className="animate-spin" /> : null}
-                {copy.useLocalGateway}
-              </Button>
+              {!IS_VANYUE_MANAGED_RELEASE ? (
+                <Button disabled={Boolean(busy)} onClick={() => void switchToLocalGateway()} variant="secondary">
+                  {busy === 'local' ? <Loader2 className="animate-spin" /> : null}
+                  {copy.useLocalGateway}
+                </Button>
+              ) : null}
               <Button onClick={openLogs} variant="ghost">
                 <FileText />
                 {copy.openLogs}
               </Button>
             </div>
-            <p className="text-xs text-muted-foreground">{remoteReauth ? copy.remoteSignInHint : copy.repairHint}</p>
+            <p className="text-xs text-muted-foreground">
+              {IS_VANYUE_MANAGED_RELEASE
+                ? '如需更换员工，请在“网关”页重新输入员工 ID 并登录。'
+                : remoteReauth
+                  ? copy.remoteSignInHint
+                  : copy.repairHint}
+            </p>
           </div>
 
           {logs.length > 0 ? (

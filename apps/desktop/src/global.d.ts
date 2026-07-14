@@ -55,6 +55,7 @@ declare global {
       applyConnectionConfig: (payload: DesktopConnectionConfigInput) => Promise<DesktopConnectionConfig>
       testConnectionConfig: (payload: DesktopConnectionConfigInput) => Promise<DesktopConnectionTestResult>
       probeConnectionConfig: (remoteUrl: string) => Promise<DesktopConnectionProbeResult>
+      oauthStatusConnectionConfig: (remoteUrl: string) => Promise<DesktopOauthLoginResult>
       oauthLoginConnectionConfig: (remoteUrl: string) => Promise<DesktopOauthLoginResult>
       oauthLogoutConnectionConfig: (remoteUrl?: string) => Promise<DesktopOauthLogoutResult>
       // Hermes Cloud: one portal login powers discovery + silent per-agent
@@ -78,6 +79,12 @@ declare global {
       requestMicrophoneAccess: () => Promise<boolean>
       createFileUploadSnapshot?: (filePath: string) => Promise<HermesFileUploadSnapshot>
       releaseFileUploadSnapshot?: (snapshotPath: string) => Promise<boolean>
+      /** Upload a local file through the authenticated HTTP attachment channel.
+       * Returns null when the connected backend does not advertise that channel,
+       * allowing the renderer to fall back to the resumable WebSocket contract. */
+      uploadSessionAttachmentHttp?: (
+        request: HermesHttpSessionAttachmentRequest
+      ) => Promise<HermesHttpSessionAttachmentResult | null>
       readFileDataUrl: (filePath: string) => Promise<string>
       readFileChunkBase64?: (filePath: string, offset: number, maxBytes?: number) => Promise<HermesReadFileChunkResult>
       readFileText: (filePath: string) => Promise<HermesReadFileTextResult>
@@ -188,7 +195,9 @@ declare global {
       onBackendExit: (callback: (payload: BackendExit) => void) => () => void
       // Soft gateway-mode apply: primary backend was torn down without a window
       // reload. Wipe session lists (skeletons) and re-dial.
-      onConnectionApplied?: (callback: () => void) => () => void
+      onConnectionApplied?: (
+        callback: (payload?: { employeeId?: string; identityChanged?: boolean }) => void
+      ) => () => void
       onPowerResume?: (callback: () => void) => () => void
       onBootProgress: (callback: (payload: DesktopBootProgress) => void) => () => void
       getBootstrapState: () => Promise<DesktopBootstrapState>
@@ -639,6 +648,23 @@ export interface HermesFileUploadSnapshot {
   fileId?: string
   mtimeMs?: number
   path: string
+}
+
+export interface HermesHttpSessionAttachmentRequest {
+  filePath: string
+  name: string
+  profile?: string | null
+  sessionId: string
+}
+
+export interface HermesHttpSessionAttachmentResult {
+  attached?: boolean
+  message?: string
+  name?: string
+  path?: string
+  ref_path?: string
+  ref_text?: string
+  uploaded?: boolean
 }
 
 export interface HermesReadFileChunkResult {

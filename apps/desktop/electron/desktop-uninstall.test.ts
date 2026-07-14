@@ -91,6 +91,10 @@ test('resolveRemovableAppPath finds the install dir on Windows', () => {
 
 test('resolveRemovableAppPath returns null for an unrecognized Windows dir', () => {
   assert.equal(resolveRemovableAppPath('C:\\Temp\\foo\\Hermes.exe', 'win32'), null)
+  assert.equal(
+    resolveRemovableAppPath('C:\\Users\\x\\AppData\\Local\\Programs\\万域数动\\VanYueSpaceDigital.exe', 'win32'),
+    'C:\\Users\\x\\AppData\\Local\\Programs\\万域数动'
+  )
 })
 
 test('resolveRemovableAppPath uses APPIMAGE on Linux when set', () => {

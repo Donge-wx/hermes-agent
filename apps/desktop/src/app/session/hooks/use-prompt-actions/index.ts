@@ -77,7 +77,26 @@ async function uploadRemoteFileAttachmentInChunks(
   const createSnapshot = desktop?.createFileUploadSnapshot
   const releaseSnapshot = desktop?.releaseFileUploadSnapshot
 
+  // Weijia's proven fast path: let Electron stream raw binary chunks over the
+  // authenticated HTTP attachment endpoints. Keeping this in the main process
+  // avoids file:// CORS restrictions and the WebSocket/base64 wire overhead.
+  // A null result means the backend does not expose the HTTP contract, so the
+  // safe request-id WebSocket implementation below remains the fallback.
+  if (desktop?.uploadSessionAttachmentHttp) {
+    const httpResult = await desktop.uploadSessionAttachmentHttp({
+      filePath: path,
+      name: label,
+      profile: $connection.get()?.profile ?? null,
+      sessionId
+    })
+
+    if (httpResult) {
+      return httpResult
+    }
+  }
+
   let capabilities: { contract?: number; request_id_cancel?: boolean }
+
   try {
     capabilities = await requestGateway(
       'file.attach.capabilities',
@@ -87,7 +106,9 @@ async function uploadRemoteFileAttachmentInChunks(
   } catch {
     throw new Error('Remote gateway does not support safe request-id cancellation. Update the backend and try again.')
   }
+
   const capabilityContract = capabilities.contract
+
   if (
     typeof capabilityContract !== 'number' ||
     !Number.isSafeInteger(capabilityContract) ||
@@ -126,9 +147,11 @@ async function uploadRemoteFileAttachmentInChunks(
 
   try {
     const snapshot = await createSnapshot(path)
+
     if (!snapshot || typeof snapshot.path !== 'string' || !snapshot.path) {
       throw new Error(`Could not create an immutable upload snapshot for ${label}`)
     }
+
     snapshotPath = snapshot.path
     const probe = await readFileChunkBase64ForAttach(snapshotPath, 0, 1)
 
@@ -147,6 +170,7 @@ async function uploadRemoteFileAttachmentInChunks(
     const expectedFileId = probe.fileId
     const expectedMtimeMs = probe.mtimeMs
     requestId = crypto.randomUUID()
+
     const begin = await withFileAttachRetry(() =>
       requestGateway<FileAttachBeginResponse>(
         'file.attach.begin',
@@ -160,6 +184,7 @@ async function uploadRemoteFileAttachmentInChunks(
         FILE_ATTACH_REQUEST_TIMEOUT_MS
       )
     )
+
     uploadId = begin.upload_id || null
 
     if (!uploadId) {
@@ -167,10 +192,12 @@ async function uploadRemoteFileAttachmentInChunks(
     }
 
     const serverChunkBytes = Number(begin.max_chunk_bytes)
+
     const chunkBytes =
       Number.isFinite(serverChunkBytes) && serverChunkBytes > 0
         ? Math.min(Math.floor(serverChunkBytes), FILE_ATTACH_CHUNK_BYTES)
         : FILE_ATTACH_CHUNK_BYTES
+
     let offset = 0
 
     for (;;) {
@@ -209,6 +236,7 @@ async function uploadRemoteFileAttachmentInChunks(
             FILE_ATTACH_REQUEST_TIMEOUT_MS
           )
         )
+
         const received = Number(progress.received)
         const expectedReceived = offset + chunk.bytesRead
 
@@ -247,9 +275,7 @@ async function uploadRemoteFileAttachmentInChunks(
       await withFileAttachRetry(() =>
         requestGateway(
           'file.attach.cancel',
-          uploadId
-            ? { session_id: sessionId, upload_id: uploadId }
-            : { request_id: requestId, session_id: sessionId },
+          uploadId ? { session_id: sessionId, upload_id: uploadId } : { request_id: requestId, session_id: sessionId },
           FILE_ATTACH_REQUEST_TIMEOUT_MS
         )
       ).catch(() => undefined)

@@ -22,6 +22,7 @@ import {
 import { searchSessions, type SessionInfo, type SessionSearchResult } from '@/hermes'
 import { useI18n } from '@/i18n'
 import { comboTokens } from '@/lib/keybinds/combo'
+import { IS_VANYUE_MANAGED_RELEASE } from '@/lib/managed-release'
 import { profileColor } from '@/lib/profile-color'
 import { sessionMatchesSearch } from '@/lib/session-search'
 import { normalizeSessionSource, sessionSourceLabel } from '@/lib/session-source'
@@ -127,6 +128,7 @@ import { SidebarSessionsSection, VIRTUALIZE_THRESHOLD } from './sessions-section
 // dominating the sidebar before the user asks to see it.
 const NON_SESSION_INITIAL_ROWS = 3
 const NON_SESSION_LOAD_STEP = 10
+const assetPath = (path: string) => `${import.meta.env.BASE_URL}${path.replace(/^\/+/, '')}`
 
 const NEW_SESSION_KBD = comboTokens('mod+n')
 
@@ -254,7 +256,7 @@ export function ChatSidebar({
   const profileScope = useStore($profileScope)
   // Only surface the profile switcher when more than one profile exists, so
   // single-profile users see the unchanged sidebar.
-  const multiProfile = profiles.length > 1
+  const multiProfile = !IS_VANYUE_MANAGED_RELEASE && profiles.length > 1
   // Gate ALL-profiles grouping on multiProfile too: if a user drops back to one
   // profile while scope is still ALL (persisted), the rail is hidden and they'd
   // otherwise be stuck in the grouped view with no way out.
@@ -394,7 +396,10 @@ export function ChatSidebar({
     setSearchPending(true)
 
     const id = window.setTimeout(() => {
-      void searchSessions(trimmedQuery)
+      const searchProfile =
+        profileScope === ALL_PROFILES ? (IS_VANYUE_MANAGED_RELEASE ? 'default' : null) : profileScope
+
+      void searchSessions(trimmedQuery, searchProfile)
         .then(res => {
           if (!cancelled) {
             setServerMatches(res.results)
@@ -412,7 +417,7 @@ export function ChatSidebar({
       cancelled = true
       window.clearTimeout(id)
     }
-  }, [trimmedQuery])
+  }, [profileScope, trimmedQuery])
 
   const searchResults = useMemo(() => {
     if (!trimmedQuery) {
@@ -1044,7 +1049,24 @@ export function ChatSidebar({
       collapsible="none"
     >
       <SidebarContent className="gap-0 overflow-hidden bg-transparent px-2.5">
-        <SidebarGroup className="shrink-0 p-0 pb-2 pt-[calc(var(--titlebar-height)+0.375rem)]">
+        {contentVisible && (
+          <div className="shrink-0 px-2 pb-2.5 pt-[calc(var(--titlebar-height)+0.625rem)]">
+            <div className="flex min-w-0 items-center gap-2">
+              <img alt="" className="size-7 shrink-0 object-contain" src={assetPath('vanyue-mark.png')} />
+              <div className="min-w-0 leading-none">
+                <div className="truncate text-[0.8125rem] font-semibold tracking-[-0.015em] text-(--ui-text-primary)">
+                  万域数动
+                </div>
+                <div className="mt-1 truncate text-[0.5rem] font-medium tracking-[0.08em] text-(--ui-text-tertiary)">
+                  VANYUE SPACE DIGITAL
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        <SidebarGroup
+          className={cn('shrink-0 p-0 pb-2', contentVisible ? 'pt-0' : 'pt-[calc(var(--titlebar-height)+0.375rem)]')}
+        >
           <SidebarGroupContent>
             <SidebarMenu className="gap-px">
               {SIDEBAR_NAV.map(item => {
@@ -1070,8 +1092,7 @@ export function ChatSidebar({
                         // top rows. Same carve-out as USER_BUBBLE_BASE_CLASS in
                         // thread.tsx.
                         'flex h-7 w-full justify-start gap-2 rounded-md border border-transparent px-2 text-left text-[0.8125rem] font-medium text-(--ui-text-secondary) transition-colors duration-100 ease-out [-webkit-app-region:no-drag] hover:bg-(--ui-control-hover-background) hover:text-foreground hover:transition-none',
-                        active &&
-                          'border-(--ui-stroke-tertiary) bg-(--ui-control-active-background) text-foreground shadow-none hover:border-(--ui-stroke-tertiary)!',
+                        active && 'bg-(--ui-control-active-background) text-foreground shadow-none',
                         !isInteractive &&
                           'cursor-default hover:border-transparent hover:bg-transparent hover:text-inherit'
                       )}
@@ -1394,7 +1415,7 @@ export function ChatSidebar({
 
         {contentVisible && !showSessionSections && <SidebarBlankState onNewProject={openProjectCreate} />}
 
-        {contentVisible && (
+        {contentVisible && !IS_VANYUE_MANAGED_RELEASE && (
           <div className="shrink-0 px-0.5 pb-1 pt-0.5">
             <ProfileRail />
           </div>

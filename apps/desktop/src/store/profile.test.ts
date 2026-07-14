@@ -18,7 +18,17 @@ vi.mock('@/hermes', () => ({
 vi.mock('@/lib/query-client', () => ({ queryClient: { invalidateQueries: vi.fn() } }))
 vi.mock('@/store/starmap', () => ({ resetStarmapGraph }))
 
-const { $activeGatewayProfile, $profiles, ensureGatewayProfile, refreshProfiles } = await import('./profile')
+const {
+  $activeProfile,
+  $activeGatewayProfile,
+  $profileScope,
+  $profiles,
+  $showAllProfiles,
+  ensureGatewayProfile,
+  refreshActiveProfile,
+  refreshProfiles,
+  setShowAllProfiles
+} = await import('./profile')
 const { $connection } = await import('./session')
 const { queryClient } = await import('@/lib/query-client')
 const { getProfiles } = await import('@/hermes')
@@ -40,15 +50,18 @@ const localConn = (over: Partial<HermesConnection> = {}): HermesConnection =>
   ({ baseUrl: '', mode: 'local', profile: 'default', ...over }) as HermesConnection
 
 const getConnection = vi.fn<(profile?: string | null) => Promise<HermesConnection>>()
+const api = vi.fn()
 
 beforeEach(() => {
   getConnection.mockReset()
+  api.mockReset()
   ensureGatewayForProfile.mockClear()
   $gateway.set({ id: 'live-socket' })
   $activeGatewayProfile.set('default')
+  $showAllProfiles.set(false)
   $connection.set(localConn())
   $profiles.set([])
-  vi.stubGlobal('window', { hermesDesktop: { getConnection } })
+  vi.stubGlobal('window', { hermesDesktop: { api, getConnection } })
   vi.mocked(queryClient.invalidateQueries).mockClear()
   resetStarmapGraph.mockClear()
 })
@@ -59,19 +72,15 @@ afterEach(() => {
 })
 
 describe('ensureGatewayProfile → $connection sync (#46651)', () => {
-  it('refreshes $connection to the remote descriptor when activating a remote pool profile', async () => {
-    // Regression: the primary window backend is local, so $connection.mode is
-    // "local". Activating the remote profile must flip it to "remote" — without
-    // this, image attach uses path-based image.attach against the remote
-    // gateway ("image not found: C:\\…") instead of image.attach_bytes.
+  it('keeps the managed employee on default when a stale remote profile is requested', async () => {
     getConnection.mockResolvedValue(remoteConn())
 
     await ensureGatewayProfile('vps-remote')
 
-    expect(ensureGatewayForProfile).toHaveBeenCalledWith('vps-remote')
-    expect(getConnection).toHaveBeenCalledWith('vps-remote')
-    expect($connection.get()?.mode).toBe('remote')
-    expect($connection.get()?.profile).toBe('vps-remote')
+    expect(ensureGatewayForProfile).not.toHaveBeenCalled()
+    expect(getConnection).not.toHaveBeenCalled()
+    expect($connection.get()?.mode).toBe('local')
+    expect($activeGatewayProfile.get()).toBe('default')
   })
 
   it('resyncs $connection back to local when returning to the default profile', async () => {
@@ -94,24 +103,35 @@ describe('ensureGatewayProfile → $connection sync (#46651)', () => {
     expect($connection.get()?.mode).toBe('local')
   })
 
-  it('does not churn $connection when the target is already the active profile', async () => {
+  it('recovers a stale non-default active gateway back to managed default', async () => {
     $activeGatewayProfile.set('vps-remote')
     $connection.set(remoteConn())
+    getConnection.mockResolvedValue(localConn())
 
     await ensureGatewayProfile('vps-remote')
 
-    expect(getConnection).not.toHaveBeenCalled()
-    expect(ensureGatewayForProfile).not.toHaveBeenCalled()
-    expect($connection.get()?.mode).toBe('remote')
+    expect(ensureGatewayForProfile).toHaveBeenCalledWith('default')
+    expect(getConnection).toHaveBeenCalledWith('default')
+    expect($connection.get()?.mode).toBe('local')
   })
 })
 
 describe('profile-scoped cache invalidation', () => {
-  it('drops the memory graph cache when the active gateway profile changes', () => {
+  it('does not route or invalidate caches for a stale managed profile change', () => {
     $activeGatewayProfile.set('coder')
 
-    expect(queryClient.invalidateQueries).toHaveBeenCalled()
-    expect(resetStarmapGraph).toHaveBeenCalledTimes(1)
+    expect(queryClient.invalidateQueries).not.toHaveBeenCalled()
+    expect(resetStarmapGraph).not.toHaveBeenCalled()
+  })
+})
+
+describe('managed active profile', () => {
+  it('keeps the renderer on default even if a legacy gateway reports its employee slug', async () => {
+    api.mockResolvedValueOnce({ active: 'wangxudong', current: 'wangxudong' })
+
+    await refreshActiveProfile()
+
+    expect($activeProfile.get()).toBe('default')
   })
 })
 
@@ -132,5 +152,44 @@ describe('refreshProfiles shared rail list (#49289)', () => {
     await expect(refreshProfiles()).rejects.toThrow('backend unavailable')
 
     expect($profiles.get().map(profile => profile.name)).toEqual(['default', 'test1'])
+  })
+})
+
+describe('single-employee sidebar scope', () => {
+  it('keeps the managed Hermes profile on default even if a server returns an employee slug', () => {
+    $activeGatewayProfile.set('default')
+    $profiles.set([profile('wangxudong', true)])
+
+    expect($profileScope.get()).toBe('default')
+  })
+
+  it('ignores a persisted all-profiles preference on a single-employee gateway', () => {
+    setShowAllProfiles(true)
+    $profiles.set([profile('wangxudong', true)])
+
+    expect($profileScope.get()).toBe('default')
+    expect($showAllProfiles.get()).toBe(false)
+  })
+
+  it('ignores malicious or stale multi-profile state', () => {
+    $activeGatewayProfile.set('weijia')
+    $profiles.set([profile('wangxudong', true), profile('weijia')])
+
+    expect($profileScope.get()).toBe('default')
+  })
+
+  it('does not replace an explicit gateway with an unrelated lone named profile', () => {
+    $activeGatewayProfile.set('weijia')
+    $profiles.set([profile('wangxudong')])
+
+    expect($profileScope.get()).toBe('default')
+  })
+
+  it('never enables all-profiles even when multiple profiles are visible', () => {
+    setShowAllProfiles(true)
+    $profiles.set([profile('wangxudong', true), profile('weijia')])
+
+    expect($profileScope.get()).toBe('default')
+    expect($showAllProfiles.get()).toBe(false)
   })
 })

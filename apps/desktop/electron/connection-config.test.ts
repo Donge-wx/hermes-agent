@@ -200,6 +200,20 @@ test('normalizeRemoteBaseUrl preserves a path prefix', () => {
   assert.equal(normalizeRemoteBaseUrl('https://host/hermes'), 'https://host/hermes')
 })
 
+test('normalizeRemoteBaseUrl removes a pasted terminal login route', () => {
+  assert.equal(normalizeRemoteBaseUrl('https://weijia.example.com/login?next=%2F'), 'https://weijia.example.com')
+  assert.equal(
+    normalizeRemoteBaseUrl('https://gateway.example.com/hermes/login/?next=%2Fhermes#sign-in'),
+    'https://gateway.example.com/hermes'
+  )
+  assert.equal(normalizeRemoteBaseUrl('https://gateway.example.com/LOGIN'), 'https://gateway.example.com')
+})
+
+test('normalizeRemoteBaseUrl only removes login when it is the final path segment', () => {
+  assert.equal(normalizeRemoteBaseUrl('https://host/login-help'), 'https://host/login-help')
+  assert.equal(normalizeRemoteBaseUrl('https://host/login/assets'), 'https://host/login/assets')
+})
+
 test('normalizeRemoteBaseUrl rejects empty input', () => {
   assert.throws(() => normalizeRemoteBaseUrl(''), /required/)
   assert.throws(() => normalizeRemoteBaseUrl('   '), /required/)

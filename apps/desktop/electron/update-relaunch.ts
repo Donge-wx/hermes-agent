@@ -63,11 +63,16 @@ function resolveUnpackedRelease(execPath, updateRoot, platform) {
   if (!execPath || !updateRoot) {
     return null
   }
-  const releaseDir = path.join(updateRoot, 'apps', 'desktop', 'release')
-  const unpacked = path.join(releaseDir, unpackedDirName(platform))
-  const normalizedExec = path.resolve(String(execPath))
+  // Interpret paths for the platform being evaluated, not the host running
+  // this helper/test. This also keeps Windows CI able to verify POSIX relaunch
+  // paths without backslashes turning an absolute Linux path into a relative
+  // Windows one.
+  const pathApi = platform === 'win32' ? path.win32 : path.posix
+  const releaseDir = pathApi.join(updateRoot, 'apps', 'desktop', 'release')
+  const unpacked = pathApi.join(releaseDir, unpackedDirName(platform))
+  const normalizedExec = pathApi.resolve(String(execPath))
   // execPath must be the unpacked dir itself or a descendant of it.
-  const withSep = unpacked.endsWith(path.sep) ? unpacked : unpacked + path.sep
+  const withSep = unpacked.endsWith(pathApi.sep) ? unpacked : unpacked + pathApi.sep
 
   if (normalizedExec === unpacked || normalizedExec.startsWith(withSep)) {
     return unpacked

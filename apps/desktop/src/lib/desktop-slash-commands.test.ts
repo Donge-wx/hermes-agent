@@ -40,6 +40,13 @@ describe('desktop slash command curation', () => {
     expect(isDesktopSlashSuggestion('/curator')).toBe(false)
   })
 
+  it('disables profile switching in the managed employee edition', () => {
+    expect(resolveDesktopCommand('/profile')?.surface).toEqual({ kind: 'unavailable', reason: 'managed' })
+    expect(isDesktopSlashSuggestion('/profile')).toBe(false)
+    expect(isDesktopSlashCommand('/profile')).toBe(false)
+    expect(desktopSlashUnavailableMessage('/profile')).toContain('managed employee edition')
+  })
+
   it('surfaces /tools, /save, and /personality on the desktop', () => {
     expect(isDesktopSlashSuggestion('/tools')).toBe(true)
     expect(isDesktopSlashSuggestion('/save')).toBe(true)

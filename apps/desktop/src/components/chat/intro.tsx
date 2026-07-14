@@ -1,4 +1,4 @@
-import { type CSSProperties, useState } from 'react'
+import { useState } from 'react'
 
 import { capitalize, normalize } from '@/lib/text'
 
@@ -144,7 +144,7 @@ function pickCopy(copies: IntroCopy[], seed = 0): IntroCopy {
   return copies[Math.abs(seed) % copies.length] || FALLBACK_COPY[0]
 }
 
-const WORDMARK = 'HERMES AGENT'
+const assetPath = (path: string) => `${import.meta.env.BASE_URL}${path.replace(/^\/+/, '')}`
 
 function resolveCopy(personality?: string, seed?: number): IntroCopy {
   const personalityKey = normalizeKey(personality)
@@ -162,22 +162,18 @@ export function Intro({ personality, seed }: IntroProps) {
 
   return (
     <div
-      className="pointer-events-none flex w-full min-w-0 flex-col items-center justify-center px-0.5 py-6 text-center text-muted-foreground sm:px-6 lg:px-8"
+      className="pointer-events-none flex w-full min-w-0 flex-col items-center justify-center px-4 py-8 text-center sm:px-8 lg:px-12"
       data-slot="aui_intro"
     >
-      <div className="w-full min-w-0">
-        <p
-          aria-label={WORDMARK}
-          className="fit-text mx-auto mb-1 w-[calc(100%-1rem)] font-['Collapse'] font-bold uppercase leading-[0.9] tracking-[0.08em] text-midground mix-blend-plus-lighter dark:text-foreground/90"
-          style={{ '--fit-min': '2.75rem' } as CSSProperties}
-        >
-          <span>
-            <span>{WORDMARK}</span>
-          </span>
-          <span aria-hidden="true">{WORDMARK}</span>
+      <div className="w-full min-w-0 max-w-2xl">
+        <img
+          alt="万域数动 · VanYue Space Digital"
+          className="mx-auto mb-5 h-auto w-[min(24rem,78vw)] object-contain"
+          src={assetPath('vanyue-wordmark.png')}
+        />
+        <p className="mx-auto m-0 max-w-xl text-center text-[0.9rem] leading-6 tracking-[-0.01em] text-(--ui-text-secondary)">
+          {copy.body}
         </p>
-
-        <p className="m-0 text-center leading-normal tracking-tight">{copy.body}</p>
       </div>
     </div>
   )

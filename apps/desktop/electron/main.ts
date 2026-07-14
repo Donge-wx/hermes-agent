@@ -68,6 +68,15 @@ import { readDirForIpc } from './fs-read-dir'
 import { probeGatewayWebSocket } from './gateway-ws-probe'
 import { scanGitRepos } from './git-repo-scan'
 import {
+  assertManagedEmployeeIdentity,
+  bindManagedEmployeeConnection,
+  enforceManagedEmployeeApiRequest,
+  enforceManagedEmployeeProfile,
+  managedEmployeeBindingFromGatewayUrl,
+  trackManagedEmployeeSwitch,
+  type ManagedEmployeeSwitchState
+} from './managed-employee'
+import {
   fileDiffVsHead,
   repoStatus,
   reviewCommit,
@@ -97,6 +106,7 @@ import {
   resolveTimeoutMs,
   TEXT_PREVIEW_SOURCE_MAX_BYTES
 } from './hardening'
+import { uploadSessionAttachmentHttp } from './http-session-upload'
 import { createLinkTitleWindow, guardLinkTitleSession, readLinkTitleWindowTitle } from './link-title-window'
 import { serializeJsonBody, setJsonRequestHeaders } from './oauth-net-request'
 import { createRendererHealthReporter } from './renderer-health'
@@ -429,7 +439,11 @@ const BOOT_FAKE_STEP_MS = (() => {
   return Math.max(120, raw)
 })()
 
-const APP_NAME = process.env.HERMES_DESKTOP_APP_NAME || 'Hermes'
+const APP_NAME = process.env.HERMES_DESKTOP_APP_NAME || '万域数动'
+const DISPLAY_NAME = '万域数动'
+const IS_VANYUE_MANAGED_RELEASE = true
+const MANAGED_RELEASE_UPDATE_MESSAGE =
+  '万域数动员工版由管理员统一更新，请使用管理员发布的安装包，不要从 Hermes 官方源自助升级。'
 const TITLEBAR_HEIGHT = 34
 const MACOS_TRAFFIC_LIGHTS_HEIGHT = 14
 
@@ -727,7 +741,7 @@ app.setName(APP_NAME)
 // need this, so gate it on Windows. (Fixes: desktop approval/turn notifications
 // never firing on Windows.)
 if (IS_WINDOWS) {
-  app.setAppUserModelId('com.nousresearch.hermes')
+  app.setAppUserModelId('com.vanyue.spacedigital.employee')
 }
 
 // Seed the native About panel with the live Hermes version. This is refreshed
@@ -735,9 +749,9 @@ if (IS_WINDOWS) {
 // an in-place `hermes update` mid-session is reflected without an app restart;
 // the seed here just covers the first open and any non-menu invocation path.
 app.setAboutPanelOptions({
-  applicationName: APP_NAME,
+  applicationName: DISPLAY_NAME,
   applicationVersion: resolveHermesVersion(),
-  copyright: 'Copyright © 2026 Nous Research'
+  copyright: 'Copyright © 2026 VanYue Space Digital'
 })
 
 // Custom scheme for streaming local media (video/audio) into the renderer.
@@ -2125,6 +2139,14 @@ async function resolveHealedBranch(updateRoot, branch) {
 }
 
 async function checkUpdates() {
+  if (IS_VANYUE_MANAGED_RELEASE) {
+    return {
+      supported: false,
+      reason: 'managed-release',
+      message: MANAGED_RELEASE_UPDATE_MESSAGE
+    }
+  }
+
   const updateRoot = resolveUpdateRoot()
   let { branch } = readDesktopUpdateConfig()
   const gitDir = path.join(updateRoot, '.git')
@@ -2496,6 +2518,19 @@ async function releaseBackendLock(updateRoot, tag) {
 // Detection (checkUpdates / commit changelog / "N behind") stays in the UI;
 // only this apply action changed.
 async function applyUpdates(opts = {}) {
+  if (IS_VANYUE_MANAGED_RELEASE) {
+    emitUpdateProgress({
+      stage: 'manual',
+      message: MANAGED_RELEASE_UPDATE_MESSAGE,
+      percent: null
+    })
+    return {
+      ok: true,
+      manualRestart: true,
+      message: MANAGED_RELEASE_UPDATE_MESSAGE
+    }
+  }
+
   if (updateInFlight) {
     throw new Error('An update is already in progress.')
   }
@@ -4612,9 +4647,9 @@ function buildApplicationMenu() {
 
   if (IS_MAC) {
     template.push({
-      label: APP_NAME,
+      label: DISPLAY_NAME,
       submenu: [
-        { label: `About ${APP_NAME}`, click: () => showAboutPanelFresh() },
+        { label: `About ${DISPLAY_NAME}`, click: () => showAboutPanelFresh() },
         checkForUpdatesItem,
         { type: 'separator' },
         { role: 'services' },
@@ -5289,7 +5324,8 @@ function fetchJsonViaOauthSession(url, options: any = {}) {
       return
     }
 
-    const body = serializeJsonBody(options.body)
+    const rawBody = Buffer.isBuffer(options.rawBody) ? options.rawBody : undefined
+    const body = rawBody || serializeJsonBody(options.body)
     const timeoutMs = resolveTimeoutMs(options.timeoutMs, DEFAULT_FETCH_TIMEOUT_MS)
 
     const request = electronNet.request({
@@ -5297,10 +5333,17 @@ function fetchJsonViaOauthSession(url, options: any = {}) {
       url,
       session: sess,
       useSessionCookies: true,
-      redirect: 'follow'
+      // Never forward raw file bytes across a redirect. JSON requests retain
+      // the existing OAuth redirect behavior; fixed upload endpoints fail
+      // closed if a proxy attempts to redirect an octet-stream chunk.
+      redirect: rawBody ? 'error' : 'follow'
     } as any)
 
-    setJsonRequestHeaders(request)
+    if (rawBody) {
+      request.setHeader('Content-Type', options.contentType || 'application/octet-stream')
+    } else {
+      setJsonRequestHeaders(request)
+    }
 
     let timedOut = false
 
@@ -5370,6 +5413,23 @@ function fetchJsonViaOauthSession(url, options: any = {}) {
     }
     request.end()
   })
+}
+
+async function validateManagedEmployeeSession(baseUrl: string) {
+  const binding = managedEmployeeBindingFromGatewayUrl(baseUrl)
+
+  if (!binding) {
+    return null
+  }
+
+  const [identity, profiles] = await Promise.all([
+    fetchJsonViaOauthSession(`${binding.baseUrl}/api/auth/me`, { timeoutMs: 8_000 }),
+    fetchJsonViaOauthSession(`${binding.baseUrl}/api/profiles`, { timeoutMs: 12_000 })
+  ])
+
+  assertManagedEmployeeIdentity(binding, identity as any, profiles as any)
+
+  return binding
 }
 
 // Mint a single-use WS ticket for a gated gateway. Returns the ticket string.
@@ -6026,6 +6086,79 @@ function coerceDesktopConnectionConfig(input: any = {}, existing = readDesktopCo
   return { mode, remote: nextRemote, profiles: existing.profiles || {} }
 }
 
+function tryManagedEmployeeBinding(rawUrl: unknown) {
+  try {
+    return managedEmployeeBindingFromGatewayUrl(rawUrl)
+  } catch {
+    return null
+  }
+}
+
+function requireManagedEmployeeBinding(rawUrl: unknown) {
+  const binding = managedEmployeeBindingFromGatewayUrl(rawUrl)
+
+  if (!binding) {
+    throw new Error('万域数动员工版只能连接 https://<员工ID>.wanyushudong.xyz。')
+  }
+
+  return binding
+}
+
+let managedEmployeeSwitchState: ManagedEmployeeSwitchState | null = null
+
+async function persistDesktopConnectionConfig(payload: any = {}) {
+  const existing = readDesktopConnectionConfig()
+  const previousBinding = tryManagedEmployeeBinding(existing.remote?.url)
+  let config = coerceDesktopConnectionConfig(payload, existing)
+  const isGlobalScope = !connectionScopeKey(payload?.profile)
+  let nextBinding =
+    isGlobalScope && modeIsRemoteLike(config.mode) ? managedEmployeeBindingFromGatewayUrl(config.remote?.url) : null
+
+  if (IS_VANYUE_MANAGED_RELEASE) {
+    if (!isGlobalScope) {
+      throw new Error('员工版不允许配置按 profile 分流的网关。')
+    }
+
+    if (config.mode !== 'remote') {
+      throw new Error('员工版只能使用企业员工网关。')
+    }
+
+    nextBinding = requireManagedEmployeeBinding(config.remote?.url)
+  }
+
+  if (nextBinding) {
+    // One desktop identity maps to one employee backend. Drop all historical
+    // per-profile routes and any static token/cloud metadata inherited from a
+    // Wang-specific or upstream Hermes configuration.
+    config = bindManagedEmployeeConnection(config, nextBinding)
+
+    if (IS_VANYUE_MANAGED_RELEASE) {
+      managedEmployeeSwitchState = trackManagedEmployeeSwitch(managedEmployeeSwitchState, previousBinding, nextBinding)
+    }
+  }
+
+  writeDesktopConnectionConfig(config)
+
+  if (nextBinding) {
+    // Null is intentional: the authenticated backend's sole canonical profile
+    // becomes the renderer source of truth. Never carry an old employee slug in
+    // active-profile.json into requests for the newly selected employee.
+    writeActiveDesktopProfile(null)
+
+    if (!previousBinding || previousBinding.employeeId !== nextBinding.employeeId) {
+      if (previousBinding) {
+        await clearOauthSession(previousBinding.baseUrl)
+      }
+
+      // Force an explicit sign-in for the newly selected employee even if this
+      // Windows account used that hostname in an older installation.
+      await clearOauthSession(nextBinding.baseUrl)
+    }
+  }
+
+  return config
+}
+
 // Build a remote backend connection descriptor from an already-resolved remote
 // config. Handles both auth models (OAuth ws-ticket vs static session token)
 // and is shared by the per-profile, env, and global resolution paths. `token`
@@ -6052,6 +6185,11 @@ async function buildRemoteConnection(rawUrl, authMode, token, source) {
       err.needsOauthLogin = true
       throw err
     }
+
+    // Employee gateways are accepted only after both the authenticated
+    // principal and the one visible server profile match the URL subdomain.
+    // Cookie presence and a successful WS ticket alone cannot prove tenancy.
+    await validateManagedEmployeeSession(baseUrl)
 
     let ticket
 
@@ -6104,6 +6242,29 @@ async function buildRemoteConnection(rawUrl, authMode, token, source) {
 // the connection test (which pass no profile) are unchanged.
 async function resolveRemoteBackend(profile) {
   const config = readDesktopConnectionConfig()
+
+  if (IS_VANYUE_MANAGED_RELEASE) {
+    if (process.env.HERMES_DESKTOP_REMOTE_URL || process.env.HERMES_DESKTOP_REMOTE_TOKEN) {
+      throw new Error('员工版不允许使用环境变量覆盖企业网关。')
+    }
+
+    if (config.mode !== 'remote') {
+      throw new Error('尚未配置员工账号，请先运行“万域数动员工配置”。')
+    }
+
+    const binding = requireManagedEmployeeBinding(config.remote?.url)
+    const boundConfig = bindManagedEmployeeConnection(config, binding)
+
+    if (JSON.stringify(boundConfig) !== JSON.stringify(config)) {
+      writeDesktopConnectionConfig(boundConfig)
+    }
+
+    if (readActiveDesktopProfile() !== null) {
+      writeActiveDesktopProfile(null)
+    }
+
+    return buildRemoteConnection(binding.baseUrl, 'oauth', null, 'managed-employee')
+  }
 
   // 1. Per-profile override — "a profile with its own remote host". Wins even
   //    over the env override so an explicitly-configured profile always
@@ -6195,7 +6356,10 @@ async function probeRemoteAuthMode(rawUrl) {
   // OAuth login button vs a session-token entry box. Network/parse failures
   // surface as ``reachable: false`` rather than throwing, so a half-typed or
   // unreachable URL degrades to "can't tell yet" instead of a hard error.
-  const baseUrl = normalizeRemoteBaseUrl(rawUrl)
+  const normalizedBaseUrl = normalizeRemoteBaseUrl(rawUrl)
+  const baseUrl = IS_VANYUE_MANAGED_RELEASE
+    ? requireManagedEmployeeBinding(normalizedBaseUrl).baseUrl
+    : normalizedBaseUrl
 
   let status
 
@@ -6250,6 +6414,21 @@ async function probeRemoteAuthMode(rawUrl) {
 }
 
 async function testDesktopConnectionConfig(input: any = {}) {
+  if (IS_VANYUE_MANAGED_RELEASE) {
+    if (connectionScopeKey(input?.profile)) {
+      throw new Error('员工版不允许测试按 profile 分流的网关。')
+    }
+
+    const binding = requireManagedEmployeeBinding(normalizeRemoteBaseUrl(input?.remoteUrl))
+    input = {
+      ...input,
+      mode: 'remote',
+      profile: null,
+      remoteAuthMode: 'oauth',
+      remoteUrl: binding.baseUrl
+    }
+  }
+
   const config = coerceDesktopConnectionConfig(input, readDesktopConnectionConfig(), { persistToken: false })
   const key = connectionScopeKey(input.profile)
   // The block under test: a per-profile entry or the global remote. Coerce has
@@ -6282,6 +6461,10 @@ async function testDesktopConnectionConfig(input: any = {}) {
   }
 
   const status = (await fetchJson(`${baseUrl}/api/status`, token, { timeoutMs: 8_000 })) as any
+
+  if (authMode === 'oauth') {
+    await validateManagedEmployeeSession(baseUrl)
+  }
 
   // The HTTP status check above proves the backend is reachable, but the chat
   // surface only works once the renderer's live WebSocket to ``/api/ws``
@@ -6381,7 +6564,7 @@ async function teardownPrimaryBackendAndWait({ soft = false } = {}) {
   }
 }
 
-function sendConnectionApplied() {
+function sendConnectionApplied(payload: any = {}) {
   if (!mainWindow || mainWindow.isDestroyed()) {
     return
   }
@@ -6392,7 +6575,7 @@ function sendConnectionApplied() {
     return
   }
 
-  webContents.send('hermes:connection:applied')
+  webContents.send('hermes:connection:applied', payload)
 }
 
 async function waitForBackendExit(child, timeoutMs = 5000) {
@@ -7034,7 +7217,7 @@ function spawnSecondaryWindow({
     height: SESSION_WINDOW_MIN_HEIGHT,
     minWidth: SESSION_WINDOW_MIN_WIDTH,
     minHeight: SESSION_WINDOW_MIN_HEIGHT,
-    title: 'Hermes',
+    title: DISPLAY_NAME,
     titleBarStyle: 'hidden',
     titleBarOverlay: getTitleBarOverlayOptions(),
     trafficLightPosition: IS_MAC ? WINDOW_BUTTON_POSITION : undefined,
@@ -7239,7 +7422,7 @@ function createWindow() {
     ...computeWindowOptions(savedWindowState, screen.getAllDisplays()),
     minWidth: WINDOW_MIN_WIDTH,
     minHeight: WINDOW_MIN_HEIGHT,
-    title: 'Hermes',
+    title: DISPLAY_NAME,
     // Frameless title bar on every platform so the renderer can paint the
     // "hide sidebar" button (and other left-side titlebar tools) flush with
     // the top edge — matching the macOS layout where the traffic lights sit
@@ -7396,7 +7579,9 @@ ipcMain.on('hermes:renderer-ready', event => {
   rendererHealth.ready()
 })
 
-ipcMain.handle('hermes:connection', async (_event, profile) => ensureBackend(profile))
+ipcMain.handle('hermes:connection', async (_event, profile) =>
+  ensureBackend(IS_VANYUE_MANAGED_RELEASE ? enforceManagedEmployeeProfile(profile, 'connection.profile') : profile)
+)
 // Reconnect-after-wake recovery. A REMOTE primary backend has no child process,
 // so the 'exit'/'error' handlers that would clear a dead connectionPromise never
 // fire — once the remote becomes unreachable across a sleep/wake the renderer
@@ -7441,11 +7626,15 @@ ipcMain.handle('hermes:connection:revalidate', async () => {
   }
 })
 ipcMain.handle('hermes:backend:touch', async (_event, profile) => {
-  touchPoolBackend(profile)
+  touchPoolBackend(
+    IS_VANYUE_MANAGED_RELEASE ? enforceManagedEmployeeProfile(profile, 'backend-touch.profile') : profile
+  )
 
   return { ok: true }
 })
-ipcMain.handle('hermes:gateway:ws-url', async (_event, profile) => freshGatewayWsUrl(profile))
+ipcMain.handle('hermes:gateway:ws-url', async (_event, profile) =>
+  freshGatewayWsUrl(IS_VANYUE_MANAGED_RELEASE ? enforceManagedEmployeeProfile(profile, 'gateway.profile') : profile)
+)
 ipcMain.handle('hermes:window:openSession', async (_event, sessionId, opts) => {
   if (typeof sessionId !== 'string' || !sessionId.trim()) {
     return { ok: false, error: 'invalid-session-id' }
@@ -7663,23 +7852,51 @@ ipcMain.handle('hermes:bootstrap:cancel', async () => {
 ipcMain.handle('hermes:boot-progress:get', async () => bootProgressState)
 ipcMain.handle('hermes:bootstrap:get', async () => getBootstrapState())
 ipcMain.handle('hermes:connection-config:get', async (_event, profile) =>
-  sanitizeDesktopConnectionConfig(readDesktopConnectionConfig(), profile)
+  sanitizeDesktopConnectionConfig(readDesktopConnectionConfig(), IS_VANYUE_MANAGED_RELEASE ? null : profile)
 )
 ipcMain.handle('hermes:connection-config:test', async (_event, payload) => testDesktopConnectionConfig(payload))
 ipcMain.handle('hermes:connection-config:probe', async (_event, rawUrl) => probeRemoteAuthMode(rawUrl))
+ipcMain.handle('hermes:connection-config:oauth-status', async (_event, rawUrl) => {
+  const normalizedBaseUrl = normalizeRemoteBaseUrl(rawUrl)
+  const baseUrl = IS_VANYUE_MANAGED_RELEASE
+    ? requireManagedEmployeeBinding(normalizedBaseUrl).baseUrl
+    : normalizedBaseUrl
+
+  return { ok: true, baseUrl, connected: await hasLiveOauthSession(baseUrl) }
+})
 ipcMain.handle('hermes:connection-config:oauth-login', async (_event, rawUrl) => {
   // Open the gateway's OAuth login window and wait for the session cookie to
   // land in the OAuth partition. The caller (settings UI) typically saves the
   // remote config with authMode='oauth' first, then calls this. We normalize
   // the URL defensively so a login can be driven from a raw URL too.
-  const baseUrl = normalizeRemoteBaseUrl(rawUrl)
+  const normalizedBaseUrl = normalizeRemoteBaseUrl(rawUrl)
+  const baseUrl = IS_VANYUE_MANAGED_RELEASE
+    ? requireManagedEmployeeBinding(normalizedBaseUrl).baseUrl
+    : normalizedBaseUrl
   await openOauthLoginWindow(baseUrl)
 
-  return { ok: true, baseUrl, connected: await hasOauthSessionCookie(baseUrl) }
+  const connected = await hasOauthSessionCookie(baseUrl)
+
+  if (connected) {
+    try {
+      await validateManagedEmployeeSession(baseUrl)
+    } catch (error) {
+      // A valid cookie for the wrong employee must never remain reusable after
+      // a failed tenant check.
+      await clearOauthSession(baseUrl)
+      throw error
+    }
+  }
+
+  return { ok: true, baseUrl, connected }
 })
 ipcMain.handle('hermes:connection-config:oauth-logout', async (_event, rawUrl) => {
-  const baseUrl = rawUrl ? normalizeRemoteBaseUrl(rawUrl) : ''
-  await clearOauthSession(baseUrl || undefined)
+  const savedUrl = readDesktopConnectionConfig().remote?.url
+  const normalizedBaseUrl = normalizeRemoteBaseUrl(rawUrl || savedUrl)
+  const baseUrl = IS_VANYUE_MANAGED_RELEASE
+    ? requireManagedEmployeeBinding(normalizedBaseUrl).baseUrl
+    : normalizedBaseUrl
+  await clearOauthSession(baseUrl)
 
   // Report against the SAME liveness notion the Settings indicator uses
   // (AT-or-RT) so a logout that left any session cookie behind is reflected
@@ -7690,40 +7907,67 @@ ipcMain.handle('hermes:connection-config:oauth-logout', async (_event, rawUrl) =
 // --- Hermes Cloud (cloud-auto-discovery Phase 3) ---
 // One portal login in the OAuth partition powers both discovery and the silent
 // per-agent cascade. See the discovery/cascade helpers above.
-ipcMain.handle('hermes:cloud:status', async () => ({
-  portalBaseUrl: resolvePortalBaseUrl(),
-  signedIn: await hasLivePortalSession()
-}))
+ipcMain.handle('hermes:cloud:status', async () => {
+  if (IS_VANYUE_MANAGED_RELEASE) {
+    throw new Error('员工版已禁用 Hermes Cloud。')
+  }
+
+  return {
+    portalBaseUrl: resolvePortalBaseUrl(),
+    signedIn: await hasLivePortalSession()
+  }
+})
 ipcMain.handle('hermes:cloud:login', async () => {
+  if (IS_VANYUE_MANAGED_RELEASE) {
+    throw new Error('员工版已禁用 Hermes Cloud。')
+  }
+
   await openPortalLoginWindow()
 
   return { ok: true, signedIn: await hasLivePortalSession() }
 })
 ipcMain.handle('hermes:cloud:logout', async () => {
+  if (IS_VANYUE_MANAGED_RELEASE) {
+    throw new Error('员工版已禁用 Hermes Cloud。')
+  }
+
   await clearOauthSession(resolvePortalBaseUrl())
 
   return { ok: true, signedIn: await hasLivePortalSession() }
 })
 ipcMain.handle('hermes:cloud:discover', async (_event, org) => {
+  if (IS_VANYUE_MANAGED_RELEASE) {
+    throw new Error('员工版已禁用 Hermes Cloud。')
+  }
+
   // Returns { agents } or { needsOrgSelection: true, orgs }. `org` (optional)
   // scopes discovery to a chosen org for multi-org users.
   return discoverCloudAgents(typeof org === 'string' && org ? org : undefined)
 })
 ipcMain.handle('hermes:cloud:agent-sign-in', async (_event, dashboardUrl) => {
+  if (IS_VANYUE_MANAGED_RELEASE) {
+    throw new Error('员工版已禁用 Hermes Cloud。')
+  }
+
   // Silent per-agent sign-in via the shared portal session. Returns the agent's
   // gateway baseUrl + whether its session cookie landed; the renderer then
   // saves a cloud-mode connection pointed at this dashboardUrl.
   return cloudAgentSilentSignIn(dashboardUrl)
 })
 ipcMain.handle('hermes:connection-config:save', async (_event, payload) => {
-  const config = coerceDesktopConnectionConfig(payload)
-  writeDesktopConnectionConfig(config)
+  const config = await persistDesktopConnectionConfig(payload)
 
   return sanitizeDesktopConnectionConfig(config, payload?.profile)
 })
 ipcMain.handle('hermes:connection-config:apply', async (_event, payload) => {
-  const config = coerceDesktopConnectionConfig(payload)
-  writeDesktopConnectionConfig(config)
+  const config = await persistDesktopConnectionConfig(payload)
+  const managedConnectionPayload = IS_VANYUE_MANAGED_RELEASE
+    ? {
+        employeeId:
+          managedEmployeeSwitchState?.targetEmployeeId || requireManagedEmployeeBinding(config.remote?.url).employeeId,
+        identityChanged: managedEmployeeSwitchState?.identityChanged === true
+      }
+    : {}
 
   const key = connectionScopeKey(payload?.profile)
 
@@ -7737,14 +7981,26 @@ ipcMain.handle('hermes:connection-config:apply', async (_event, payload) => {
     // without resetting boot UI or reloading — the shell stays, the renderer
     // wipes session lists (skeletons) and re-dials on hermes:connection:applied.
     await teardownPrimaryBackendAndWait({ soft: true })
-    sendConnectionApplied()
+    sendConnectionApplied(managedConnectionPayload)
+
+    if (IS_VANYUE_MANAGED_RELEASE) {
+      managedEmployeeSwitchState = null
+    }
   }
 
   return sanitizeDesktopConnectionConfig(config, payload?.profile)
 })
 
-ipcMain.handle('hermes:profile:get', async () => ({ profile: readActiveDesktopProfile() }))
+ipcMain.handle('hermes:profile:get', async () => ({
+  profile: IS_VANYUE_MANAGED_RELEASE ? null : readActiveDesktopProfile()
+}))
 ipcMain.handle('hermes:profile:set', async (_event, name) => {
+  if (IS_VANYUE_MANAGED_RELEASE) {
+    writeActiveDesktopProfile(null)
+
+    return { profile: null }
+  }
+
   const next = writeActiveDesktopProfile(name)
 
   // Switching profiles is a backend re-home: relaunch the dashboard under the
@@ -7926,6 +8182,12 @@ async function mergeRemoteProfileSessions(searchParams, remoteProfiles) {
 }
 
 ipcMain.handle('hermes:api', async (_event, request) => {
+  if (IS_VANYUE_MANAGED_RELEASE) {
+    const binding = requireManagedEmployeeBinding(readDesktopConnectionConfig().remote?.url)
+
+    request = enforceManagedEmployeeApiRequest(request, binding, 'default')
+  }
+
   // Remote-profile session requests would otherwise hit the local primary off
   // each profile's on-disk state.db — fine for local profiles, but a remote
   // profile's sessions live on its remote host, so the UI's IDs 404 (or mutations
@@ -8025,6 +8287,52 @@ ipcMain.handle('hermes:releaseFileUploadSnapshot', async (_event, snapshotPath) 
   releaseFileSnapshotForIpc(snapshotPath, fileUploadSnapshotRoot())
 )
 
+ipcMain.handle('hermes:uploadSessionAttachmentHttp', async (_event, payload: any = {}) => {
+  const filePath = typeof payload.filePath === 'string' ? payload.filePath : ''
+  const name = typeof payload.name === 'string' ? payload.name.trim() : ''
+  const profile = IS_VANYUE_MANAGED_RELEASE
+    ? enforceManagedEmployeeProfile(payload.profile, 'attachment.profile')
+    : typeof payload.profile === 'string'
+      ? payload.profile
+      : null
+  const sessionId = typeof payload.sessionId === 'string' ? payload.sessionId.trim() : ''
+
+  if (!filePath || !name || !sessionId) {
+    throw new Error('HTTP attachment upload requires filePath, name, and sessionId')
+  }
+
+  const connection = await ensureBackend(profile)
+
+  if (connection.authMode !== 'oauth' && !connection.token) {
+    return null
+  }
+
+  const snapshot = await createFileSnapshotForIpc(filePath, fileUploadSnapshotRoot())
+
+  try {
+    return await uploadSessionAttachmentHttp({
+      baseUrl: connection.baseUrl,
+      filePath: snapshot.path,
+      name,
+      requestJson:
+        connection.authMode === 'oauth'
+          ? (url, options = {}) =>
+              fetchJsonViaOauthSession(url, {
+                body: Buffer.isBuffer(options.body) ? undefined : options.body,
+                contentType: options.contentType,
+                method: options.method,
+                rawBody: Buffer.isBuffer(options.body) ? options.body : undefined,
+                timeoutMs: options.timeoutMs
+              })
+          : undefined,
+      sessionId,
+      token: connection.token || ''
+    })
+  } finally {
+    await releaseFileSnapshotForIpc(snapshot.path, fileUploadSnapshotRoot()).catch(() => undefined)
+  }
+})
+
 ipcMain.handle('hermes:readFileDataUrl', async (_event, filePath) => {
   const { resolvedPath } = await resolveReadableFileForIpc(filePath, {
     maxBytes: DATA_URL_READ_MAX_BYTES,
@@ -8038,11 +8346,9 @@ ipcMain.handle('hermes:readFileDataUrl', async (_event, filePath) => {
 
 ipcMain.handle('hermes:readFileChunkBase64', async (_event, payload: any = {}) => {
   const filePath = typeof payload === 'string' ? payload : payload?.filePath
-  const offset = typeof payload === 'object' ? payload?.offset ?? 0 : 0
+  const offset = typeof payload === 'object' ? (payload?.offset ?? 0) : 0
   const maxBytes =
-    typeof payload === 'object' && payload?.maxBytes !== undefined
-      ? payload.maxBytes
-      : FILE_CHUNK_READ_MAX_BYTES
+    typeof payload === 'object' && payload?.maxBytes !== undefined ? payload.maxBytes : FILE_CHUNK_READ_MAX_BYTES
   const chunk = await readFileChunkForIpc(filePath, offset, maxBytes)
 
   return {
@@ -8711,9 +9017,9 @@ function resolveHermesVersion() {
 // other platforms don't use this menu item.
 function showAboutPanelFresh() {
   app.setAboutPanelOptions({
-    applicationName: APP_NAME,
+    applicationName: DISPLAY_NAME,
     applicationVersion: resolveHermesVersion(),
-    copyright: 'Copyright © 2026 Nous Research'
+    copyright: 'Copyright © 2026 VanYue Space Digital'
   })
   app.showAboutPanel()
 }
@@ -8933,8 +9239,18 @@ async function runDesktopUninstall(mode) {
   return { ok: true, mode, willRemoveAppBundle: Boolean(removeBundle), scriptPath }
 }
 
-ipcMain.handle('hermes:uninstall:summary', async () => getUninstallSummary())
+ipcMain.handle('hermes:uninstall:summary', async () => {
+  if (IS_VANYUE_MANAGED_RELEASE) {
+    throw new Error('员工版不允许从应用内卸载或清理共享 Hermes 后端')
+  }
+
+  return getUninstallSummary()
+})
 ipcMain.handle('hermes:uninstall:run', async (_event, payload) => {
+  if (IS_VANYUE_MANAGED_RELEASE) {
+    throw new Error('员工版不允许从应用内卸载或清理共享 Hermes 后端')
+  }
+
   const mode = payload && typeof payload === 'object' ? payload.mode : payload
 
   return runDesktopUninstall(String(mode || ''))
@@ -8948,12 +9264,12 @@ ipcMain.handle('hermes:vscode-theme:fetch', async (_event, id) => fetchMarketpla
 ipcMain.handle('hermes:vscode-theme:search', async (_event, query) => searchMarketplaceThemes(String(query || ''), 20))
 
 // ---------------------------------------------------------------------------
-// hermes:// deep links (e.g. hermes://blueprint/morning-brief?time=08:00).
+// vanyue:// deep links (e.g. vanyue://blueprint/morning-brief?time=08:00).
 // A docs/dashboard "Send to App" button opens this URL; we route it into the
 // running app's chat composer. Three delivery paths: macOS 'open-url',
 // Win/Linux running-app 'second-instance' (argv), Win/Linux cold-start argv.
 // ---------------------------------------------------------------------------
-const HERMES_PROTOCOL = 'hermes'
+const HERMES_PROTOCOL = 'vanyue'
 let _pendingDeepLink = null
 let _rendererReadyForDeepLink = false
 
@@ -8979,7 +9295,7 @@ function handleDeepLink(url) {
     return
   }
 
-  // hermes://blueprint/<key>?slot=val  -> host="blueprint", path="/<key>"
+  // vanyue://blueprint/<key>?slot=val  -> host="blueprint", path="/<key>"
   const kind = parsed.hostname || ''
   const name = decodeURIComponent((parsed.pathname || '').replace(/^\//, ''))
   const params = {}
@@ -9038,7 +9354,7 @@ function registerDeepLinkProtocol() {
 }
 
 // Single-instance lock: deep links on a running app (Win/Linux) arrive as a
-// second-instance argv. Without the lock a second `hermes://` launch spawns a
+// second-instance argv. Without the lock a second `vanyue://` launch spawns a
 // whole new app instead of routing into the running one.
 const _gotSingleInstanceLock = app.requestSingleInstanceLock()
 
@@ -9091,7 +9407,7 @@ app.whenReady().then(() => {
   registerPowerResumeListeners()
   createWindow()
 
-  // Win/Linux cold start: the launching hermes:// URL is in our own argv.
+  // Win/Linux cold start: the launching vanyue:// URL is in our own argv.
   const _coldStartLink = _extractDeepLink(process.argv)
 
   if (_coldStartLink) {

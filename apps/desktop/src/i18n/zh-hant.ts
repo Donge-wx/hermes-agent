@@ -62,14 +62,14 @@ export const zhHant = defineLocale({
   },
 
   boot: {
-    ready: 'Hermes Desktop 已就緒',
+    ready: '萬域數動桌面端已就緒',
     desktopBootFailedWithMessage: message => `桌面啟動失敗：${message}`,
     steps: {
       connectingGateway: '正在連線桌面閘道',
       loadingSettings: '正在載入 Hermes 設定',
       loadingSessions: '正在載入最近工作階段',
       startingDesktopConnection: '正在啟動桌面連線',
-      startingHermesDesktop: '正在啟動 Hermes Desktop…'
+    startingHermesDesktop: '正在啟動萬域數動桌面端…'
     },
     errors: {
       backgroundExited: 'Hermes 背景程序已結束。',
@@ -242,7 +242,7 @@ export const zhHant = defineLocale({
         }
       },
       test: '傳送測試通知',
-      testTitle: 'Hermes',
+    testTitle: '萬域數動',
       testBody: '通知運作正常。',
       testSent: '測試已傳送。若沒有出現，請檢查系統通知權限與專注模式／勿擾模式。',
       testUnsupported: '此系統不支援原生通知。',
@@ -261,7 +261,7 @@ export const zhHant = defineLocale({
       advanced: '進階'
     },
     searchPlaceholder: {
-      about: '關於 Hermes Desktop',
+    about: '關於萬域數動',
       config: '搜尋設定…',
       gateway: '閘道連線…',
       keys: '搜尋 API 金鑰…',
@@ -556,7 +556,7 @@ export const zhHant = defineLocale({
       }
     }),
     about: {
-      heading: 'Hermes Desktop',
+      heading: '萬域數動',
       version: value => `版本 ${value}`,
       versionUnavailable: '版本不可用',
       updates: '更新',
@@ -1007,7 +1007,7 @@ export const zhHant = defineLocale({
     },
     nav: {
       newChat: { title: '新工作階段', detail: '開始新的工作階段' },
-      settings: { title: '設定', detail: '設定 Hermes 桌面端' },
+      settings: { title: '設定', detail: '設定萬域數動桌面端' },
       skills: { title: '技能與工具', detail: '啟用技能、工具集和提供方' },
       messaging: { title: '訊息平台', detail: '設定 Telegram、Slack、Discord 等' },
       artifacts: { title: '成品', detail: '瀏覽產生的輸出' }
@@ -1531,7 +1531,7 @@ export const zhHant = defineLocale({
     placeholderFollowUp: '傳送後續訊息',
     newSessionPlaceholders: [
       '我們要建立什麼？',
-      '給 Hermes 一個任務',
+      '交給萬域數動一個任務',
       '您在想什麼？',
       '描述您需要什麼',
       '我們該處理什麼？',
@@ -1743,6 +1743,8 @@ export const zhHant = defineLocale({
     manualTitle: '從終端機更新',
     manualBody: '您是從命令列安裝的 Hermes，因此更新也需要在那裡執行。請將此指令貼到終端機：',
     manualPickedUp: '下次啟動 Hermes 時會使用新版本。',
+    managedReleaseBody:
+      '萬域數動桌面版由管理員統一更新。請安裝管理員發佈的新版本；為保留企業介面、歷史記錄和檔案上傳定制，已停用 Hermes 官方自動更新。',
     guiSkewTitle: '請更新桌面應用程式',
     guiSkewBody:
       '後端已更新，但此桌面應用程式套件未變更。請更新或重新安裝 Hermes 桌面應用程式（你的 AppImage / .deb / .rpm）以保持一致。',
@@ -1774,7 +1776,7 @@ export const zhHant = defineLocale({
       skipped: '已略過',
       failed: '失敗'
     },
-    oneTimeTitle: 'Hermes 需要一次性安裝',
+    oneTimeTitle: '萬域數動需要一次性安裝',
     unsupportedDesc: platform =>
       `${platform} 暫不支援自動首次啟動安裝。請開啟終端機並執行下面的指令，然後重新啟動此應用程式。之後啟動會略過此步驟。`,
     installCommand: '安裝指令',
@@ -1783,7 +1785,7 @@ export const zhHant = defineLocale({
     installTo: '將安裝至',
     retryAfterRun: '我已執行 -- 重試',
     failedTitle: '安裝失敗',
-    settingUpTitle: '正在設定 Hermes Agent',
+    settingUpTitle: '正在設定萬域數動',
     finishingTitle: '正在收尾',
     failedDesc:
       '某個安裝步驟失敗。在 Windows 上，如果另一個 Hermes CLI 或桌面執行個體正在執行，可能會出現這種情況。請停止正在執行的 Hermes 執行個體後重試。可查看下方的詳細資訊或 desktop 記錄中的完整記錄。',
@@ -1805,10 +1807,10 @@ export const zhHant = defineLocale({
   },
 
   onboarding: {
-    headerTitle: '開始設定 Hermes Agent',
+    headerTitle: '開始設定萬域數動',
     headerDesc: '連線模型提供方即可開始聊天。大多數選項只需一次點擊。',
-    preparingInstall: 'Hermes 正在完成安裝。首次執行通常不到一分鐘。',
-    starting: '正在啟動 Hermes…',
+    preparingInstall: '後端正在完成安裝。首次執行通常不到一分鐘。',
+    starting: '正在啟動萬域數動…',
     lookingUpProviders: '正在查詢提供方...',
     collapse: '收合',
     otherProviders: '其他提供方',
@@ -1940,7 +1942,7 @@ export const zhHant = defineLocale({
       update: '更新',
       updateInProgress: '更新中',
       commitsBehind: (count, branch) => `落後 ${branch} ${count} 個提交`,
-      desktopVersion: version => `Hermes Desktop v${version}`,
+    desktopVersion: version => `萬域數動桌面端 v${version}`,
       backendVersion: version => `後端 v${version}`,
       clientLabel: version => `用戶端 v${version}`,
       backendLabel: version => `後端 v${version}`,

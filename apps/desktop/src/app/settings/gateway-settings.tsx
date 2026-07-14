@@ -8,6 +8,7 @@ import type { DesktopAuthProvider, DesktopCloudAgent, DesktopCloudOrg, DesktopCo
 import { useI18n } from '@/i18n'
 import { ExternalLink } from '@/lib/external-link'
 import { AlertCircle, Check, Cloud, FileText, Globe, HelpCircle, Loader2, LogIn, Monitor, RefreshCw } from '@/lib/icons'
+import { IS_VANYUE_MANAGED_RELEASE } from '@/lib/managed-release'
 import { selectableCardClass } from '@/lib/selectable-card'
 import { cn } from '@/lib/utils'
 import { previewGatewaySwitch } from '@/store/gateway-switch'
@@ -15,6 +16,13 @@ import { notify, notifyError } from '@/store/notifications'
 import { $profiles, refreshActiveProfile } from '@/store/profile'
 
 import { CONTROL_TEXT } from './constants'
+import {
+  employeeGatewayUrl,
+  employeeIdFromGatewayUrl,
+  normalizePastedGatewayUrl,
+  oauthStatusMatchesInput,
+  type RemoteOauthStatus
+} from './gateway-remote-url'
 import { EmptyState, ListRow, LoadingState, Pill, SettingsContent } from './primitives'
 
 type Mode = 'local' | 'remote' | 'cloud'
@@ -44,6 +52,8 @@ const EMPTY_STATE: GatewaySettingsState = {
   remoteUrl: '',
   cloudOrg: ''
 }
+
+const EMPTY_OAUTH_STATUS: RemoteOauthStatus = { checkedInput: '', connected: false }
 
 function ModeCard({
   active,
@@ -122,6 +132,9 @@ export function GatewaySettings() {
   const [state, setState] = useState<GatewaySettingsState>(EMPTY_STATE)
   const [remoteToken, setRemoteToken] = useState('')
   const [lastTest, setLastTest] = useState<null | string>(null)
+  const [remoteOauthStatus, setRemoteOauthStatus] = useState<RemoteOauthStatus>(EMPTY_OAUTH_STATUS)
+  const [employeeId, setEmployeeId] = useState('')
+  const oauthStatusSeq = useRef(0)
 
   // --- Hermes Cloud (cloud mode) state ---
   // One portal session powers discovery + the silent per-agent cascade. These
@@ -181,6 +194,8 @@ export function GatewaySettings() {
     // the next when switching profiles.
     setRemoteToken('')
     setLastTest(null)
+    setRemoteOauthStatus(EMPTY_OAUTH_STATUS)
+    oauthStatusSeq.current += 1
 
     desktop
       .getConnectionConfig(scope)
@@ -189,7 +204,12 @@ export function GatewaySettings() {
           return
         }
 
-        setState(config)
+        if (IS_VANYUE_MANAGED_RELEASE) {
+          setEmployeeId(employeeIdFromGatewayUrl(config.remoteUrl))
+          setState({ ...config, mode: 'remote', remoteAuthMode: 'oauth' })
+        } else {
+          setState(config)
+        }
       })
       .catch(err => notifyError(err, g.failedLoad))
       .finally(() => {
@@ -207,6 +227,49 @@ export function GatewaySettings() {
   // OAuth login button or the session-token entry box. The effective auth mode
   // prefers a fresh probe result over the saved value.
   const trimmedUrl = state.remoteUrl.trim()
+
+  // OAuth cookies live in one persistent Electron partition, but are scoped by
+  // host. Query the cookie jar for the URL CURRENTLY in the field rather than
+  // trusting the saved config's connected flag. Keeping the exact checked
+  // input in state makes a URL edit invalidate the old result synchronously;
+  // the sequence guard also prevents a slow Wang query from overwriting a
+  // newer employee's result.
+  useEffect(() => {
+    const desktop = window.hermesDesktop
+
+    if (
+      state.mode !== 'remote' ||
+      !trimmedUrl ||
+      !/^https?:\/\//i.test(trimmedUrl) ||
+      !desktop?.oauthStatusConnectionConfig
+    ) {
+      setRemoteOauthStatus(EMPTY_OAUTH_STATUS)
+
+      return
+    }
+
+    let cancelled = false
+    const checkedInput = trimmedUrl
+    const seq = ++oauthStatusSeq.current
+
+    setRemoteOauthStatus({ checkedInput, connected: false })
+    void desktop
+      .oauthStatusConnectionConfig(checkedInput)
+      .then(result => {
+        if (!cancelled && seq === oauthStatusSeq.current) {
+          setRemoteOauthStatus({ checkedInput, connected: result.connected })
+        }
+      })
+      .catch(() => {
+        if (!cancelled && seq === oauthStatusSeq.current) {
+          setRemoteOauthStatus({ checkedInput, connected: false })
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [state.mode, trimmedUrl])
 
   // The dashboardUrl of the currently-connected cloud instance (the saved
   // cloud connection's remoteUrl), normalized for comparison against each
@@ -285,7 +348,8 @@ export function GatewaySettings() {
   //     its control appears immediately with no flicker.
   // While probing (or after a probe error), the scheme is unknown and we show
   // the probe status row instead of a control.
-  const hasSavedRemote = state.remoteTokenSet || state.remoteOauthConnected
+  const oauthConnected = oauthStatusMatchesInput(remoteOauthStatus, trimmedUrl)
+  const hasSavedRemote = state.remoteTokenSet || oauthConnected
 
   const authResolved = useMemo(() => {
     if (probeStatus === 'done') {
@@ -325,8 +389,6 @@ export function GatewaySettings() {
   // The 'default' profile uses the global ("All profiles") connection, so the
   // per-profile scopes are the named, non-default profiles.
   const namedProfiles = useMemo(() => profiles.filter(profile => profile.name !== 'default'), [profiles])
-
-  const oauthConnected = state.remoteOauthConnected
 
   const canUseRemote = useMemo(() => {
     if (!trimmedUrl) {
@@ -406,6 +468,9 @@ export function GatewaySettings() {
 
       const result = await window.hermesDesktop.oauthLoginConnectionConfig(trimmedUrl)
 
+      oauthStatusSeq.current += 1
+      setRemoteOauthStatus({ checkedInput: result.baseUrl, connected: result.connected })
+
       if (result.connected) {
         const refreshed = await window.hermesDesktop.getConnectionConfig(scope)
         setState(refreshed)
@@ -428,7 +493,9 @@ export function GatewaySettings() {
     setSigningIn(true)
 
     try {
-      await window.hermesDesktop.oauthLogoutConnectionConfig(trimmedUrl || undefined)
+      oauthStatusSeq.current += 1
+      const result = await window.hermesDesktop.oauthLogoutConnectionConfig(trimmedUrl || undefined)
+      setRemoteOauthStatus({ checkedInput: trimmedUrl, connected: result.connected })
       const refreshed = await window.hermesDesktop.getConnectionConfig(scope)
       setState(refreshed)
       notify({ kind: 'success', title: g.signedOutTitle, message: g.signedOutMessage })
@@ -642,10 +709,10 @@ export function GatewaySettings() {
         return
       }
 
-  // Persist a cloud-mode connection (remote-shaped, oauth) and soft-reconnect.
-  // Include the selected org so Settings reopens into the same org + instance.
-  // Read the REF (not the cloudOrg state) so a just-resolved org from
-  // discovery in this same render tick is captured, not a stale null.
+      // Persist a cloud-mode connection (remote-shaped, oauth) and soft-reconnect.
+      // Include the selected org so Settings reopens into the same org + instance.
+      // Read the REF (not the cloudOrg state) so a just-resolved org from
+      // discovery in this same render tick is captured, not a stale null.
       const next = await desktop.applyConnectionConfig({
         mode: 'cloud',
         profile: scope ?? undefined,
@@ -717,11 +784,13 @@ export function GatewaySettings() {
           {state.envOverride ? <Pill tone="primary">{g.envOverride}</Pill> : null}
         </div>
         <p className="mt-2 max-w-2xl text-[length:var(--conversation-caption-font-size)] leading-(--conversation-caption-line-height) text-(--ui-text-tertiary)">
-          {g.intro}
+          {IS_VANYUE_MANAGED_RELEASE
+            ? '输入公司分配的员工 ID，登录后此客户端只会连接该员工的独立网关和历史记录。'
+            : g.intro}
         </p>
       </div>
 
-      {namedProfiles.length > 0 ? (
+      {!IS_VANYUE_MANAGED_RELEASE && namedProfiles.length > 0 ? (
         <div className="mb-5 grid gap-2">
           <div className="text-[length:var(--conversation-caption-font-size)] font-medium text-(--ui-text-secondary)">
             {g.appliesTo}
@@ -757,39 +826,51 @@ export function GatewaySettings() {
         <div className="text-[length:var(--conversation-caption-font-size)] font-medium text-(--ui-text-secondary)">
           {g.modeTitle}
         </div>
-        <div className="grid auto-rows-fr grid-cols-1 gap-2 min-[42rem]:grid-cols-3">
-          <ModeCard
-            active={state.mode === 'local'}
-            description={g.localDesc}
-            disabled={state.envOverride}
-            icon={Monitor}
-            onSelect={() => setState(current => ({ ...current, mode: 'local' }))}
-            title={g.localTitle}
-          />
-          <ModeCard
-            active={state.mode === 'cloud'}
-            description={g.cloudDesc}
-            disabled={state.envOverride}
-            icon={Cloud}
-            onSelect={() => setState(current => ({ ...current, mode: 'cloud' }))}
-            title={g.cloudTitle}
-          />
-          <ModeCard
-            active={state.mode === 'remote'}
-            description={g.remoteDesc}
-            disabled={state.envOverride}
-            hint={g.remoteAuthHint}
-            icon={Globe}
-            onSelect={() => setState(current => ({ ...current, mode: 'remote' }))}
-            title={g.remoteTitle}
-          />
-        </div>
+        {IS_VANYUE_MANAGED_RELEASE ? (
+          <div className="flex items-start gap-2 rounded-xl border border-primary/25 bg-primary/5 px-3 py-2.5 text-[length:var(--conversation-caption-font-size)]">
+            <Globe className="mt-0.5 size-4 shrink-0 text-primary" />
+            <div>
+              <div className="font-medium text-(--ui-text-primary)">企业员工专属网关</div>
+              <div className="mt-1 leading-5 text-(--ui-text-tertiary)">
+                本版本已禁用本地网关、Hermes Cloud 和任意第三方地址。
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="grid auto-rows-fr grid-cols-1 gap-2 min-[42rem]:grid-cols-3">
+            <ModeCard
+              active={state.mode === 'local'}
+              description={g.localDesc}
+              disabled={state.envOverride}
+              icon={Monitor}
+              onSelect={() => setState(current => ({ ...current, mode: 'local' }))}
+              title={g.localTitle}
+            />
+            <ModeCard
+              active={state.mode === 'cloud'}
+              description={g.cloudDesc}
+              disabled={state.envOverride}
+              icon={Cloud}
+              onSelect={() => setState(current => ({ ...current, mode: 'cloud' }))}
+              title={g.cloudTitle}
+            />
+            <ModeCard
+              active={state.mode === 'remote'}
+              description={g.remoteDesc}
+              disabled={state.envOverride}
+              hint={g.remoteAuthHint}
+              icon={Globe}
+              onSelect={() => setState(current => ({ ...current, mode: 'remote' }))}
+              title={g.remoteTitle}
+            />
+          </div>
+        )}
       </div>
 
       {/* Hermes Cloud panel: one portal sign-in, then a discovered-agent picker
           whose selection drives the silent per-agent cascade + a cloud
           connection. Replaces the URL/token form while in cloud mode. */}
-      {state.mode === 'cloud' && !state.envOverride ? (
+      {!IS_VANYUE_MANAGED_RELEASE && state.mode === 'cloud' && !state.envOverride ? (
         <div className="mt-5 grid gap-1">
           <ListRow
             action={
@@ -938,13 +1019,56 @@ export function GatewaySettings() {
               <Input
                 className={cn('h-8', CONTROL_TEXT)}
                 disabled={state.envOverride}
-                onChange={event => setState(current => ({ ...current, remoteUrl: event.target.value }))}
-                placeholder="https://gateway.example.com/hermes"
-                value={state.remoteUrl}
+                onChange={event => {
+                  if (IS_VANYUE_MANAGED_RELEASE) {
+                    const nextEmployeeId = event.target.value.trim().toLowerCase()
+
+                    if (/^[a-z0-9-]{0,63}$/.test(nextEmployeeId)) {
+                      setEmployeeId(nextEmployeeId)
+                      setState(current => ({ ...current, mode: 'remote', remoteUrl: employeeGatewayUrl(nextEmployeeId) }))
+                    }
+
+                    return
+                  }
+
+                  setState(current => ({ ...current, remoteUrl: event.target.value }))
+                }}
+                onPaste={event => {
+                  const pasted = event.clipboardData.getData('text')
+
+                  if (IS_VANYUE_MANAGED_RELEASE) {
+                    const nextEmployeeId = (employeeIdFromGatewayUrl(pasted) || pasted).trim().toLowerCase()
+
+                    if (/^[a-z0-9-]{1,63}$/.test(nextEmployeeId)) {
+                      event.preventDefault()
+                      setEmployeeId(nextEmployeeId)
+                      setState(current => ({
+                        ...current,
+                        mode: 'remote',
+                        remoteUrl: employeeGatewayUrl(nextEmployeeId)
+                      }))
+                    }
+
+                    return
+                  }
+
+                  const normalized = normalizePastedGatewayUrl(pasted)
+
+                  if (normalized !== pasted) {
+                    event.preventDefault()
+                    setState(current => ({ ...current, remoteUrl: normalized }))
+                  }
+                }}
+                placeholder={IS_VANYUE_MANAGED_RELEASE ? '例如：wangxudong' : 'https://gateway.example.com/hermes'}
+                value={IS_VANYUE_MANAGED_RELEASE ? employeeId : state.remoteUrl}
               />
             }
-            description={g.remoteUrlDesc}
-            title={g.remoteUrlTitle}
+            description={
+              IS_VANYUE_MANAGED_RELEASE
+                ? '客户端会自动连接该员工的独立数据空间，不显示其他员工。'
+                : g.remoteUrlDesc
+            }
+            title={IS_VANYUE_MANAGED_RELEASE ? '员工 ID' : g.remoteUrlTitle}
           />
 
           {state.mode === 'remote' && probeStatus === 'probing' ? (
@@ -996,7 +1120,7 @@ export function GatewaySettings() {
           ) : null}
 
           {/* Session-token gateways: keep the existing token entry box. */}
-          {state.mode === 'remote' && authResolved && authMode === 'token' ? (
+          {!IS_VANYUE_MANAGED_RELEASE && state.mode === 'remote' && authResolved && authMode === 'token' ? (
             <ListRow
               action={
                 <Input
@@ -1040,14 +1164,18 @@ export function GatewaySettings() {
             </Button>
           ) : null}
           <Button
-            disabled={state.envOverride || saving}
+            disabled={state.envOverride || saving || (state.mode === 'remote' && !canUseRemote)}
             onClick={() => void save(false)}
             size="sm"
             variant="textStrong"
           >
             {g.saveForRestart}
           </Button>
-          <Button disabled={state.envOverride || saving} onClick={() => void save(true)} size="sm">
+          <Button
+            disabled={state.envOverride || saving || (state.mode === 'remote' && !canUseRemote)}
+            onClick={() => void save(true)}
+            size="sm"
+          >
             {saving ? <Loader2 className="animate-spin" /> : null}
             {g.saveAndReconnect}
           </Button>

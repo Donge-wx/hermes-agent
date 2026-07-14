@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  createProfile,
+  deleteProfile,
   getCronJobs,
   getGlobalModelInfo,
   getGlobalModelOptions,
@@ -10,7 +12,10 @@ import {
   getSessionMessages,
   getStatus,
   listAllProfileSessions,
-  listSessions
+  listSessions,
+  renameProfile,
+  searchSessions,
+  updateProfileSoul
 } from './hermes'
 import { refreshActiveProfile } from './store/profile'
 
@@ -43,6 +48,7 @@ describe('Hermes REST session helpers', () => {
     expect(api).toHaveBeenCalledWith(
       expect.objectContaining({
         path: '/api/sessions?limit=50&offset=0&min_messages=1&archived=exclude&order=recent',
+        profile: 'default',
         timeoutMs: 60_000
       })
     )
@@ -53,7 +59,8 @@ describe('Hermes REST session helpers', () => {
 
     expect(api).toHaveBeenCalledWith(
       expect.objectContaining({
-        path: '/api/profiles/sessions?limit=50&offset=0&min_messages=1&archived=exclude&order=recent&profile=all',
+        path: '/api/profiles/sessions?limit=50&offset=0&min_messages=1&archived=exclude&order=recent&profile=default',
+        profile: 'default',
         timeoutMs: 60_000
       })
     )
@@ -124,15 +131,35 @@ describe('Hermes REST session helpers', () => {
     expect(call.timeoutMs).toBeUndefined()
   })
 
-  it('tags cross-profile message reads for Electron routing and backend lookup', async () => {
+  it('clamps stale cross-profile message reads to the managed default profile', async () => {
     api.mockResolvedValue({ messages: [], session_id: 'session-1' })
 
     await getSessionMessages('session-1', 'xiaoxuxu')
 
     expect(api).toHaveBeenCalledWith({
-      path: '/api/sessions/session-1/messages?profile=xiaoxuxu',
-      profile: 'xiaoxuxu'
+      path: '/api/sessions/session-1/messages?profile=default',
+      profile: 'default'
     })
+  })
+
+  it('clamps session search from all or another employee to default', async () => {
+    api.mockResolvedValue({ results: [] })
+
+    await searchSessions('hello', 'wangxudong')
+
+    expect(api).toHaveBeenCalledWith({
+      path: '/api/sessions/search?q=hello&profile=default',
+      profile: 'default'
+    })
+  })
+
+  it('rejects profile mutations before they can reach Electron IPC', async () => {
+    await expect(createProfile({ name: 'wangxudong' })).rejects.toThrow(/员工版/)
+    await expect(renameProfile('default', 'wangxudong')).rejects.toThrow(/员工版/)
+    await expect(deleteProfile('default')).rejects.toThrow(/员工版/)
+    await expect(updateProfileSoul('default', 'secret')).rejects.toThrow(/员工版/)
+
+    expect(api).not.toHaveBeenCalled()
   })
 
   it('defaults model options to configured providers only', async () => {

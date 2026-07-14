@@ -220,6 +220,7 @@ class BasicAuthProvider(DashboardAuthProvider):
         if len(secret) < 16:
             raise ValueError("secret must be at least 16 bytes")
         self._username = username
+        self._username_bytes = username.encode("utf-8")
         self._password_hash = password_hash
         self._secret = secret
         self._ttl = max(60, int(ttl_seconds))
@@ -265,6 +266,7 @@ class BasicAuthProvider(DashboardAuthProvider):
         if (
             payload is None
             or payload.get("kind") != "access"
+            or not self._subject_matches_username(payload)
             or payload.get("exp", 0) <= int(time.time())
         ):
             return None
@@ -277,10 +279,11 @@ class BasicAuthProvider(DashboardAuthProvider):
         if (
             payload is None
             or payload.get("kind") != "refresh"
+            or not self._subject_matches_username(payload)
             or payload.get("exp", 0) <= int(time.time())
         ):
             raise RefreshExpiredError("refresh token expired or invalid")
-        return self._mint_session(str(payload.get("sub", self._username)))
+        return self._mint_session(self._username)
 
     def revoke_session(self, *, refresh_token: str) -> None:
         # Stateless tokens — nothing to revoke server-side. The session
@@ -289,6 +292,24 @@ class BasicAuthProvider(DashboardAuthProvider):
         return None
 
     # ---- internals ---------------------------------------------------------
+
+    def _subject_matches_username(self, payload: dict) -> bool:
+        """Return whether a signed token belongs to this configured account.
+
+        Deployments may intentionally share a signing secret across employee
+        gateways.  The signature therefore proves token authenticity, but not
+        that the token was minted for this gateway's employee.  Keep the same
+        exact, case-sensitive username rule as password login and compare the
+        UTF-8 bytes in constant time.  Malformed/non-string subjects fail
+        closed.
+        """
+        subject = payload.get("sub")
+        if not isinstance(subject, str):
+            return False
+        try:
+            return hmac.compare_digest(subject.encode("utf-8"), self._username_bytes)
+        except UnicodeEncodeError:
+            return False
 
     def _mint_session(self, user_id: str) -> Session:
         now = int(time.time())

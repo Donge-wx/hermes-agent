@@ -129,6 +129,46 @@ class TestProvider:
         s = p1.complete_password_login(username="admin", password="hunter2")
         assert p2.verify_session(access_token=s.access_token) is None
 
+    def test_shared_secret_tokens_are_scoped_to_exact_username(self, basic):
+        shared_secret = secrets.token_bytes(32)
+        password_hash = basic.hash_password("hunter2")
+        admin = basic.BasicAuthProvider(
+            username="admin",
+            password_hash=password_hash,
+            secret=shared_secret,
+        )
+        other_employee = basic.BasicAuthProvider(
+            username="other-employee",
+            password_hash=password_hash,
+            secret=shared_secret,
+        )
+        same_admin = basic.BasicAuthProvider(
+            username="admin",
+            password_hash=password_hash,
+            secret=shared_secret,
+        )
+
+        session = admin.complete_password_login(
+            username="admin", password="hunter2"
+        )
+
+        # A shared HMAC key must not let one employee gateway accept another
+        # employee's access or refresh token.
+        assert (
+            other_employee.verify_session(access_token=session.access_token) is None
+        )
+        with pytest.raises(RefreshExpiredError):
+            other_employee.refresh_session(refresh_token=session.refresh_token)
+
+        # Restart/multi-worker portability for the same configured username is
+        # preserved for both token kinds.
+        verified = same_admin.verify_session(access_token=session.access_token)
+        assert verified is not None
+        assert verified.user_id == "admin"
+        refreshed = same_admin.refresh_session(refresh_token=session.refresh_token)
+        assert refreshed.user_id == "admin"
+        assert same_admin.verify_session(access_token=refreshed.access_token) is not None
+
     def test_revoke_is_silent(self, basic):
         p = self._make(basic)
         p.revoke_session(refresh_token="anything")  # must not raise

@@ -1,6 +1,7 @@
 import { atom, computed } from 'nanostores'
 
 import { getProfiles, setApiRequestProfile, STARTUP_REQUEST_TIMEOUT_MS } from '@/hermes'
+import { IS_VANYUE_MANAGED_RELEASE } from '@/lib/managed-release'
 import { queryClient } from '@/lib/query-client'
 import {
   arraysEqual,
@@ -35,7 +36,7 @@ export const $activeProfile = atom<string>('default')
 export const $profiles = atom<ProfileInfo[]>([])
 
 export function setActiveProfile(name: string): void {
-  $activeProfile.set(name || 'default')
+  $activeProfile.set(IS_VANYUE_MANAGED_RELEASE ? 'default' : name || 'default')
 }
 
 export async function refreshProfiles(): Promise<ProfileInfo[]> {
@@ -115,7 +116,7 @@ export async function refreshActiveProfile(): Promise<void> {
       timeoutMs: STARTUP_REQUEST_TIMEOUT_MS
     })
 
-    setActiveProfile(res.current || 'default')
+    setActiveProfile(IS_VANYUE_MANAGED_RELEASE ? 'default' : res.current || 'default')
   } catch {
     // Backend may not be ready; keep the last known value.
   }
@@ -132,6 +133,12 @@ export async function refreshActiveProfile(): Promise<void> {
 // (the renderer is torn down). We optimistically reflect the selection first so
 // the pill updates instantly if the reload is delayed.
 export async function switchProfile(name: string): Promise<void> {
+  if (IS_VANYUE_MANAGED_RELEASE) {
+    setActiveProfile('default')
+
+    return
+  }
+
   if (!name || name === $activeProfile.get()) {
     return
   }
@@ -172,7 +179,7 @@ export function requestFreshSession(): void {
 let _lastRoutedProfile: string | null = null
 
 $activeGatewayProfile.subscribe(value => {
-  const key = normalizeProfileKey(value)
+  const key = IS_VANYUE_MANAGED_RELEASE ? 'default' : normalizeProfileKey(value)
   setApiRequestProfile(key)
 
   if (_lastRoutedProfile !== null && _lastRoutedProfile !== key) {
@@ -235,7 +242,7 @@ export async function ensureGatewayProfile(profile: string | null | undefined): 
     return
   }
 
-  const target = normalizeProfileKey(profile)
+  const target = IS_VANYUE_MANAGED_RELEASE ? 'default' : normalizeProfileKey(profile)
 
   if (normalizeProfileKey($activeGatewayProfile.get()) === target && $gateway.get()) {
     return
@@ -282,23 +289,63 @@ const SHOW_ALL_PROFILES_STORAGE_KEY = 'hermes.desktop.showAllProfiles'
 
 // Opt-in unified view. When false, scope follows the live gateway profile, so
 // single-profile users (who never see the switcher) are completely unaffected.
-export const $showAllProfiles = atom<boolean>(storedBoolean(SHOW_ALL_PROFILES_STORAGE_KEY, false))
+export const $showAllProfiles = atom<boolean>(
+  IS_VANYUE_MANAGED_RELEASE ? false : storedBoolean(SHOW_ALL_PROFILES_STORAGE_KEY, false)
+)
 
-$showAllProfiles.subscribe(value => persistBoolean(SHOW_ALL_PROFILES_STORAGE_KEY, value))
+$showAllProfiles.subscribe(value =>
+  persistBoolean(SHOW_ALL_PROFILES_STORAGE_KEY, IS_VANYUE_MANAGED_RELEASE ? false : value)
+)
 
 // The profile context the sidebar is currently showing: a concrete profile key,
 // or ALL_PROFILES for the unified grouped view. Concrete scope is tied to the
 // gateway so opening/selecting a profile (which swaps the gateway) moves the
 // whole sidebar with it — a real context switch, not a separate filter to keep
 // in sync.
-export const $profileScope = computed([$showAllProfiles, $activeGatewayProfile], (showAll, gateway) =>
-  showAll ? ALL_PROFILES : normalizeProfileKey(gateway)
+export const $profileScope = computed(
+  [$showAllProfiles, $activeGatewayProfile, $profiles],
+  (showAll, gateway, profiles) => {
+    if (IS_VANYUE_MANAGED_RELEASE) {
+      return 'default'
+    }
+
+    // An administrator-managed employee gateway exposes exactly one profile,
+    // but a freshly-installed desktop still starts with the local preference
+    // "default". The gateway intentionally aliases that request to the
+    // employee's real profile (for example "wangxudong") and tags returned
+    // sessions with the real owner. Adopt the sole server-visible profile as
+    // the sidebar scope so those rows are not discarded by the UI's defensive
+    // profile filter. The server remains the security boundary, and multi-
+    // profile installs continue to use the explicit gateway scope below.
+    const gatewayKey = normalizeProfileKey(gateway)
+    const soleProfile = profiles.length === 1 ? profiles[0] : undefined
+
+    if (gatewayKey === 'default' && soleProfile?.is_default) {
+      return normalizeProfileKey(soleProfile.name)
+    }
+
+    // "All profiles" only makes sense while the backend actually exposes more
+    // than one profile. This also recovers cleanly if a persisted all-profiles
+    // preference is opened against a single-employee gateway.
+    if (!IS_VANYUE_MANAGED_RELEASE && showAll && profiles.length > 1) {
+      return ALL_PROFILES
+    }
+
+    return gatewayKey
+  }
 )
 
 // Switch the active context to `name`: leave "All profiles" mode, point new
 // chats at it, and swap the single live gateway onto its backend (which moves
 // $activeGatewayProfile → name, so $profileScope follows).
 export function selectProfile(name: string): void {
+  if (IS_VANYUE_MANAGED_RELEASE) {
+    $showAllProfiles.set(false)
+    $newChatProfile.set('default')
+
+    return
+  }
+
   const target = normalizeProfileKey(name)
   // Switching profiles (or coming back from the all-profiles browse view) starts
   // fresh; re-tapping the profile you're already in leaves your session be.
@@ -320,6 +367,13 @@ export function selectProfile(name: string): void {
 // is in. Points new chats at the profile and opens its backend so the next
 // message lands in the right place.
 export function newSessionInProfile(name: string): void {
+  if (IS_VANYUE_MANAGED_RELEASE) {
+    $newChatProfile.set('default')
+    requestFreshSession()
+
+    return
+  }
+
   const target = normalizeProfileKey(name)
   $newChatProfile.set(target)
   requestFreshSession()
@@ -327,11 +381,11 @@ export function newSessionInProfile(name: string): void {
 }
 
 export function setShowAllProfiles(value: boolean): void {
-  $showAllProfiles.set(value)
+  $showAllProfiles.set(IS_VANYUE_MANAGED_RELEASE ? false : value)
 }
 
 export function toggleShowAllProfiles(): void {
-  $showAllProfiles.set(!$showAllProfiles.get())
+  $showAllProfiles.set(IS_VANYUE_MANAGED_RELEASE ? false : !$showAllProfiles.get())
 }
 
 // ── Hotkey-driven profile switching ────────────────────────────────────────
@@ -393,6 +447,10 @@ export function cycleProfile(direction: 1 | -1): void {
 export const $profileCreateRequest = atom(0)
 
 export function requestProfileCreate(): void {
+  if (IS_VANYUE_MANAGED_RELEASE) {
+    return
+  }
+
   $profileCreateRequest.set($profileCreateRequest.get() + 1)
 }
 

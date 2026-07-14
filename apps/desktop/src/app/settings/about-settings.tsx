@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Codicon } from '@/components/ui/codicon'
 import { type Translations, useI18n } from '@/i18n'
 import { CheckCircle2, ExternalLink, Loader2, RefreshCw } from '@/lib/icons'
+import { IS_VANYUE_MANAGED_RELEASE } from '@/lib/managed-release'
 import { cn } from '@/lib/utils'
 import {
   $desktopVersion,
@@ -176,7 +177,7 @@ export function AboutSettings() {
           title={a.automaticUpdates}
         />
 
-        <UninstallSection />
+        {!IS_VANYUE_MANAGED_RELEASE && <UninstallSection />}
       </div>
     </SettingsContent>
   )

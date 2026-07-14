@@ -11,6 +11,7 @@ import { KbdCombo } from '@/components/ui/kbd'
 import { getHermesConfigRecord, listAllProfileSessions } from '@/hermes'
 import { useI18n } from '@/i18n'
 import { sessionTitle } from '@/lib/chat-runtime'
+import { IS_VANYUE_MANAGED_RELEASE } from '@/lib/managed-release'
 import {
   Activity,
   Archive,
@@ -453,7 +454,17 @@ export function CommandPalette() {
             label: t.shell.statusbar.cron,
             run: go(CRON_ROUTE)
           },
-          { action: 'nav.profiles', icon: Users, id: 'nav-profiles', label: t.profiles.title, run: go(PROFILES_ROUTE) },
+          ...(!IS_VANYUE_MANAGED_RELEASE
+            ? [
+                {
+                  action: 'nav.profiles',
+                  icon: Users,
+                  id: 'nav-profiles',
+                  label: t.profiles.title,
+                  run: go(PROFILES_ROUTE)
+                }
+              ]
+            : []),
           { action: 'nav.agents', icon: Cpu, id: 'nav-agents', label: t.agents.title, run: go(AGENTS_ROUTE) },
           {
             icon: Starmap,

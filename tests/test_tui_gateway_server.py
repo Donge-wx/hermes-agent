@@ -6179,6 +6179,80 @@ def test_file_attach_teardown_waits_for_inflight_chunk(monkeypatch, tmp_path):
     assert not temp_path.exists()
 
 
+def test_file_attach_begin_does_not_orphan_upload_when_session_closes(monkeypatch, tmp_path):
+    """A close between _sess() and begin's upload lock must not leak a .part."""
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    session = _session(cwd=str(workspace))
+    server._sessions["sid"] = session
+    inner_lock = threading.RLock()
+    begin_waiting_for_lock = threading.Event()
+    allow_begin_lock = threading.Event()
+
+    class _BeginCloseGate:
+        def __init__(self):
+            self._first_acquire = True
+
+        def acquire(self, *args, **kwargs):
+            if self._first_acquire:
+                self._first_acquire = False
+                begin_waiting_for_lock.set()
+                assert allow_begin_lock.wait(timeout=2)
+            return inner_lock.acquire(*args, **kwargs)
+
+        def release(self):
+            return inner_lock.release()
+
+        def __enter__(self):
+            self.acquire()
+            return self
+
+        def __exit__(self, *_args):
+            self.release()
+            return False
+
+    gate = _BeginCloseGate()
+    real_file_attach_lock = server._file_attach_lock
+    monkeypatch.setattr(
+        server,
+        "_file_attach_lock",
+        lambda candidate: gate
+        if candidate is session
+        else real_file_attach_lock(candidate),
+    )
+
+    def _begin():
+        return server.handle_request(
+            {
+                "id": "begin",
+                "method": "file.attach.begin",
+                "params": {
+                    "request_id": str(uuid.uuid4()),
+                    "session_id": "sid",
+                    "name": "close-race.bin",
+                    "size": 1,
+                },
+            }
+        )
+
+    try:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+            begin_future = pool.submit(_begin)
+            assert begin_waiting_for_lock.wait(timeout=2)
+            assert pool.submit(server._close_session_by_id, "sid", end_reason="test").result()
+            allow_begin_lock.set()
+            begin = begin_future.result()
+
+        assert begin["error"]["code"] == 4001
+        assert not list(
+            (workspace / ".hermes" / "desktop-attachments" / ".uploads").glob("*.part")
+        )
+        assert not server._file_attach_disk_reservations
+    finally:
+        allow_begin_lock.set()
+        server._close_session_by_id("sid", end_reason="test")
+
+
 def test_file_attach_chunked_upload_finalizes_into_session_workspace(monkeypatch, tmp_path):
     """Remote large-file path: upload chunks instead of a single 16 MB data_url."""
     workspace = tmp_path / "workspace"

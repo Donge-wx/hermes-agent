@@ -1,3 +1,5 @@
+import { IS_VANYUE_MANAGED_RELEASE } from '@/lib/managed-release'
+
 export interface CommandsCatalogSection {
   name: string
   pairs: [string, string][]
@@ -46,7 +48,7 @@ export type DesktopActionId =
 export type DesktopPickerId = 'model' | 'session'
 
 /** Why a known Hermes command has no desktop UI surface. */
-export type DesktopUnavailableReason = 'advanced' | 'messaging' | 'settings' | 'terminal'
+export type DesktopUnavailableReason = 'advanced' | 'managed' | 'messaging' | 'settings' | 'terminal'
 
 /**
  * How the desktop fulfils a command. This is the single discriminator the
@@ -113,7 +115,11 @@ const DESKTOP_COMMAND_SPECS: readonly DesktopCommandSpec[] = [
     surface: action('handoff'),
     args: true
   },
-  { name: '/profile', description: 'Switch the active Hermes profile', surface: action('profile') },
+  {
+    name: '/profile',
+    description: 'Switch the active Hermes profile',
+    surface: IS_VANYUE_MANAGED_RELEASE ? unavailable('managed') : action('profile')
+  },
   { name: '/skin', description: 'Switch desktop theme or cycle to the next one', surface: action('skin'), args: true },
   { name: '/title', description: 'Rename the current session', surface: action('title') },
   { name: '/help', description: 'Show desktop slash commands', aliases: ['/commands'], surface: action('help') },
@@ -184,6 +190,7 @@ const DESKTOP_COMMAND_SPECS: readonly DesktopCommandSpec[] = [
 // Known commands with no desktop surface (and no alias) — a flat name list
 // per reason beats 40 identical object literals.
 const NO_DESKTOP_SURFACE: Record<DesktopUnavailableReason, readonly string[]> = {
+  managed: [],
   terminal: [
     '/busy',
     '/clear',
@@ -238,6 +245,7 @@ const ALIAS_TO_CANONICAL = new Map<string, string>(
 const UNAVAILABLE_MESSAGE: Record<DesktopUnavailableReason, (command: string) => string> = {
   advanced: command =>
     `${command} is not shown in the desktop slash palette. Use the relevant desktop control or terminal interface instead.`,
+  managed: command => `${command} is disabled in the managed employee edition.`,
   messaging: command => `${command} is only used from messaging platforms.`,
   settings: command => `${command} is managed from the desktop sidebar.`,
   terminal: command => `${command} is only available in the terminal interface.`

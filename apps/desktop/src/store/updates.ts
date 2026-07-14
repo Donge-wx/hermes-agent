@@ -16,6 +16,7 @@ import type {
 import { checkHermesUpdate, getActionStatus, updateHermes } from '@/hermes'
 import { translateNow } from '@/i18n'
 import { REQUIRED_BACKEND_CONTRACT } from '@/lib/backend-contract'
+import { IS_VANYUE_MANAGED_RELEASE } from '@/lib/managed-release'
 import { persistString, storedString } from '@/lib/storage'
 import { dismissNotification, notify } from '@/store/notifications'
 import { $connection } from '@/store/session'
@@ -305,6 +306,17 @@ export async function checkBackendUpdates(): Promise<DesktopUpdateStatus | null>
     return $backendUpdateStatus.get()
   }
 
+  if (IS_VANYUE_MANAGED_RELEASE) {
+    const status: DesktopUpdateStatus = {
+      supported: false,
+      message: translateNow('updates.managedReleaseBody'),
+      fetchedAt: Date.now()
+    }
+    $backendUpdateStatus.set(status)
+
+    return status
+  }
+
   $backendUpdateChecking.set(true)
 
   try {
@@ -330,6 +342,18 @@ export async function checkBackendUpdates(): Promise<DesktopUpdateStatus | null>
 }
 
 export async function checkUpdates(): Promise<DesktopUpdateStatus | null> {
+  if (IS_VANYUE_MANAGED_RELEASE) {
+    const status: DesktopUpdateStatus = {
+      supported: false,
+      message: translateNow('updates.managedReleaseBody'),
+      fetchedAt: Date.now()
+    }
+    $updateStatus.set(status)
+    void refreshDesktopVersion()
+
+    return status
+  }
+
   const bridge = window.hermesDesktop?.updates
 
   if (!bridge || $updateChecking.get()) {
@@ -365,6 +389,13 @@ export async function checkUpdates(): Promise<DesktopUpdateStatus | null> {
 }
 
 export async function applyUpdates(opts: DesktopUpdateApplyOptions = {}): Promise<DesktopUpdateApplyResult> {
+  if (IS_VANYUE_MANAGED_RELEASE) {
+    const message = translateNow('updates.managedReleaseBody')
+    $updateApply.set({ ...IDLE, applying: false, stage: 'manual', message })
+
+    return { ok: true, manualRestart: true, message }
+  }
+
   const bridge = window.hermesDesktop?.updates
 
   if (!bridge) {
@@ -528,6 +559,13 @@ function ingestBackendActionStatus(status: Awaited<ReturnType<typeof getActionSt
 }
 
 export async function applyBackendUpdate(): Promise<DesktopUpdateApplyResult> {
+  if (IS_VANYUE_MANAGED_RELEASE) {
+    const message = translateNow('updates.managedReleaseBody')
+    $backendUpdateApply.set({ ...IDLE, applying: false, stage: 'manual', message })
+
+    return { ok: true, manualRestart: true, message }
+  }
+
   dismissNotification(UPDATE_TOAST_ID)
   $backendUpdateApply.set({
     ...IDLE,

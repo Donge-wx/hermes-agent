@@ -9,6 +9,7 @@ import json
 import logging
 import os
 import queue
+import re
 import shutil
 import subprocess
 import sys
@@ -44,6 +45,242 @@ _hermes_home = get_hermes_home()
 load_hermes_dotenv(
     hermes_home=_hermes_home, project_env=Path(__file__).parent.parent / ".env"
 )
+
+
+_EMPLOYEE_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$")
+_MANAGED_MARKER_TRUE = frozenset({"1", "true", "yes", "on"})
+_MANAGED_MARKER_FALSE = frozenset({"0", "false", "no", "off"})
+
+
+def _managed_employee_marker_state() -> str:
+    raw = os.environ.get("HERMES_MANAGED_EMPLOYEE", "").strip().casefold()
+    if not raw or raw in _MANAGED_MARKER_FALSE:
+        return "ordinary"
+    if raw in _MANAGED_MARKER_TRUE:
+        return "managed"
+    return "invalid"
+
+
+def _employee_tenant_config_error() -> str | None:
+    raw_home = os.environ.get("HERMES_EMPLOYEE_HOME", "").strip()
+    raw_name = os.environ.get("HERMES_EMPLOYEE_NAME", "").strip()
+    marker_state = _managed_employee_marker_state()
+    if marker_state == "invalid":
+        return "HERMES_MANAGED_EMPLOYEE has an invalid boolean value"
+    if marker_state == "ordinary":
+        return None
+    if not raw_home or not raw_name:
+        return "both HERMES_EMPLOYEE_HOME and HERMES_EMPLOYEE_NAME are required"
+    if raw_name.casefold() == "admin":
+        return "managed employee name cannot use the reserved admin identity"
+    if not raw_home and not raw_name:
+        return None
+    if not raw_home or not raw_name:
+        return "both HERMES_EMPLOYEE_HOME and HERMES_EMPLOYEE_NAME are required"
+    if not _EMPLOYEE_ID_RE.fullmatch(raw_name):
+        return "employee name is invalid"
+    if "\x00" in raw_home:
+        return "employee home is invalid"
+    try:
+        home = Path(raw_home).expanduser()
+        if not home.is_absolute():
+            return "employee home must be absolute"
+        resolved = home.resolve(strict=False)
+        if resolved.exists() and not resolved.is_dir():
+            return "employee home must be a directory"
+    except (OSError, RuntimeError):
+        return "employee home is invalid"
+    raw_hermes_home = os.environ.get("HERMES_HOME", "").strip()
+    if not raw_hermes_home:
+        return "HERMES_HOME must match HERMES_EMPLOYEE_HOME"
+    try:
+        process_home = Path(raw_hermes_home).expanduser().resolve(strict=False)
+    except (OSError, RuntimeError):
+        return "HERMES_HOME is invalid"
+    if os.path.normcase(str(process_home)) != os.path.normcase(str(resolved)):
+        return "HERMES_HOME must match HERMES_EMPLOYEE_HOME"
+    return None
+
+
+def _employee_tenant_scope() -> tuple[str, Path] | None:
+    """Return the enterprise employee identity/root, excluding the admin plane."""
+    if _managed_employee_marker_state() == "ordinary":
+        return None
+    raw_name = os.environ.get("HERMES_EMPLOYEE_NAME", "").strip()
+    error = _employee_tenant_config_error()
+    if error:
+        raise ValueError(f"employee tenant configuration is invalid: {error}")
+    raw_home = os.environ.get("HERMES_EMPLOYEE_HOME", "").strip()
+    if not raw_home and not raw_name:
+        return None
+    try:
+        return raw_name, Path(raw_home).expanduser().resolve(strict=False)
+    except (OSError, RuntimeError) as exc:
+        raise ValueError("employee tenant configuration is invalid") from exc
+
+
+def _employee_path(raw_path: str | os.PathLike[str]) -> Path:
+    """Resolve a workspace path and reject every cross-employee escape."""
+    scope = _employee_tenant_scope()
+    if scope is None:
+        return Path(raw_path).expanduser().resolve(strict=False)
+    _employee, home = scope
+    raw = str(raw_path or "").strip()
+    if not raw or "\x00" in raw:
+        raise ValueError("working directory is invalid")
+    candidate = Path(raw).expanduser()
+    if not candidate.is_absolute():
+        candidate = home / "workspace" / candidate
+    try:
+        resolved = candidate.resolve(strict=False)
+        common = os.path.commonpath((os.path.normcase(str(home)), os.path.normcase(str(resolved))))
+    except (OSError, RuntimeError, ValueError):
+        raise ValueError("working directory is invalid")
+    if common != os.path.normcase(str(home)):
+        raise ValueError("path outside employee home")
+    return resolved
+
+
+def _employee_profile_allowed(profile: object) -> bool:
+    scope = _employee_tenant_scope()
+    if scope is None:
+        return True
+    employee, _home = scope
+    requested = str(profile or "").strip().casefold()
+    return requested in {"", "current", "default", employee.casefold()}
+
+
+_EMPLOYEE_ALLOWED_METHODS = frozenset(
+    {
+        # Core conversation/session lifecycle.
+        "session.create", "session.list", "session.most_recent",
+        "session.resume", "session.cwd.set", "session.active_list",
+        "session.activate", "session.delete", "session.title",
+        "session.usage", "session.context_breakdown", "session.status",
+        "session.history", "session.undo", "session.compress",
+        "session.save", "session.close", "session.branch",
+        "session.interrupt", "session.steer", "terminal.resize",
+        "prompt.submit", "llm.oneshot",
+        # Agent-owned coordination and approval responses.
+        "handoff.request", "handoff.state", "handoff.fail",
+        "delegation.status", "delegation.pause", "subagent.interrupt",
+        "spawn_tree.save", "spawn_tree.list", "spawn_tree.load",
+        "clarify.respond", "terminal.read.respond", "sudo.respond",
+        "secret.respond", "approval.respond",
+        # Uploads are either byte-streamed into the employee home or are
+        # validated by the generic path guard below.
+        "image.attach", "image.attach_bytes", "pdf.attach",
+        "file.attach.capabilities", "file.attach.begin",
+        "file.attach.chunk", "file.attach.finish", "file.attach.cancel",
+        "file.attach", "image.detach",
+        # Employee-local projects. Every path-bearing request is contained.
+        "project.facts", "verification.status", "projects.list",
+        "projects.get", "projects.create", "projects.update",
+        "projects.add_folder", "projects.remove_folder",
+        "projects.set_primary", "projects.archive", "projects.delete",
+        "projects.set_active", "projects.for_cwd",
+        "projects.discover_repos", "projects.record_repos",
+        "projects.tree", "projects.project_sessions",
+        # Read-only setup/model/status surfaces used during desktop boot.
+        "config.get", "setup.status", "setup.runtime_check",
+        "model.options", "paste.collapse", "insights.get",
+        "rollback.list", "rollback.diff", "plugins.list",
+        "tools.list", "tools.show", "toolsets.list", "agents.list",
+        "process.list", "process.kill",
+        # Employee-local personalization and account surfaces.
+        "pet.info", "pet.info.meta", "pet.cells", "pet.gallery",
+        "pet.select", "pet.remove", "pet.export", "pet.rename",
+        "pet.thumb", "pet.disable", "pet.scale", "pet.cancel",
+        "pet.generate.status", "pet.generate", "pet.hatch",
+        "credits.view", "billing.state", "billing.charge",
+        "billing.charge_status", "billing.auto_reload", "billing.step_up",
+        "voice.toggle", "voice.record", "voice.tts",
+        "learning.frames", "learning.detail", "learning.delete",
+        "learning.edit",
+    }
+)
+
+_EMPLOYEE_PATH_KEYS = frozenset(
+    {
+        "cwd", "root", "path", "file_path", "workdir", "directory",
+        "primary_path", "profile_home", "output_path", "target_path",
+        "folder", "folders", "repo", "repos",
+    }
+)
+
+
+def _employee_request_paths(method_name: str, params: dict) -> list[object]:
+    """Collect path-shaped values recursively from an employee RPC payload."""
+    paths: list[object] = []
+
+    def walk(value: object, key: str = "") -> None:
+        key_lc = key.casefold()
+        # file.attach.begin's ``path`` is client-side provenance/a filename
+        # hint only. The server never reads it; bytes are written to a fresh
+        # employee-home temp file. Treating it as a gateway path would reject
+        # every legitimate Windows desktop upload.
+        if method_name == "file.attach.begin" and key_lc == "path":
+            return
+        is_path_key = (
+            key_lc in _EMPLOYEE_PATH_KEYS
+            or key_lc.endswith(("_path", "_cwd", "_root", "_home", "_dir"))
+        )
+        if is_path_key:
+            if isinstance(value, (list, tuple, set)):
+                paths.extend(value)
+            elif value is not None:
+                paths.append(value)
+            return
+        if isinstance(value, dict):
+            for child_key, child in value.items():
+                walk(child, str(child_key))
+        elif isinstance(value, (list, tuple, set)):
+            for child in value:
+                walk(child, key)
+
+    walk(params)
+    return paths
+
+
+def _employee_request_guard(rid, method_name: str, params: dict) -> dict | None:
+    """Fail closed before an employee RPC can select another tenant/path."""
+    config_error = _employee_tenant_config_error()
+    if config_error:
+        return _err(
+            rid,
+            5033,
+            f"employee tenant configuration is invalid: {config_error}",
+        )
+    if _employee_tenant_scope() is None:
+        return None
+    if method_name not in _EMPLOYEE_ALLOWED_METHODS:
+        return _err(
+            rid,
+            4030,
+            f"RPC method is disabled for employee gateways: {method_name}",
+        )
+    if "profile" in params and not _employee_profile_allowed(params.get("profile")):
+        return _err(rid, 4031, "cross-employee profile access is not allowed")
+
+    # The generic config dump includes executable quick-command/plugin config
+    # and machine-level profile metadata. Narrow config.get to the small set of
+    # values the employee desktop needs for boot and presentation.
+    if method_name == "config.get" and str(params.get("key") or "").casefold() in {
+        "full", "profile",
+    }:
+        return _err(rid, 4030, "machine profile/config access is disabled")
+
+    for item in _employee_request_paths(method_name, params):
+        if isinstance(item, dict):
+            item = item.get("path") or item.get("root")
+        raw = str(item or "").strip()
+        if not raw:
+            continue
+        try:
+            _employee_path(raw)
+        except ValueError as exc:
+            return _err(rid, 4032, str(exc))
+    return None
 
 
 # ── Panic logger ─────────────────────────────────────────────────────
@@ -1006,6 +1243,13 @@ def _db_unavailable_error(rid, *, code: int):
 def _profile_home(profile: str | None) -> Path | None:
     """Resolve a named profile's home on THIS host, or None for the launch profile."""
     name = (profile or "").strip()
+    employee_scope = _employee_tenant_scope()
+    if employee_scope is not None:
+        if not _employee_profile_allowed(name):
+            raise PermissionError("cross-employee profile access is not allowed")
+        # default/current/the employee's explicit name all mean this launch
+        # process's physical employee home.  Never resolve the global default.
+        return None
     if not name:
         return None
     try:
@@ -1116,7 +1360,16 @@ def _default_session_cwd() -> str:
     than ``os.getcwd()`` when the in-memory gateway's process env has no bridged
     ``TERMINAL_CWD``.
     """
-    return _launch_configured_cwd() or os.getenv("TERMINAL_CWD") or os.getcwd()
+    candidate = _launch_configured_cwd() or os.getenv("TERMINAL_CWD") or os.getcwd()
+    employee_scope = _employee_tenant_scope()
+    if employee_scope is not None:
+        _employee, home = employee_scope
+        try:
+            return str(_employee_path(candidate))
+        except ValueError:
+            workspace = home / "workspace"
+            return str(workspace if workspace.is_dir() else home)
+    return candidate
 
 
 def write_json(obj: dict) -> bool:
@@ -1248,6 +1501,9 @@ def handle_request(req: dict) -> dict | None:
     fn = _methods.get(method)
     if not fn:
         return _err(rid, -32601, f"unknown method: {method}")
+    tenant_error = _employee_request_guard(rid, method, params)
+    if tenant_error is not None:
+        return tenant_error
     return fn(rid, params)
 
 
@@ -1525,10 +1781,12 @@ def _completion_cwd(params: dict | None = None) -> str:
     try:
         resolved = os.path.abspath(os.path.expanduser(str(raw)))
         if os.path.isdir(resolved):
+            if _employee_tenant_scope() is not None:
+                return str(_employee_path(resolved))
             return resolved
     except Exception:
         pass
-    return os.getcwd()
+    return _default_session_cwd()
 
 
 def _terminal_task_cwd(session: dict | None) -> str:
@@ -1863,6 +2121,8 @@ def _persist_session_git_meta(session: dict, cwd: str) -> None:
 
 def _set_session_cwd(session: dict, cwd: str) -> str:
     resolved = os.path.abspath(os.path.expanduser(str(cwd)))
+    if _employee_tenant_scope() is not None:
+        resolved = str(_employee_path(resolved))
     if not os.path.isdir(resolved):
         raise ValueError(f"working directory does not exist: {cwd}")
     session["cwd"] = resolved
@@ -5615,6 +5875,14 @@ def _(rid, params: dict) -> dict:
     profile_resume_cwd = str(found.get("cwd") or "").strip() or _profile_configured_cwd(
         profile_home
     )
+    if profile_resume_cwd and _employee_tenant_scope() is not None:
+        try:
+            profile_resume_cwd = str(_employee_path(profile_resume_cwd))
+        except ValueError as exc:
+            if profile_home is not None:
+                with contextlib.suppress(Exception):
+                    db.close()
+            return _err(rid, 4032, str(exc))
 
     def _reuse_live_payload(sid: str, session: dict) -> dict:
         payload = _live_session_payload(
@@ -9931,14 +10199,24 @@ def _unlink_file_attach_temp(upload: dict) -> bool:
 
 
 def _desktop_attachment_dir(session: dict) -> Path:
-    workspace = Path(_session_cwd(session)).resolve(strict=True)
+    raw_workspace = _session_cwd(session)
+    workspace = (
+        _employee_path(raw_workspace)
+        if _employee_tenant_scope() is not None
+        else Path(raw_workspace)
+    ).resolve(strict=True)
     return _ensure_safe_attachment_subdir(
         workspace, ".hermes", "desktop-attachments"
     )
 
 
 def _desktop_attachment_upload_dir(session: dict) -> Path:
-    workspace = Path(_session_cwd(session)).resolve(strict=True)
+    raw_workspace = _session_cwd(session)
+    workspace = (
+        _employee_path(raw_workspace)
+        if _employee_tenant_scope() is not None
+        else Path(raw_workspace)
+    ).resolve(strict=True)
     return _ensure_safe_attachment_subdir(
         workspace, ".hermes", "desktop-attachments", ".uploads"
     )
@@ -9980,7 +10258,8 @@ def _file_attach_max_total_bytes() -> int:
     try:
         desktop_cfg = _load_cfg().get("desktop") or {}
         configured = int(
-            desktop_cfg.get("file_upload_max_bytes")
+            os.getenv("HERMES_FILE_ATTACH_MAX_TOTAL_BYTES")
+            or desktop_cfg.get("file_upload_max_bytes")
             or _FILE_ATTACH_DEFAULT_MAX_TOTAL_BYTES
         )
     except (AttributeError, TypeError, ValueError):
@@ -9996,7 +10275,8 @@ def _file_attach_max_active_uploads() -> int:
     try:
         desktop_cfg = _load_cfg().get("desktop") or {}
         configured = int(
-            desktop_cfg.get("file_upload_max_active")
+            os.getenv("HERMES_FILE_ATTACH_MAX_ACTIVE_UPLOADS")
+            or desktop_cfg.get("file_upload_max_active")
             or _FILE_ATTACH_DEFAULT_MAX_ACTIVE_UPLOADS
         )
     except (AttributeError, TypeError, ValueError):
@@ -10009,7 +10289,8 @@ def _file_attach_stale_seconds() -> float:
     try:
         desktop_cfg = _load_cfg().get("desktop") or {}
         configured = float(
-            desktop_cfg.get("file_upload_stale_seconds")
+            os.getenv("HERMES_FILE_ATTACH_STALE_SECONDS")
+            or desktop_cfg.get("file_upload_stale_seconds")
             or _FILE_ATTACH_DEFAULT_STALE_SECONDS
         )
     except (AttributeError, TypeError, ValueError):
@@ -10025,7 +10306,8 @@ def _file_attach_free_space_reserve_bytes() -> int:
     try:
         desktop_cfg = _load_cfg().get("desktop") or {}
         configured = int(
-            desktop_cfg.get("file_upload_free_space_reserve_bytes")
+            os.getenv("HERMES_FILE_ATTACH_FREE_SPACE_RESERVE_BYTES")
+            or desktop_cfg.get("file_upload_free_space_reserve_bytes")
             or _FILE_ATTACH_DEFAULT_FREE_SPACE_RESERVE_BYTES
         )
     except (AttributeError, TypeError, ValueError):
@@ -10733,9 +11015,17 @@ def _(rid, params: dict) -> dict:
     session, err = _sess(params, rid)
     if err:
         return err
+    session_id = str(params.get("session_id") or "")
     lock = _file_attach_lock(session)
     lock.acquire()
     try:
+        # A close can pop the session after _sess() but before this handler
+        # gets its upload lock.  Re-check under the sessions lock before
+        # allocating a temp file/reservation so detached session dicts cannot
+        # orphan an upload that cleanup will never see.
+        with _sessions_lock:
+            if _sessions.get(session_id) is not session:
+                return _err(rid, 4001, "session not found")
         raw = str(params.get("path", "") or "").strip()
         name = str(params.get("name", "") or "").strip()
         filename = _sanitize_attachment_name(name or raw)
@@ -10835,22 +11125,31 @@ def _(rid, params: dict) -> dict:
         lock.release()
 
 
-@method("file.attach.chunk")
-def _(rid, params: dict) -> dict:
-    """Append one base64 chunk to an in-progress file.attach upload."""
-    session, err = _sess(params, rid)
-    if err:
-        return err
+def _append_desktop_file_attach_chunk(
+    session: dict,
+    *,
+    upload_id: str,
+    offset: int,
+    payload: bytes,
+) -> dict:
+    """Append one already-decoded chunk using the shared upload lifecycle.
+
+    The WebSocket RPC decodes base64 before calling this helper.  The managed
+    employee HTTP adapter supplies the same raw bytes directly, so both
+    transports share locks, disk reservations, retry semantics, cleanup, and
+    completed-result tracking.
+    """
+    if not upload_id:
+        raise ValueError("upload_id required")
+    if offset < 0:
+        raise ValueError("offset must be non-negative")
+    if not isinstance(payload, (bytes, bytearray, memoryview)):
+        raise ValueError("chunk payload must be bytes")
+    payload = bytes(payload)
     lock = _file_attach_lock(session)
     lock.acquire()
     try:
-        upload_id = str(params.get("upload_id", "") or "").strip()
-        if not upload_id:
-            raise ValueError("upload_id required")
         upload = _desktop_file_upload_by_id(session, upload_id)
-        offset = _optional_non_negative_int(params.get("offset"), "offset")
-        if offset is None:
-            raise ValueError("offset required")
         expected = int(upload.get("received") or 0)
         temp_path = Path(str(upload.get("path") or ""))
         temp_identity = _file_attach_expected_identity(
@@ -10863,15 +11162,7 @@ def _(rid, params: dict) -> dict:
             raise ValueError("upload temp file missing") from exc
         if actual_size != expected:
             raise ValueError("upload state mismatch")
-        content = str(params.get("content_base64", "") or "")
         max_chunk_bytes = _file_attach_max_chunk_bytes()
-        max_encoded_chars = 4 * ((max_chunk_bytes + 2) // 3)
-        if len(content) > max_encoded_chars:
-            raise ValueError(
-                f"encoded chunk too large ({len(content)} chars; "
-                f"limit {max_encoded_chars} chars)"
-            )
-        payload = _decode_attachment_data_url(content)
         if len(payload) > max_chunk_bytes:
             raise ValueError(
                 f"chunk too large ({len(payload)} bytes; limit {max_chunk_bytes} bytes)"
@@ -10886,14 +11177,11 @@ def _(rid, params: dict) -> dict:
             )
             if is_last_chunk_retry:
                 upload["updated_at"] = time.time()
-                return _ok(
-                    rid,
-                    {
-                        "upload_id": upload_id,
-                        "received": expected,
-                        "duplicate": True,
-                    },
-                )
+                return {
+                    "upload_id": upload_id,
+                    "received": expected,
+                    "duplicate": True,
+                }
             raise ValueError(f"unexpected offset {offset}; expected {expected}")
         declared_size = upload.get("declared_size")
         if declared_size is not None and expected + len(payload) > int(declared_size):
@@ -10915,7 +11203,45 @@ def _(rid, params: dict) -> dict:
         upload["last_chunk_offset"] = offset
         upload["last_chunk_size"] = len(payload)
         upload["last_chunk_sha256"] = payload_sha256
-        return _ok(rid, {"upload_id": upload_id, "received": received})
+        return {"upload_id": upload_id, "received": received}
+    finally:
+        lock.release()
+
+
+@method("file.attach.chunk")
+def _(rid, params: dict) -> dict:
+    """Append one base64 chunk to an in-progress file.attach upload."""
+    session, err = _sess(params, rid)
+    if err:
+        return err
+    # Preserve the legacy teardown contract: a session close waits once a WS
+    # chunk has started decoding.  The shared helper below uses the same RLock
+    # re-entrantly, while raw HTTP reads its bounded body before it acquires it.
+    lock = _file_attach_lock(session)
+    lock.acquire()
+    try:
+        upload_id = str(params.get("upload_id", "") or "").strip()
+        offset = _optional_non_negative_int(params.get("offset"), "offset")
+        if offset is None:
+            raise ValueError("offset required")
+        content = str(params.get("content_base64", "") or "")
+        max_chunk_bytes = _file_attach_max_chunk_bytes()
+        max_encoded_chars = 4 * ((max_chunk_bytes + 2) // 3)
+        if len(content) > max_encoded_chars:
+            raise ValueError(
+                f"encoded chunk too large ({len(content)} chars; "
+                f"limit {max_encoded_chars} chars)"
+            )
+        payload = _decode_attachment_data_url(content)
+        return _ok(
+            rid,
+            _append_desktop_file_attach_chunk(
+                session,
+                upload_id=upload_id,
+                offset=offset,
+                payload=payload,
+            ),
+        )
     except Exception as e:
         return _err(rid, 5028, str(e))
     finally:
@@ -10959,6 +11285,7 @@ def _(rid, params: dict) -> dict:
         _release_upload_disk_reservation(upload)
         uploads.pop(upload_id, None)
         result = _file_attach_result(session, target.resolve(), True)
+        result["bytes"] = received
         _remember_file_attach_result(session, upload_id, result)
         return _ok(rid, result)
     except _FileAttachCleanupError as e:
@@ -11878,13 +12205,34 @@ class _NoProject(Exception):
     """Raised inside a projects handler when ``params['id']`` resolves to None."""
 
 
+def _employee_project_record_allowed(record: dict) -> bool:
+    """Hide legacy project metadata that points outside the employee home."""
+    if _employee_tenant_scope() is None:
+        return True
+    paths: list[object] = [record.get("primary_path"), record.get("root")]
+    for folder in record.get("folders") or []:
+        paths.append(folder.get("path") if isinstance(folder, dict) else folder)
+    for raw in paths:
+        if not str(raw or "").strip():
+            continue
+        try:
+            _employee_path(str(raw))
+        except ValueError:
+            return False
+    return True
+
+
 def _projects_payload(conn) -> dict:
     from hermes_cli import projects_db as pdb
 
-    return {
-        "projects": [p.to_dict() for p in pdb.list_projects(conn, include_archived=True)],
-        "active_id": pdb.get_active_id(conn),
-    }
+    projects = [
+        item for p in pdb.list_projects(conn, include_archived=True)
+        if _employee_project_record_allowed(item := p.to_dict())
+    ]
+    active_id = pdb.get_active_id(conn)
+    if active_id and not any(p.get("id") == active_id for p in projects):
+        active_id = None
+    return {"projects": projects, "active_id": active_id}
 
 
 def _projects_method(name: str):
@@ -11920,6 +12268,8 @@ def _require_project(pdb, conn, params: dict):
     proj = pdb.get_project(conn, str(params.get("id") or ""))
     if proj is None:
         raise _NoProject
+    if not _employee_project_record_allowed(proj.to_dict()):
+        raise ValueError("project path outside employee home")
     return proj
 
 
@@ -12105,6 +12455,8 @@ def _discover_repos_payload(db, *, conn=None, backfill: bool = True) -> list[dic
         logger.debug("failed to read discovered repo cache", exc_info=True)
 
     out = sorted(repos.values(), key=lambda r: r["last_active"], reverse=True)
+    if _employee_tenant_scope() is not None:
+        out = [record for record in out if _employee_project_record_allowed(record)]
     for r in out:
         r["label"] = r["label"] or os.path.basename(r["root"].rstrip("/\\")) or r["root"]
     return out
@@ -12204,7 +12556,18 @@ def _project_tree_inputs(
         exclude_sources=_PROJECT_TREE_EXCLUDED_SOURCES,
         include_archived=False,
     )
-    sessions = [_project_tree_row(r) for r in rows]
+    sessions = []
+    for row in rows:
+        item = _project_tree_row(row)
+        if _employee_tenant_scope() is not None:
+            scoped_paths = [item.get("cwd"), item.get("git_repo_root")]
+            try:
+                for raw in scoped_paths:
+                    if str(raw or "").strip():
+                        _employee_path(str(raw))
+            except ValueError:
+                continue
+        sessions.append(item)
     # Parallel-warm the git cache so build_tree's resolver reads it instead of
     # cold-probing each cwd in sequence (matters on the drill-in path, which
     # skips the discovery warm-up below).
@@ -12213,10 +12576,17 @@ def _project_tree_inputs(
     from hermes_cli import projects_db as pdb
 
     with pdb.connect_closing() as conn:
-        projects = [p.to_dict() for p in pdb.list_projects(conn)]
+        projects = [
+            item for p in pdb.list_projects(conn)
+            if _employee_project_record_allowed(item := p.to_dict())
+        ]
         active_id = pdb.get_active_id(conn)
         # backfill stays off the hot tree path — grouping uses the live resolver.
         discovered = _discover_repos_payload(db, conn=conn, backfill=False) if include_discovered else []
+        if _employee_tenant_scope() is not None:
+            discovered = [d for d in discovered if _employee_project_record_allowed(d)]
+        if active_id and not any(p.get("id") == active_id for p in projects):
+            active_id = None
 
     return sessions, projects, discovered, active_id
 

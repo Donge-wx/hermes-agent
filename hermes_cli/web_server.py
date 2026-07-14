@@ -121,6 +121,139 @@ except ImportError:
 WEB_DIST = Path(os.environ["HERMES_WEB_DIST"]) if "HERMES_WEB_DIST" in os.environ else Path(__file__).parent / "web_dist"
 _log = logging.getLogger(__name__)
 
+
+_EMPLOYEE_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$")
+_MANAGED_MARKER_TRUE = frozenset({"1", "true", "yes", "on"})
+_MANAGED_MARKER_FALSE = frozenset({"0", "false", "no", "off"})
+
+
+def _managed_employee_marker_state() -> str:
+    """Return ``managed``, ``ordinary``, or ``invalid`` for the env marker."""
+    raw = os.environ.get("HERMES_MANAGED_EMPLOYEE", "").strip().casefold()
+    if not raw or raw in _MANAGED_MARKER_FALSE:
+        return "ordinary"
+    if raw in _MANAGED_MARKER_TRUE:
+        return "managed"
+    return "invalid"
+
+
+def _employee_tenant_config_error() -> Optional[str]:
+    """Return a safe diagnostic for a partial/malformed employee deployment."""
+    raw_home = os.environ.get("HERMES_EMPLOYEE_HOME", "").strip()
+    raw_name = os.environ.get("HERMES_EMPLOYEE_NAME", "").strip()
+    marker_state = _managed_employee_marker_state()
+    if marker_state == "invalid":
+        return "HERMES_MANAGED_EMPLOYEE has an invalid boolean value"
+    # EMPLOYEE_* existed in a few legacy desktop .env files without denoting
+    # an enterprise tenant.  Only the explicit managed marker activates this
+    # boundary; otherwise stale/partial legacy values must be ignored.
+    if marker_state == "ordinary":
+        return None
+    if not raw_home or not raw_name:
+        return (
+            "Managed employee configuration is incomplete: both "
+            "HERMES_EMPLOYEE_HOME and HERMES_EMPLOYEE_NAME are required"
+        )
+    if raw_name.casefold() == "admin":
+        return "Managed employee configuration cannot use the reserved admin identity"
+    if not raw_home and not raw_name:
+        return None
+    if not raw_home or not raw_name:
+        return (
+            "Employee tenant configuration is incomplete: both "
+            "HERMES_EMPLOYEE_HOME and HERMES_EMPLOYEE_NAME are required"
+        )
+    if not _EMPLOYEE_ID_RE.fullmatch(raw_name):
+        return "Employee tenant configuration has an invalid employee name"
+    if "\x00" in raw_home:
+        return "Employee tenant configuration has an invalid employee home"
+    try:
+        home = Path(raw_home).expanduser()
+        if not home.is_absolute():
+            return "Employee tenant configuration requires an absolute employee home"
+        resolved = home.resolve(strict=False)
+        if resolved.exists() and not resolved.is_dir():
+            return "Employee tenant configuration requires a directory employee home"
+    except (OSError, RuntimeError):
+        return "Employee tenant configuration has an invalid employee home"
+    raw_hermes_home = os.environ.get("HERMES_HOME", "").strip()
+    if not raw_hermes_home:
+        return "Managed employee HERMES_HOME must match HERMES_EMPLOYEE_HOME"
+    try:
+        process_home = Path(raw_hermes_home).expanduser().resolve(strict=False)
+    except (OSError, RuntimeError):
+        return "Managed employee HERMES_HOME is invalid"
+    if os.path.normcase(str(process_home)) != os.path.normcase(str(resolved)):
+        return "Managed employee HERMES_HOME must match HERMES_EMPLOYEE_HOME"
+    return None
+
+
+def _employee_tenant_scope() -> Optional[Tuple[str, Path]]:
+    """Return the managed employee identity and its only accessible home.
+
+    The enterprise gateway starts one backend per employee and supplies both
+    values.  Keep the REST boundary independent from ``HERMES_HOME`` so a
+    stale process-level home or a crafted ``profile`` query cannot escape the
+    employee's physical tenant directory.  ``admin`` remains the control
+    plane and intentionally keeps the normal multi-profile behavior.
+    """
+    if _managed_employee_marker_state() == "ordinary":
+        return None
+    raw_name = os.environ.get("HERMES_EMPLOYEE_NAME", "").strip()
+    error = _employee_tenant_config_error()
+    if error:
+        # All callers fail closed as well as the HTTP configuration gate. This
+        # prevents a direct helper call or background task from silently
+        # falling back to the machine-wide profile plane.
+        raise HTTPException(status_code=503, detail=error)
+    raw_home = os.environ.get("HERMES_EMPLOYEE_HOME", "").strip()
+    if not raw_home and not raw_name:
+        return None
+    try:
+        return raw_name, Path(raw_home).expanduser().resolve(strict=False)
+    except (OSError, RuntimeError):
+        return None
+
+
+def _employee_profile_home(
+    profile: Optional[str],
+    *,
+    allow_all: bool = False,
+) -> Optional[Tuple[str, Path]]:
+    """Resolve an employee-scoped profile alias to the one physical home.
+
+    Employee gateways historically expose their sole profile as ``default``.
+    For compatibility, ``default``, ``current``, the authenticated employee
+    id, and an omitted value all map to that same home.  ``all`` is accepted
+    only by explicitly aggregated endpoints, where it is narrowed to this one
+    tenant instead of scanning sibling profiles.
+    """
+    scope = _employee_tenant_scope()
+    if scope is None:
+        return None
+    employee, home = scope
+    requested = str(profile or "").strip().casefold()
+    allowed = {"", "current", "default", employee.casefold()}
+    if allow_all:
+        allowed.add("all")
+    if requested not in allowed:
+        raise HTTPException(
+            status_code=403,
+            detail="Cross-employee profile access is not allowed",
+        )
+    # Contract B: the sole backend profile remains canonically ``default``;
+    # employee identity is established independently by /api/auth/me.user_id.
+    return "default", home
+
+
+def _reject_employee_profile_mutation() -> None:
+    """Disable profile-plane mutations on an employee-scoped backend."""
+    if _employee_tenant_scope() is not None:
+        raise HTTPException(
+            status_code=403,
+            detail="Profile management is disabled for employee gateways",
+        )
+
 # ---------------------------------------------------------------------------
 # Per-channel subscriber registry used by /api/pub (PTY-side gateway → dashboard)
 # and /api/events (dashboard → browser sidebar).  Keyed by an opaque channel id
@@ -603,6 +736,23 @@ async def _token_auth_seam(request: Request, call_next):
     """
     from hermes_cli.dashboard_auth.token_auth import token_auth_middleware
     return await token_auth_middleware(request, call_next)
+
+
+@app.middleware("http")
+async def _employee_tenant_configuration_gate(request: Request, call_next):
+    """Fail closed when an employee deployment is only partly configured.
+
+    Registered last so it is the outermost HTTP middleware. In particular,
+    ``/api/status`` returns a deterministic 503 diagnostic instead of looking
+    healthy while silently exposing the normal machine-wide profile plane.
+    """
+    error = _employee_tenant_config_error()
+    if error:
+        return JSONResponse(
+            status_code=503,
+            content={"detail": error, "employee_scope": "invalid"},
+        )
+    return await call_next(request)
 
 
 # ---------------------------------------------------------------------------
@@ -1190,13 +1340,20 @@ def _count_status_active_sessions() -> int:
     """
     from hermes_state import DEFAULT_DB_PATH, SessionDB
 
+    employee_scope = _employee_tenant_scope()
+    db_path = (
+        employee_scope[1] / "state.db"
+        if employee_scope is not None
+        else DEFAULT_DB_PATH
+    )
+
     # read_only opens require the DB to already exist (see SessionDB.__init__
     # read_only contract) — on a fresh install every /api/status poll would
     # otherwise pay an OperationalError until the first session is written.
-    if not DEFAULT_DB_PATH.exists():
+    if not db_path.exists():
         return 0
 
-    db = SessionDB(read_only=True)
+    db = SessionDB(db_path=db_path, read_only=True)
     try:
         sessions = db.list_sessions_rich(limit=50, compact_rows=True)
         now = time.time()
@@ -1425,10 +1582,22 @@ def _fs_path(raw_path: str) -> Path:
             if parsed.netloc and parsed.netloc not in {"", "localhost"}:
                 raise ValueError
             raw = urllib.request.url2pathname(parsed.path)
+        employee_scope = _employee_tenant_scope()
         candidate = Path(raw).expanduser()
         if not candidate.is_absolute():
-            candidate = Path.cwd() / candidate
-        return candidate.resolve(strict=False)
+            base = employee_scope[1] if employee_scope is not None else Path.cwd()
+            candidate = base / candidate
+        resolved = candidate.resolve(strict=False)
+        if employee_scope is not None:
+            _employee, home = employee_scope
+            if resolved != home and home not in resolved.parents:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Path outside employee home",
+                )
+        return resolved
+    except HTTPException:
+        raise
     except (OSError, RuntimeError, ValueError):
         raise HTTPException(status_code=400, detail="Invalid path")
 
@@ -1471,6 +1640,8 @@ def _fs_regular_file(path: Path) -> tuple[Path, os.stat_result]:
 
 def _fs_find_git_root(start: Path) -> str | None:
     directory = start
+    employee_scope = _employee_tenant_scope()
+    employee_home = employee_scope[1] if employee_scope is not None else None
     for _ in range(50):
         try:
             if (directory / ".git").exists():
@@ -1480,20 +1651,46 @@ def _fs_find_git_root(start: Path) -> str | None:
         parent = directory.parent
         if parent == directory:
             return None
+        if employee_home is not None and parent != employee_home and employee_home not in parent.parents:
+            return None
         directory = parent
     return None
 
 
 def _fs_default_cwd() -> str:
-    cfg_terminal = load_config().get("terminal") or {}
+    employee_scope = _employee_tenant_scope()
+    if employee_scope is not None:
+        _employee, employee_home = employee_scope
+        from hermes_constants import (
+            reset_hermes_home_override,
+            set_hermes_home_override,
+        )
+
+        token = set_hermes_home_override(str(employee_home))
+        try:
+            cfg_terminal = load_config().get("terminal") or {}
+        finally:
+            reset_hermes_home_override(token)
+    else:
+        cfg_terminal = load_config().get("terminal") or {}
     raw = str(cfg_terminal.get("cwd") or os.environ.get("TERMINAL_CWD") or "").strip()
     if raw and raw not in {".", "auto", "cwd"}:
         try:
-            candidate = Path(raw).expanduser().resolve(strict=False)
-            if candidate.is_dir():
+            candidate = Path(raw).expanduser()
+            if not candidate.is_absolute() and employee_scope is not None:
+                candidate = employee_scope[1] / candidate
+            candidate = candidate.resolve(strict=False)
+            contained = (
+                employee_scope is None
+                or candidate == employee_scope[1]
+                or employee_scope[1] in candidate.parents
+            )
+            if contained and candidate.is_dir():
                 return str(candidate)
         except (OSError, RuntimeError):
             pass
+    if employee_scope is not None:
+        return str(employee_scope[1])
     return str(Path.cwd())
 
 
@@ -1525,7 +1722,8 @@ def _media_serve_roots() -> list[Path]:
     key or a screenshot outside the cache) merely because the suffix passes the
     allowlist.
     """
-    home = get_hermes_home()
+    employee_scope = _employee_tenant_scope()
+    home = employee_scope[1] if employee_scope is not None else get_hermes_home()
     roots = [home / "images", home / "screenshots", home / "cache"]
     out: list[Path] = []
     for root in roots:
@@ -1664,6 +1862,20 @@ def _dashboard_local_update_managed_externally() -> bool:
 
 
 def _managed_files_policy(request: Request, *, create_root: bool = True) -> ManagedFilesPolicy:
+    employee_scope = _employee_tenant_scope()
+    if employee_scope is not None:
+        _employee, employee_home = employee_scope
+        root = (
+            _ensure_managed_root(employee_home)
+            if create_root
+            else _canonical_path(employee_home)
+        )
+        return ManagedFilesPolicy(
+            default_path=root,
+            locked_root=root,
+            can_change_path=False,
+        )
+
     raw_forced_root = os.environ.get(_MANAGED_FILES_ROOT_ENV, "").strip()
     if raw_forced_root:
         root = _ensure_managed_root(raw_forced_root) if create_root else _canonical_path(Path(raw_forced_root))
@@ -2262,6 +2474,37 @@ def _git_path(path: str) -> str:
     return str(_fs_path(path))
 
 
+def _git_file_path(repo_path: str, file_path: Optional[str]) -> Optional[str]:
+    """Validate a git pathspec that can otherwise address an absolute file.
+
+    ``git diff --no-index`` accepts paths outside ``cwd`` and would turn the
+    review endpoint into an arbitrary file reader. Employee mode therefore
+    requires every concrete file argument to resolve inside both the selected
+    repository and the employee home. Non-employee dashboards preserve the
+    existing git-pathspec behavior.
+    """
+    if file_path is None:
+        return None
+    raw = str(file_path).strip()
+    if _employee_tenant_scope() is None:
+        return raw
+    if not raw or "\x00" in raw:
+        raise HTTPException(status_code=400, detail="Invalid git file path")
+    repo = _fs_path(repo_path)
+    candidate = Path(raw).expanduser()
+    if not candidate.is_absolute():
+        candidate = repo / candidate
+    try:
+        resolved = candidate.resolve(strict=False)
+    except (OSError, RuntimeError):
+        raise HTTPException(status_code=400, detail="Invalid git file path")
+    if resolved != repo and repo not in resolved.parents:
+        raise HTTPException(status_code=403, detail="Git file path outside repository")
+    # Return a normal repo-relative path so git never interprets an absolute
+    # path as a second filesystem root.
+    return resolved.relative_to(repo).as_posix()
+
+
 class GitPathBody(BaseModel):
     path: str
 
@@ -2302,7 +2545,20 @@ async def git_status_route(path: str):
 
 @app.get("/api/git/worktrees")
 async def git_worktrees_route(path: str):
-    return {"worktrees": await _git_op(_web_git.worktree_list, _git_path(path))}
+    worktrees = await _git_op(_web_git.worktree_list, _git_path(path))
+    employee_scope = _employee_tenant_scope()
+    if employee_scope is not None:
+        _employee, home = employee_scope
+        safe_worktrees = []
+        for item in worktrees:
+            try:
+                target = Path(str(item.get("path") or "")).resolve(strict=False)
+            except (OSError, RuntimeError):
+                continue
+            if target == home or home in target.parents:
+                safe_worktrees.append(item)
+        worktrees = safe_worktrees
+    return {"worktrees": worktrees}
 
 
 @app.get("/api/git/branches")
@@ -2319,12 +2575,29 @@ async def git_review_list_route(path: str, scope: str = "uncommitted", base: Opt
 async def git_review_diff_route(
     path: str, file: str, scope: str = "uncommitted", base: Optional[str] = None, staged: bool = False
 ):
-    return {"diff": await _git_op(_web_git.review_diff, _git_path(path), file, scope, base, staged)}
+    repo = _git_path(path)
+    return {
+        "diff": await _git_op(
+            _web_git.review_diff,
+            repo,
+            _git_file_path(repo, file),
+            scope,
+            base,
+            staged,
+        )
+    }
 
 
 @app.get("/api/git/file-diff")
 async def git_file_diff_route(path: str, file: str):
-    return {"diff": await _git_op(_web_git.file_diff_vs_head, _git_path(path), file)}
+    repo = _git_path(path)
+    return {
+        "diff": await _git_op(
+            _web_git.file_diff_vs_head,
+            repo,
+            _git_file_path(repo, file),
+        )
+    }
 
 
 @app.get("/api/git/review/commit-context")
@@ -2344,17 +2617,32 @@ async def git_ship_info_route(path: str):
 
 @app.post("/api/git/review/stage")
 async def git_stage_route(body: GitFileBody):
-    return await _git_op(_web_git.review_stage, _git_path(body.path), body.file)
+    repo = _git_path(body.path)
+    return await _git_op(
+        _web_git.review_stage,
+        repo,
+        _git_file_path(repo, body.file),
+    )
 
 
 @app.post("/api/git/review/unstage")
 async def git_unstage_route(body: GitFileBody):
-    return await _git_op(_web_git.review_unstage, _git_path(body.path), body.file)
+    repo = _git_path(body.path)
+    return await _git_op(
+        _web_git.review_unstage,
+        repo,
+        _git_file_path(repo, body.file),
+    )
 
 
 @app.post("/api/git/review/revert")
 async def git_revert_route(body: GitFileBody):
-    return await _git_op(_web_git.review_revert, _git_path(body.path), body.file)
+    repo = _git_path(body.path)
+    return await _git_op(
+        _web_git.review_revert,
+        repo,
+        _git_file_path(repo, body.file),
+    )
 
 
 @app.post("/api/git/review/commit")
@@ -2485,10 +2773,15 @@ def _collect_profile_gateway_topology() -> Dict[str, Any]:
       live gateway, ``"multiple"`` for independent per-profile gateways,
       ``"none"`` when nothing is running.
     """
+    employee_scope = _employee_tenant_scope()
     try:
         from hermes_cli.profiles import _check_gateway_running, profiles_to_serve
         from gateway.status import read_runtime_status
-        homes = profiles_to_serve(True)
+        homes = (
+            [("default", employee_scope[1])]
+            if employee_scope is not None
+            else profiles_to_serve(True)
+        )
     except Exception:
         _log.debug("profile/gateway topology enumeration failed", exc_info=True)
         return {"profiles": [], "gateway_mode": "unknown", "gateways": []}
@@ -2507,6 +2800,9 @@ def _collect_profile_gateway_topology() -> Dict[str, Any]:
         except Exception:
             runtime = None
         served = [str(p) for p in ((runtime or {}).get("served_profiles") or [])]
+        if employee_scope is not None:
+            # A stale/shared runtime file must not disclose sibling names.
+            served = []
         if name == "default" and len(served) > 1:
             multiplex = True
         entry: Dict[str, Any] = {
@@ -2542,7 +2838,10 @@ async def get_status(profile: Optional[str] = None):
     # skills-module attributes that a concurrent request would cross-restore
     # across that await. Status only resolves get_hermes_home() at call time
     # (config/env/gateway state), which the task-local contextvar covers.
-    if requested_profile and requested_profile.lower() != "current":
+    if _employee_tenant_scope() is not None:
+        status_scope = _config_profile_scope(requested_profile)
+        status_scope.__enter__()
+    elif requested_profile and requested_profile.lower() != "current":
         status_scope = _config_profile_scope(requested_profile)
         status_scope.__enter__()
 
@@ -3980,7 +4279,7 @@ def get_sessions(
             detail="order must be one of: created, recent",
         )
     profile_name: Optional[str] = None
-    if profile:
+    if profile or _employee_tenant_scope() is not None:
         profile_name, _ = _cron_profile_home(profile)
     try:
         db = _open_session_db_for_profile(profile)
@@ -4073,7 +4372,12 @@ def get_profiles_sessions(
     from hermes_cli import profiles as profiles_mod
 
     targets: List[Tuple[str, Path]] = []
-    if profile and profile != "all":
+    employee_target = _employee_profile_home(profile, allow_all=True)
+    if employee_target is not None:
+        # ``profile=all`` is a legacy desktop default.  In employee mode it
+        # means the one employee tenant, never a filesystem-wide aggregation.
+        targets.append(employee_target)
+    elif profile and profile != "all":
         name, home = _cron_profile_home(profile)
         targets.append((name, home))
     else:
@@ -9679,6 +9983,10 @@ def _open_session_db_for_profile(profile: Optional[str]):
     (transcripts, detail) without spawning that profile's backend.
     """
     from hermes_state import SessionDB
+    employee_target = _employee_profile_home(profile)
+    if employee_target is not None:
+        _name, home = employee_target
+        return SessionDB(db_path=Path(home) / "state.db")
     if not profile:
         return SessionDB()
     _name, home = _cron_profile_home(profile)
@@ -10144,6 +10452,8 @@ def _validate_dashboard_cron_context_from(
 
 def _cron_profile_dicts() -> List[Dict[str, Any]]:
     """Return dashboard profile records, falling back to a directory scan."""
+    if _employee_tenant_scope() is not None:
+        return [_employee_profile_dict()]
     from hermes_cli import profiles as profiles_mod
     try:
         return [_profile_to_dict(p) for p in profiles_mod.list_profiles()]
@@ -10154,6 +10464,10 @@ def _cron_profile_dicts() -> List[Dict[str, Any]]:
 
 def _cron_profile_home(profile: Optional[str]) -> Tuple[str, Path]:
     """Resolve a profile query value to (profile_name, HERMES_HOME)."""
+    employee_target = _employee_profile_home(profile)
+    if employee_target is not None:
+        return employee_target
+
     from hermes_cli import profiles as profiles_mod
 
     raw = (profile or "default").strip() or "default"
@@ -12060,6 +12374,13 @@ def _profile_cli_args(profile: Optional[str]) -> List[str]:
     profile (no args, legacy behavior).
     """
     requested = (profile or "").strip()
+    if _employee_tenant_scope() is not None:
+        # The managed backend has one physical home and one canonical profile
+        # (``default``).  The employee id is merely an accepted alias; passing
+        # it through as ``-p <employee>`` would re-enter the machine profile
+        # resolver in the child process and could select/create the wrong home.
+        _employee_profile_home(requested)
+        return []
     if not requested or requested.lower() in {"current", "default"}:
         return []
     from hermes_cli import profiles as profiles_mod
@@ -12574,6 +12895,51 @@ def _profile_to_dict(info) -> Dict[str, Any]:
     }
 
 
+def _employee_profile_dict() -> Dict[str, Any]:
+    """Describe only the current employee home as the canonical default.
+
+    Do not call ``list_profiles()`` or scan ``profiles/`` here: an employee
+    backend may share a parent filesystem with other tenants, and even leaking
+    their names/paths would violate the REST isolation boundary.
+    """
+    scope = _employee_tenant_scope()
+    if scope is None:  # Defensive: callers use this only while scoped.
+        raise RuntimeError("Employee tenant scope is not configured")
+    _employee, home = scope
+    from hermes_cli import profiles as profiles_mod
+
+    def _safe(callable_, default):
+        try:
+            return callable_()
+        except Exception:
+            return default
+
+    model, provider = _safe(
+        lambda: profiles_mod._read_config_model(home),
+        (None, None),
+    )
+    meta = _safe(lambda: profiles_mod.read_profile_meta(home), {}) or {}
+    return {
+        "name": "default",
+        "path": str(home),
+        "is_default": True,
+        "model": model,
+        "provider": provider,
+        "has_env": (home / ".env").exists(),
+        "skill_count": _safe(lambda: profiles_mod._count_skills(home), 0),
+        "gateway_running": _safe(
+            lambda: profiles_mod._check_gateway_running(home),
+            False,
+        ),
+        "description": meta.get("description", ""),
+        "description_auto": bool(meta.get("description_auto", False)),
+        "distribution_name": None,
+        "distribution_version": None,
+        "distribution_source": None,
+        "has_alias": False,
+    }
+
+
 def _fallback_profile_dicts(profiles_mod) -> List[Dict[str, Any]]:
     def _safe(callable_, default):
         try:
@@ -12630,6 +12996,10 @@ def _fallback_profile_dicts(profiles_mod) -> List[Dict[str, Any]]:
 
 def _resolve_profile_dir(name: str) -> Path:
     """Validate ``name`` and resolve to its directory or raise an HTTPException."""
+    employee_target = _employee_profile_home(name)
+    if employee_target is not None:
+        return employee_target[1]
+
     from hermes_cli import profiles as profiles_mod
     try:
         profiles_mod.validate_profile_name(name)
@@ -12643,6 +13013,8 @@ def _resolve_profile_dir(name: str) -> Path:
 def _profile_setup_command(name: str) -> str:
     """Return the shell command used to configure a profile in the CLI."""
     _resolve_profile_dir(name)
+    if _employee_tenant_scope() is not None:
+        return "hermes setup"
     return "hermes setup" if name == "default" else f"{name} setup"
 
 
@@ -12762,6 +13134,9 @@ def _disable_unselected_skills(profile_dir: Path, keep: List[str]) -> int:
 
 @app.get("/api/profiles")
 async def list_profiles_endpoint():
+    if _employee_tenant_scope() is not None:
+        return {"profiles": [_employee_profile_dict()]}
+
     from hermes_cli import profiles as profiles_mod
     try:
         loop = asyncio.get_running_loop()
@@ -12774,6 +13149,7 @@ async def list_profiles_endpoint():
 
 @app.post("/api/profiles")
 async def create_profile_endpoint(body: ProfileCreate):
+    _reject_employee_profile_mutation()
     from hermes_cli import profiles as profiles_mod
     explicit_source = (body.clone_from or "").strip()
     if explicit_source:
@@ -12894,6 +13270,9 @@ async def get_active_profile_endpoint():
     the profile new CLI invocations pick up. ``current`` is the profile
     the running dashboard/gateway is scoped to (derived from HERMES_HOME).
     """
+    if _employee_tenant_scope() is not None:
+        return {"active": "default", "current": "default"}
+
     from hermes_cli import profiles as profiles_mod
     try:
         active = profiles_mod.get_active_profile() or "default"
@@ -12913,6 +13292,7 @@ async def set_active_profile_endpoint(body: ProfileActiveUpdate):
     Note: this does not retarget the already-running dashboard process —
     it changes which profile subsequent CLI commands and gateways use.
     """
+    _reject_employee_profile_mutation()
     from hermes_cli import profiles as profiles_mod
     try:
         profiles_mod.set_active_profile(body.name)
@@ -12933,6 +13313,7 @@ async def get_profile_setup_command(name: str):
 
 @app.post("/api/profiles/{name}/open-terminal")
 async def open_profile_terminal_endpoint(name: str):
+    _reject_employee_profile_mutation()
     try:
         command = _profile_setup_command(name)
 
@@ -12987,6 +13368,7 @@ async def open_profile_terminal_endpoint(name: str):
 
 @app.patch("/api/profiles/{name}")
 async def rename_profile_endpoint(name: str, body: ProfileRename):
+    _reject_employee_profile_mutation()
     from hermes_cli import profiles as profiles_mod
     try:
         path = profiles_mod.rename_profile(name, body.new_name)
@@ -13005,6 +13387,7 @@ async def delete_profile_endpoint(name: str):
     """Delete a profile. The dashboard collects the user's confirmation in
     its own dialog before this request, so we always pass ``yes=True`` to
     skip the CLI's interactive prompt."""
+    _reject_employee_profile_mutation()
     from hermes_cli import profiles as profiles_mod
     try:
         path = profiles_mod.delete_profile(name, yes=True)
@@ -13031,6 +13414,7 @@ async def get_profile_soul(name: str):
 
 @app.put("/api/profiles/{name}/soul")
 async def update_profile_soul(name: str, body: ProfileSoulUpdate):
+    _reject_employee_profile_mutation()
     soul_path = _resolve_profile_dir(name) / "SOUL.md"
     try:
         soul_path.write_text(body.content, encoding="utf-8")
@@ -13048,6 +13432,7 @@ async def update_profile_description_endpoint(name: str, body: ProfileDescriptio
     user-authored description (``description_auto: false``) so the
     auto-describer won't overwrite it on a sweep.
     """
+    _reject_employee_profile_mutation()
     from hermes_cli import profiles as profiles_mod
     profile_dir = _resolve_profile_dir(name)
     text = (body.description or "").strip()
@@ -13070,6 +13455,7 @@ async def update_profile_model_endpoint(name: str, body: ProfileModelUpdate):
     active profile. Mirrors ``POST /api/model/set`` (main scope) but scoped
     to the named profile via the HERMES_HOME override.
     """
+    _reject_employee_profile_mutation()
     profile_dir = _resolve_profile_dir(name)
     provider = (body.provider or "").strip()
     model = (body.model or "").strip()
@@ -13093,6 +13479,7 @@ async def describe_profile_auto_endpoint(name: str, body: ProfileDescribeAuto):
     ``ok: false`` with a reason rather than an HTTP error so the UI can
     surface it inline and let the operator fix config and retry.
     """
+    _reject_employee_profile_mutation()
     _resolve_profile_dir(name)
     try:
         from hermes_cli import profile_describer
@@ -13160,7 +13547,11 @@ def _profile_scope(profile: Optional[str]):
     from tools import skill_manager_tool as _skill_mgr
 
     token = None
-    if not requested or requested.lower() == "current":
+    employee_target = _employee_profile_home(requested)
+    if employee_target is not None:
+        _canonical, profile_dir = employee_target
+        token = set_hermes_home_override(str(profile_dir))
+    elif not requested or requested.lower() == "current":
         profile_dir = get_hermes_home()
     else:
         profile_dir = _resolve_profile_dir(requested)
@@ -13203,6 +13594,21 @@ def _config_profile_scope(profile: Optional[str]):
     None/""/"current" means the dashboard's own profile — no override.
     """
     requested = (profile or "").strip()
+    employee_target = _employee_profile_home(requested)
+    if employee_target is not None:
+        from hermes_constants import (
+            set_hermes_home_override,
+            reset_hermes_home_override,
+        )
+
+        _canonical, profile_dir = employee_target
+        token = set_hermes_home_override(str(profile_dir))
+        try:
+            yield profile_dir
+        finally:
+            reset_hermes_home_override(token)
+        return
+
     if not requested or requested.lower() == "current":
         yield None
         return
@@ -15052,6 +15458,17 @@ def _console_json_payload(msg: Any) -> tuple[Optional[dict[str, Any]], Optional[
 async def console_ws(ws: WebSocket) -> None:
     peer = ws.client.host if ws.client else "?"
 
+    tenant_error = _employee_tenant_config_error()
+    if tenant_error:
+        await ws.close(code=4503, reason=_ws_close_reason(tenant_error))
+        return
+    if _employee_tenant_scope() is not None:
+        await ws.close(
+            code=4403,
+            reason="console disabled for managed employee gateways",
+        )
+        return
+
     if not _DASHBOARD_EMBEDDED_CHAT_ENABLED:
         _log.info("console refused: embedded chat disabled peer=%s", peer)
         await ws.close(code=4404, reason="embedded chat disabled")
@@ -15407,6 +15824,17 @@ async def console_ws(ws: WebSocket) -> None:
 @app.websocket("/api/pty")
 async def pty_ws(ws: WebSocket) -> None:
     peer = ws.client.host if ws.client else "?"
+
+    tenant_error = _employee_tenant_config_error()
+    if tenant_error:
+        await ws.close(code=4503, reason=_ws_close_reason(tenant_error))
+        return
+    if _employee_tenant_scope() is not None:
+        await ws.close(
+            code=4403,
+            reason="PTY disabled for managed employee gateways",
+        )
+        return
 
     if not _DASHBOARD_EMBEDDED_CHAT_ENABLED:
         _log.info("pty refused: embedded chat disabled peer=%s", peer)
@@ -16858,6 +17286,13 @@ _mount_plugin_api_routes()
 # not whether the routes exist.
 from hermes_cli.dashboard_auth.routes import router as _dashboard_auth_router  # noqa: E402
 app.include_router(_dashboard_auth_router)
+
+# Optional raw HTTP file transfer is registered before the SPA catch-all.  The
+# feature itself remains off unless a managed employee backend explicitly opts
+# in through HERMES_ENABLE_HTTP_SESSION_UPLOAD=1.
+from hermes_cli.http_session_upload import register_http_session_upload
+
+register_http_session_upload(app, employee_scope=_employee_tenant_scope)
 
 mount_spa(app)
 

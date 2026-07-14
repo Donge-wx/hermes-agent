@@ -5,6 +5,7 @@ import type { HermesConnection } from '@/global'
 import { HermesGateway } from '@/hermes'
 import { translateNow } from '@/i18n'
 import { desktopDefaultCwd } from '@/lib/desktop-fs'
+import { applyManagedEmployeeIdentity } from '@/lib/managed-employee-state'
 import {
   $desktopBoot,
   applyDesktopBootProgress,
@@ -361,7 +362,15 @@ export function useGatewayBoot({
     // Wake signals: power resume (macOS/Windows), network coming back, and the
     // window regaining focus/visibility. Each nudges an immediate reconnect.
     const offPowerResume = desktop.onPowerResume?.(() => reconnectNow())
-    const offConnectionApplied = desktop.onConnectionApplied?.(() => void softSwitch())
+    const offConnectionApplied = desktop.onConnectionApplied?.(payload => {
+      if (applyManagedEmployeeIdentity(payload)) {
+        window.location.reload()
+
+        return
+      }
+
+      void softSwitch()
+    })
 
     const onOnline = () => reconnectNow()
 

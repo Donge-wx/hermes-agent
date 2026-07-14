@@ -56,7 +56,7 @@ export function Backdrop() {
 
   const shape = useControls(
     'UI / Shape',
-    { radiusScalar: { value: 0.2, min: 0, max: 2, step: 0.1, label: 'radius scalar' } },
+    { radiusScalar: { value: 0.72, min: 0, max: 2, step: 0.1, label: 'radius scalar' } },
     { collapsed: true }
   )
 
@@ -67,7 +67,7 @@ export function Backdrop() {
   const statue = useControls(
     'Backdrop / Statue',
     {
-      enabled: { value: true, label: 'on' },
+      enabled: { value: false, label: 'on' },
       opacity: { value: 0.025, min: 0, max: 1, step: 0.005 },
       blendMode: { value: 'difference' as BlendMode, options: BLEND_MODES, label: 'blend' },
       invert: { value: true, label: 'invert color' },

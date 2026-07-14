@@ -126,7 +126,7 @@ describe('downloadGatewayMediaFile', () => {
     URL.createObjectURL = vi.fn(() => 'blob:remote-artifact')
     URL.revokeObjectURL = vi.fn()
     clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
-    $connection.set({ mode: 'remote' } as never)
+    $connection.set({ mode: 'remote', baseUrl: 'https://gw', token: 'secret' } as never)
   })
 
   afterEach(() => {
@@ -136,16 +136,19 @@ describe('downloadGatewayMediaFile', () => {
     $connection.set(null)
   })
 
-  it('downloads gateway files through the desktop fs bridge', async () => {
+  it('streams gateway files through the authenticated download endpoint', async () => {
     await downloadGatewayMediaFile('file:///Users/me/project/report.md')
 
-    expect(api).toHaveBeenCalledWith({
-      path: '/api/fs/read-data-url?path=%2FUsers%2Fme%2Fproject%2Freport.md'
-    })
+    expect(api).not.toHaveBeenCalled()
     expect(clickSpy).toHaveBeenCalledOnce()
+    const anchor = clickSpy.mock.instances[0]
+    expect(anchor.href).toBe(
+      'https://gw/api/files/download?path=%2FUsers%2Fme%2Fproject%2Freport.md&token=secret'
+    )
   })
 
-  it('rejects when the gateway refuses the file read', async () => {
+  it('falls back to the desktop fs bridge when the remote token is unavailable', async () => {
+    $connection.set({ mode: 'remote', baseUrl: 'https://gw' } as never)
     api.mockRejectedValueOnce(new Error('403 File is not readable'))
 
     await expect(downloadGatewayMediaFile('/Users/me/project/report.md')).rejects.toThrow('403')

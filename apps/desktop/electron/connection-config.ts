@@ -69,6 +69,15 @@ function normalizeRemoteBaseUrl(rawUrl) {
   parsed.search = ''
   parsed.pathname = parsed.pathname.replace(/\/+$/, '')
 
+  // Users commonly copy the URL from the gateway's browser login page rather
+  // than from the address bar at the gateway root. Treat a terminal /login as
+  // UI-only and keep any deployment prefix before it: /login becomes the
+  // origin, while /hermes/login becomes /hermes. Without this, the desktop
+  // would probe /login/api/status and open /login/login for authentication.
+  if (/\/login$/i.test(parsed.pathname)) {
+    parsed.pathname = parsed.pathname.slice(0, -'/login'.length)
+  }
+
   return parsed.toString().replace(/\/+$/, '')
 }
 

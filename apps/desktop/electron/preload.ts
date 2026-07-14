@@ -42,6 +42,7 @@ contextBridge.exposeInMainWorld('hermesDesktop', {
   applyConnectionConfig: payload => ipcRenderer.invoke('hermes:connection-config:apply', payload),
   testConnectionConfig: payload => ipcRenderer.invoke('hermes:connection-config:test', payload),
   probeConnectionConfig: remoteUrl => ipcRenderer.invoke('hermes:connection-config:probe', remoteUrl),
+  oauthStatusConnectionConfig: remoteUrl => ipcRenderer.invoke('hermes:connection-config:oauth-status', remoteUrl),
   oauthLoginConnectionConfig: remoteUrl => ipcRenderer.invoke('hermes:connection-config:oauth-login', remoteUrl),
   oauthLogoutConnectionConfig: remoteUrl => ipcRenderer.invoke('hermes:connection-config:oauth-logout', remoteUrl),
   // Hermes Cloud: one portal login powers discovery + silent per-agent sign-in
@@ -62,6 +63,7 @@ contextBridge.exposeInMainWorld('hermesDesktop', {
   requestMicrophoneAccess: () => ipcRenderer.invoke('hermes:requestMicrophoneAccess'),
   createFileUploadSnapshot: filePath => ipcRenderer.invoke('hermes:createFileUploadSnapshot', filePath),
   releaseFileUploadSnapshot: snapshotPath => ipcRenderer.invoke('hermes:releaseFileUploadSnapshot', snapshotPath),
+  uploadSessionAttachmentHttp: request => ipcRenderer.invoke('hermes:uploadSessionAttachmentHttp', request),
   readFileDataUrl: filePath => ipcRenderer.invoke('hermes:readFileDataUrl', filePath),
   readFileChunkBase64: (filePath, offset, maxBytes) =>
     ipcRenderer.invoke('hermes:readFileChunkBase64', { filePath, offset, maxBytes }),
@@ -212,7 +214,7 @@ contextBridge.exposeInMainWorld('hermesDesktop', {
   // Soft gateway-mode apply finished tearing down the primary backend. Renderer
   // should wipe session lists + re-dial without a window reload.
   onConnectionApplied: callback => {
-    const listener = () => callback()
+    const listener = (_event, payload) => callback(payload)
     ipcRenderer.on('hermes:connection:applied', listener)
 
     return () => ipcRenderer.removeListener('hermes:connection:applied', listener)

@@ -128,6 +128,25 @@ export async function gatewayMediaDataUrl(path: string): Promise<string> {
 // The file lives on the gateway, so fetch it over the authenticated fs bridge
 // and hand the bytes to the local browser shell as a download.
 export async function downloadGatewayMediaFile(path: string): Promise<void> {
+  // In remote mode the gateway already exposes an authenticated streaming
+  // download.  Let Chromium stream it straight to disk instead of first
+  // materialising the whole file as a base64 data URL (which is capped at
+  // 16 MiB and roughly doubles peak memory usage).
+  if (isRemoteGateway()) {
+    const externalUrl = mediaExternalUrl(path)
+
+    if (/^https?:/i.test(externalUrl)) {
+      const anchor = document.createElement('a')
+      anchor.href = externalUrl
+      anchor.download = mediaName(path)
+      anchor.rel = 'noopener noreferrer'
+      document.body.appendChild(anchor)
+      anchor.click()
+      anchor.remove()
+      return
+    }
+  }
+
   const dataUrl = await readDesktopFileDataUrl(filePathFromMediaPath(path))
 
   if (!dataUrl) {

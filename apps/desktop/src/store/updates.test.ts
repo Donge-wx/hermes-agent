@@ -41,6 +41,10 @@ vi.mock('@/hermes', () => ({
   getActionStatus: (...args: unknown[]) => getActionStatusSpy(...args)
 }))
 
+vi.mock('@/lib/managed-release', () => ({
+  IS_VANYUE_MANAGED_RELEASE: false
+}))
+
 const {
   maybeNotifyUpdateAvailable,
   checkBackendUpdates,

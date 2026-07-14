@@ -1,5 +1,7 @@
 import { JsonRpcGatewayClient } from '@hermes/shared'
 
+import { IS_VANYUE_MANAGED_RELEASE } from '@/lib/managed-release'
+
 import type {
   ActionResponse,
   ActionStatusResponse,
@@ -192,7 +194,23 @@ export function setApiRequestProfile(profile: null | string): void {
 }
 
 function profileScoped(): { profile?: string } {
+  if (IS_VANYUE_MANAGED_RELEASE) {
+    return { profile: 'default' }
+  }
+
   return _apiProfile ? { profile: _apiProfile } : {}
+}
+
+function sessionProfile(profile?: string | null): string | null {
+  if (IS_VANYUE_MANAGED_RELEASE) {
+    return 'default'
+  }
+
+  return profile?.trim() || null
+}
+
+function rejectManagedProfileMutation<T>(): Promise<T> {
+  return Promise.reject(new Error('员工版不允许创建、切换或修改 profile。'))
 }
 
 export async function listSessions(
@@ -202,6 +220,7 @@ export async function listSessions(
   order: 'created' | 'recent' = 'recent'
 ): Promise<PaginatedSessions> {
   const result = await window.hermesDesktop.api<PaginatedSessions>({
+    ...profileScoped(),
     path:
       `/api/sessions?limit=${limit}&offset=0&min_messages=${Math.max(0, minMessages)}` +
       `&archived=${archived}&order=${order}`,
@@ -236,6 +255,7 @@ export async function listAllProfileSessions(
   profile: 'all' | (string & {}) = 'all',
   filter: SessionSourceFilter = {}
 ): Promise<PaginatedSessions> {
+  const effectiveProfile = sessionProfile(profile) || 'all'
   const sourceParam = filter.source ? `&source=${encodeURIComponent(filter.source)}` : ''
 
   const excludeParam = filter.excludeSources?.length
@@ -245,7 +265,8 @@ export async function listAllProfileSessions(
   const result = await window.hermesDesktop.api<PaginatedSessions>({
     path:
       `/api/profiles/sessions?limit=${limit}&offset=0&min_messages=${Math.max(0, minMessages)}` +
-      `&archived=${archived}&order=${order}&profile=${encodeURIComponent(profile)}${sourceParam}${excludeParam}`,
+      `&archived=${archived}&order=${order}&profile=${encodeURIComponent(effectiveProfile)}${sourceParam}${excludeParam}`,
+    ...(IS_VANYUE_MANAGED_RELEASE ? { profile: effectiveProfile } : {}),
     timeoutMs: SESSION_LIST_REQUEST_TIMEOUT_MS
   })
 
@@ -261,17 +282,23 @@ export async function listAllProfileSessions(
 // read path. A remote session's row lives only on its remote host, so a mutation
 // that hit the local primary would no-op or 404. Omit for the current/default.
 export function setSessionArchived(id: string, archived: boolean, profile?: string | null): Promise<{ ok: boolean }> {
+  const effectiveProfile = sessionProfile(profile)
+
   return window.hermesDesktop.api<{ ok: boolean }>({
-    ...(profile ? { profile } : {}),
+    ...(effectiveProfile ? { profile: effectiveProfile } : {}),
     path: `/api/sessions/${encodeURIComponent(id)}`,
     method: 'PATCH',
     body: { archived }
   })
 }
 
-export function searchSessions(query: string): Promise<SessionSearchResponse> {
+export function searchSessions(query: string, profile?: string | null): Promise<SessionSearchResponse> {
+  const effectiveProfile = sessionProfile(profile)
+  const profileParam = effectiveProfile ? `&profile=${encodeURIComponent(effectiveProfile)}` : ''
+
   return window.hermesDesktop.api<SessionSearchResponse>({
-    path: `/api/sessions/search?q=${encodeURIComponent(query)}`
+    ...(effectiveProfile ? { profile: effectiveProfile } : {}),
+    path: `/api/sessions/search?q=${encodeURIComponent(query)}${profileParam}`
   })
 }
 
@@ -280,10 +307,11 @@ export function searchSessions(query: string): Promise<SessionSearchResponse> {
 // 404s when the id isn't on that profile — so a cheap by-id lookup replaces the
 // cross-profile list scan when locating an unknown id's owner.
 export function getSession(id: string, profile?: string | null): Promise<SessionInfo> {
-  const suffix = profile ? `?profile=${encodeURIComponent(profile)}` : ''
+  const effectiveProfile = sessionProfile(profile)
+  const suffix = effectiveProfile ? `?profile=${encodeURIComponent(effectiveProfile)}` : ''
 
   return window.hermesDesktop.api<SessionInfo>({
-    ...(profile ? { profile } : {}),
+    ...(effectiveProfile ? { profile: effectiveProfile } : {}),
     path: `/api/sessions/${encodeURIComponent(id)}${suffix}`
   })
 }
@@ -293,17 +321,20 @@ export function getSession(id: string, profile?: string | null): Promise<Session
 // profile the primary opens that profile's state.db via ?profile=. Omit for
 // the current/default profile.
 export function getSessionMessages(id: string, profile?: string | null): Promise<SessionMessagesResponse> {
-  const suffix = profile ? `?profile=${encodeURIComponent(profile)}` : ''
+  const effectiveProfile = sessionProfile(profile)
+  const suffix = effectiveProfile ? `?profile=${encodeURIComponent(effectiveProfile)}` : ''
 
   return window.hermesDesktop.api<SessionMessagesResponse>({
-    ...(profile ? { profile } : {}),
+    ...(effectiveProfile ? { profile: effectiveProfile } : {}),
     path: `/api/sessions/${encodeURIComponent(id)}/messages${suffix}`
   })
 }
 
 export function deleteSession(id: string, profile?: string | null): Promise<{ ok: boolean }> {
+  const effectiveProfile = sessionProfile(profile)
+
   return window.hermesDesktop.api<{ ok: boolean }>({
-    ...(profile ? { profile } : {}),
+    ...(effectiveProfile ? { profile: effectiveProfile } : {}),
     path: `/api/sessions/${encodeURIComponent(id)}`,
     method: 'DELETE'
   })
@@ -314,11 +345,13 @@ export function renameSession(
   title: string,
   profile?: string | null
 ): Promise<{ ok: boolean; title: string }> {
+  const effectiveProfile = sessionProfile(profile)
+
   return window.hermesDesktop.api<{ ok: boolean; title: string }>({
-    ...(profile ? { profile } : {}),
+    ...(effectiveProfile ? { profile: effectiveProfile } : {}),
     path: `/api/sessions/${encodeURIComponent(id)}`,
     method: 'PATCH',
-    body: { title, ...(profile ? { profile } : {}) }
+    body: { title, ...(effectiveProfile ? { profile: effectiveProfile } : {}) }
   })
 }
 
@@ -820,6 +853,10 @@ export function getProfiles(): Promise<ProfilesResponse> {
 }
 
 export function createProfile(body: ProfileCreatePayload): Promise<{ name: string; ok: boolean; path: string }> {
+  if (IS_VANYUE_MANAGED_RELEASE) {
+    return rejectManagedProfileMutation()
+  }
+
   return window.hermesDesktop.api<{ name: string; ok: boolean; path: string }>({
     path: '/api/profiles',
     method: 'POST',
@@ -828,6 +865,10 @@ export function createProfile(body: ProfileCreatePayload): Promise<{ name: strin
 }
 
 export function renameProfile(name: string, newName: string): Promise<{ name: string; ok: boolean; path: string }> {
+  if (IS_VANYUE_MANAGED_RELEASE) {
+    return rejectManagedProfileMutation()
+  }
+
   return window.hermesDesktop.api<{ name: string; ok: boolean; path: string }>({
     path: `/api/profiles/${encodeURIComponent(name)}`,
     method: 'PATCH',
@@ -836,6 +877,10 @@ export function renameProfile(name: string, newName: string): Promise<{ name: st
 }
 
 export function deleteProfile(name: string): Promise<{ ok: boolean; path: string }> {
+  if (IS_VANYUE_MANAGED_RELEASE) {
+    return rejectManagedProfileMutation()
+  }
+
   return window.hermesDesktop.api<{ ok: boolean; path: string }>({
     path: `/api/profiles/${encodeURIComponent(name)}`,
     method: 'DELETE'
@@ -849,6 +894,10 @@ export function getProfileSoul(name: string): Promise<ProfileSoul> {
 }
 
 export function updateProfileSoul(name: string, content: string): Promise<{ ok: boolean }> {
+  if (IS_VANYUE_MANAGED_RELEASE) {
+    return rejectManagedProfileMutation()
+  }
+
   return window.hermesDesktop.api<{ ok: boolean }>({
     path: `/api/profiles/${encodeURIComponent(name)}/soul`,
     method: 'PUT',

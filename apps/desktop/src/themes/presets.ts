@@ -20,80 +20,75 @@ const SYSTEM_MONO =
 
 export const DEFAULT_TYPOGRAPHY: DesktopThemeTypography = { fontSans: SYSTEM_SANS, fontMono: SYSTEM_MONO }
 
-const NOUS_BLUE = '#0053FD'
-const PSYCHE_BLUE = '#1540B1'
-const PSYCHE_WARM = '#FFE6CB'
-
-const nousTint = (pct: number) => `color-mix(in srgb, ${NOUS_BLUE} ${pct}%, #FFFFFF)`
-const nousTintTransparent = (pct: number) => `color-mix(in srgb, ${NOUS_BLUE} ${pct}%, transparent)`
+const NOUS_BLUE = '#1686F0'
+const PSYCHE_BLUE = '#76A9FF'
 
 /**
- * Nous — canonical Hermes desktop identity. The palette keeps the current
- * glass geometry neutral, then lets the old bb/gui blue and psyche cream
- * return as accent seeds.
+ * VanYue — the visible enterprise identity. The internal `nous` key is kept
+ * for upgrade compatibility so existing employees receive the new palette
+ * without losing their persisted desktop theme selection.
  */
 export const nousTheme: DesktopTheme = {
   name: 'nous',
-  label: 'Nous',
-  description: 'Glass neutrals with Nous blue accents',
+  label: '万域数动',
+  description: 'Codex-inspired neutral workspace with VanYue accents',
   colors: {
-    background: '#F8FAFF',
-    foreground: '#17171A',
+    background: '#FFFFFF',
+    foreground: '#202123',
     card: '#FFFFFF',
-    cardForeground: '#17171A',
-    muted: nousTint(5),
-    mutedForeground: '#666678',
+    cardForeground: '#202123',
+    muted: '#F2F4F7',
+    mutedForeground: '#667085',
     popover: '#FFFFFF',
-    popoverForeground: '#17171A',
+    popoverForeground: '#202123',
     primary: NOUS_BLUE,
-    primaryForeground: '#FCFCFC',
-    secondary: nousTint(7),
-    secondaryForeground: '#242432',
-    accent: nousTint(10),
-    accentForeground: '#202030',
-    border: nousTintTransparent(22),
-    input: nousTintTransparent(30),
+    primaryForeground: '#FFFFFF',
+    secondary: '#EEF4FF',
+    secondaryForeground: '#344054',
+    accent: '#EEF4FF',
+    accentForeground: '#202123',
+    border: '#E4E7EC',
+    input: '#D0D5DD',
     ring: NOUS_BLUE,
     midground: NOUS_BLUE,
     composerRing: NOUS_BLUE,
     destructive: '#C72E4D',
     destructiveForeground: '#FFFFFF',
-    sidebarBackground: '#F3F7FF',
-    sidebarBorder: nousTintTransparent(18),
-    userBubble: nousTint(6),
-    userBubbleBorder: nousTintTransparent(24)
+    sidebarBackground: '#F3F6FB',
+    sidebarBorder: '#E1E5EA',
+    userBubble: '#F1F5F9',
+    userBubbleBorder: '#E2E8F0'
   },
   darkColors: {
-    background: '#0D2F86',
-    foreground: PSYCHE_WARM,
-    card: '#12378F',
-    cardForeground: PSYCHE_WARM,
-    muted: '#183F9A',
-    mutedForeground: '#B5C7F3',
-    popover: '#123A96',
-    popoverForeground: PSYCHE_WARM,
-    primary: PSYCHE_WARM,
-    primaryForeground: '#0D2F86',
-    secondary: '#1B45A4',
-    secondaryForeground: '#E0E8FF',
-    accent: PSYCHE_BLUE,
-    accentForeground: '#F0F4FF',
-    border: '#3158AD',
-    input: '#0B2566',
-    ring: PSYCHE_WARM,
-    midground: NOUS_BLUE,
-    composerRing: PSYCHE_WARM,
-    destructive: '#C0473A',
+    background: '#18191B',
+    foreground: '#F5F5F6',
+    card: '#202124',
+    cardForeground: '#F5F5F6',
+    muted: '#292A2D',
+    mutedForeground: '#A7ABB3',
+    popover: '#242528',
+    popoverForeground: '#F5F5F6',
+    primary: PSYCHE_BLUE,
+    primaryForeground: '#111214',
+    secondary: '#292E38',
+    secondaryForeground: '#E6E8EC',
+    accent: '#293548',
+    accentForeground: '#F4F7FF',
+    border: '#34363B',
+    input: '#45474D',
+    ring: PSYCHE_BLUE,
+    midground: PSYCHE_BLUE,
+    composerRing: PSYCHE_BLUE,
+    destructive: '#D45B65',
     destructiveForeground: '#FEF2F2',
-    sidebarBackground: '#09286F',
-    sidebarBorder: '#234A9C',
-    userBubble: '#143B91',
-    userBubbleBorder: '#3A63BD'
+    sidebarBackground: '#141517',
+    sidebarBorder: '#2B2C30',
+    userBubble: '#262A31',
+    userBubbleBorder: '#373C45'
   },
   typography: {
     fontSans: SYSTEM_SANS,
-    fontMono: `"Courier Prime", ${SYSTEM_MONO}`,
-    fontUrl: 'https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&display=swap'
+    fontMono: SYSTEM_MONO
   }
 }
 

@@ -5,6 +5,7 @@
 // like navigate / theme); labels come from i18n (`t.keybinds.actions[id]`). To
 // add a hotkey, add a row here and a handler there — nothing else.
 
+import { IS_VANYUE_MANAGED_RELEASE } from '../managed-release'
 import { IS_MAC } from './combo'
 
 export type KeybindCategory = 'composer' | 'profiles' | 'session' | 'navigation' | 'view'
@@ -15,7 +16,9 @@ export const KEYBIND_PANEL_ACTION = 'keybinds.openPanel'
 
 // `composer` is read-only; the rest are rebindable. `view` is the catch-all for
 // layout, appearance, and the panel-opener.
-export const KEYBIND_CATEGORIES: readonly KeybindCategory[] = ['composer', 'profiles', 'session', 'navigation', 'view']
+export const KEYBIND_CATEGORIES: readonly KeybindCategory[] = IS_VANYUE_MANAGED_RELEASE
+  ? ['composer', 'session', 'navigation', 'view']
+  : ['composer', 'profiles', 'session', 'navigation', 'view']
 
 export interface KeybindActionMeta {
   id: string
@@ -39,6 +42,15 @@ const PROFILE_SWITCH_ACTIONS: KeybindActionMeta[] = Array.from({ length: PROFILE
   defaults: [comboForSlot(i + 1)]
 }))
 
+const PROFILE_ACTIONS: KeybindActionMeta[] = [
+  { id: 'profile.default', category: 'profiles', defaults: ['mod+d'] },
+  ...PROFILE_SWITCH_ACTIONS,
+  { id: 'profile.next', category: 'profiles', defaults: ['mod+shift+]'] },
+  { id: 'profile.prev', category: 'profiles', defaults: ['mod+shift+['] },
+  { id: 'profile.toggleAll', category: 'profiles', defaults: ['mod+shift+0'] },
+  { id: 'profile.create', category: 'profiles', defaults: [] }
+]
+
 // Positional jumps — ^1…^9, mirroring profiles' ⌘1…⌘9.
 export const SESSION_SLOT_COUNT = 9
 
@@ -60,12 +72,7 @@ export const KEYBIND_ACTIONS: readonly KeybindActionMeta[] = [
   { id: 'composer.voice', category: 'composer', defaults: IS_MAC ? ['ctrl+b'] : [] },
 
   // ── Profiles ─────────────────────────────────────────────────────────────
-  { id: 'profile.default', category: 'profiles', defaults: ['mod+d'] },
-  ...PROFILE_SWITCH_ACTIONS,
-  { id: 'profile.next', category: 'profiles', defaults: ['mod+shift+]'] },
-  { id: 'profile.prev', category: 'profiles', defaults: ['mod+shift+['] },
-  { id: 'profile.toggleAll', category: 'profiles', defaults: ['mod+shift+0'] },
-  { id: 'profile.create', category: 'profiles', defaults: [] },
+  ...(IS_VANYUE_MANAGED_RELEASE ? [] : PROFILE_ACTIONS),
 
   // ── Session ──────────────────────────────────────────────────────────────
   { id: 'session.new', category: 'session', defaults: ['mod+n', 'shift+n'] },
@@ -84,7 +91,7 @@ export const KEYBIND_ACTIONS: readonly KeybindActionMeta[] = [
   { id: 'nav.commandPalette', category: 'navigation', defaults: ['mod+k', 'mod+p'] },
   { id: 'nav.commandCenter', category: 'navigation', defaults: ['mod+.'] },
   { id: 'nav.settings', category: 'navigation', defaults: ['mod+,'] },
-  { id: 'nav.profiles', category: 'navigation', defaults: [] },
+  ...(IS_VANYUE_MANAGED_RELEASE ? [] : [{ id: 'nav.profiles', category: 'navigation' as const, defaults: [] }]),
   { id: 'nav.skills', category: 'navigation', defaults: [] },
   { id: 'nav.messaging', category: 'navigation', defaults: [] },
   { id: 'nav.artifacts', category: 'navigation', defaults: [] },

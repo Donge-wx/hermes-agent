@@ -5,8 +5,9 @@ import { $terminalTakeover, setTerminalTakeover } from '@/app/right-sidebar/stor
 import { closeActiveTerminal, createTerminal, cycleTerminal } from '@/app/right-sidebar/terminal/terminals'
 import { PANE_TOGGLE_REVEAL_EVENT } from '@/components/pane-shell'
 import { matchesQuery } from '@/hooks/use-media-query'
-import { PROFILE_SLOT_COUNT, SESSION_SLOT_COUNT } from '@/lib/keybinds/actions'
+import { SESSION_SLOT_COUNT } from '@/lib/keybinds/actions'
 import { comboAllowedInInput, comboFromEvent, isEditableTarget } from '@/lib/keybinds/combo'
+import { buildProfileKeybindHandlers } from '@/lib/keybinds/profile-handlers'
 import { $repoStatus } from '@/store/coding-status'
 import { toggleCommandPalette } from '@/store/command-palette'
 import { $capture, $comboIndex, endCapture, setBinding, toggleKeybindPanel } from '@/store/keybinds'
@@ -79,11 +80,14 @@ export function useKeybinds(deps: KeybindRuntimeDeps): void {
   const handlersRef = useRef<HandlerMap>({})
   const commitSwitcherRef = useRef<() => void>(() => {})
 
-  const profileSwitchHandlers: HandlerMap = {}
-
-  for (let slot = 1; slot <= PROFILE_SLOT_COUNT; slot += 1) {
-    profileSwitchHandlers[`profile.switch.${slot}`] = () => switchProfileToSlot(slot)
-  }
+  const profileHandlers = buildProfileKeybindHandlers({
+    createProfile: requestProfileCreate,
+    cycleProfile,
+    navigateToProfiles: () => navigate(PROFILES_ROUTE),
+    switchToDefaultProfile,
+    switchToProfileSlot: switchProfileToSlot,
+    toggleShowAllProfiles
+  })
 
   const goToSession = (sessionId: null | string) => {
     if (sessionId) {
@@ -123,7 +127,6 @@ export function useKeybinds(deps: KeybindRuntimeDeps): void {
     'nav.commandPalette': toggleCommandPalette,
     'nav.commandCenter': deps.toggleCommandCenter,
     'nav.settings': () => navigate(SETTINGS_ROUTE),
-    'nav.profiles': () => navigate(PROFILES_ROUTE),
     'nav.skills': () => navigate(SKILLS_ROUTE),
     'nav.messaging': () => navigate(MESSAGING_ROUTE),
     'nav.artifacts': () => navigate(ARTIFACTS_ROUTE),
@@ -180,12 +183,7 @@ export function useKeybinds(deps: KeybindRuntimeDeps): void {
 
     'appearance.toggleMode': () => setMode(resolvedMode === 'dark' ? 'light' : 'dark'),
 
-    'profile.default': switchToDefaultProfile,
-    ...profileSwitchHandlers,
-    'profile.next': () => cycleProfile(1),
-    'profile.prev': () => cycleProfile(-1),
-    'profile.toggleAll': toggleShowAllProfiles,
-    'profile.create': requestProfileCreate
+    ...profileHandlers
   }
 
   useEffect(() => {

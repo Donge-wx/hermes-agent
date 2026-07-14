@@ -11,6 +11,7 @@ import { Pane, PaneMain } from '@/components/pane-shell'
 import { RemoteDisplayBanner } from '@/components/remote-display-banner'
 import { useMediaQuery } from '@/hooks/use-media-query'
 import { isFocusWithin } from '@/lib/keybinds/combo'
+import { IS_VANYUE_MANAGED_RELEASE } from '@/lib/managed-release'
 import { cn } from '@/lib/utils'
 import { useSkinCommand } from '@/themes/use-skin-command'
 
@@ -229,6 +230,12 @@ export function DesktopController() {
     starmapOpen,
     toggleCommandCenter
   } = useOverlayRouting()
+
+  useEffect(() => {
+    if (IS_VANYUE_MANAGED_RELEASE && profilesOpen) {
+      navigate(NEW_CHAT_ROUTE, { replace: true })
+    }
+  }, [navigate, profilesOpen])
 
   const terminalSidebarOpen = chatOpen && terminalTakeover
 
@@ -1118,7 +1125,7 @@ export function DesktopController() {
         </Suspense>
       )}
 
-      {profilesOpen && (
+      {profilesOpen && !IS_VANYUE_MANAGED_RELEASE && (
         <Suspense fallback={null}>
           <ProfilesView onClose={closeOverlayToPreviousRoute} />
         </Suspense>
