@@ -9,6 +9,7 @@ import type { DesktopMarketplaceSearchItem } from '@/global'
 import { useI18n } from '@/i18n'
 import { triggerHaptic } from '@/lib/haptics'
 import { Check, Download, Loader2, Palette, Trash2 } from '@/lib/icons'
+import { IS_VANYUE_MANAGED_RELEASE } from '@/lib/managed-release'
 import { selectableCardClass } from '@/lib/selectable-card'
 import { normalize } from '@/lib/text'
 import { cn } from '@/lib/utils'
@@ -304,11 +305,13 @@ export function AppearanceSettings() {
         </p>
 
         <div className="mt-2">
-          <ListRow
-            action={<LanguageSwitcher />}
-            description={isSavingLocale ? t.language.saving : t.language.description}
-            title={t.language.label}
-          />
+          {!IS_VANYUE_MANAGED_RELEASE ? (
+            <ListRow
+              action={<LanguageSwitcher />}
+              description={isSavingLocale ? t.language.saving : t.language.description}
+              title={t.language.label}
+            />
+          ) : null}
 
           <ListRow
             below={

@@ -10,16 +10,23 @@ import { HashRouter } from 'react-router-dom'
 import App from './app'
 import { ErrorBoundary } from './components/error-boundary'
 import { HapticsProvider } from './components/haptics-provider'
-import { I18nProvider } from './i18n'
+import { I18nProvider, setRuntimeI18nLocale } from './i18n'
 import { installClipboardShim } from './lib/clipboard'
+import { IS_VANYUE_MANAGED_RELEASE } from './lib/managed-release'
 import { queryClient } from './lib/query-client'
 import { ThemeProvider } from './themes/context'
 
 installClipboardShim()
 
+if (IS_VANYUE_MANAGED_RELEASE) {
+  document.documentElement.lang = 'zh-CN'
+  setRuntimeI18nLocale('zh')
+}
+
 function RendererReadySignal() {
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => window.hermesDesktop?.signalRendererReady?.())
+
     return () => window.cancelAnimationFrame(frame)
   }, [])
 
@@ -45,7 +52,10 @@ if (new URLSearchParams(window.location.search).get('win') === 'overlay') {
     <StrictMode>
       <ErrorBoundary label="root">
         <QueryClientProvider client={queryClient}>
-          <I18nProvider>
+          <I18nProvider
+            configClient={IS_VANYUE_MANAGED_RELEASE ? null : undefined}
+            initialLocale={IS_VANYUE_MANAGED_RELEASE ? 'zh' : undefined}
+          >
             <ThemeProvider>
               <HapticsProvider>
                 <HashRouter>

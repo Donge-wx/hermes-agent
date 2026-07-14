@@ -330,6 +330,10 @@ export function GatewaySettings() {
   // Effective auth mode: a reachable probe wins; otherwise fall back to the
   // saved config's mode so a re-open of settings doesn't flicker.
   const authMode: AuthMode = useMemo(() => {
+    if (IS_VANYUE_MANAGED_RELEASE) {
+      return 'oauth'
+    }
+
     if (probeStatus === 'done' && probe && probe.authMode !== 'unknown') {
       return probe.authMode
     }
@@ -352,12 +356,16 @@ export function GatewaySettings() {
   const hasSavedRemote = state.remoteTokenSet || oauthConnected
 
   const authResolved = useMemo(() => {
+    if (IS_VANYUE_MANAGED_RELEASE && trimmedUrl) {
+      return true
+    }
+
     if (probeStatus === 'done') {
       return true
     }
 
     return probeStatus === 'idle' && hasSavedRemote
-  }, [probeStatus, hasSavedRemote])
+  }, [hasSavedRemote, probeStatus, trimmedUrl])
 
   const providerLabel = useMemo(() => {
     const providers: DesktopAuthProvider[] = probe?.providers ?? []
@@ -472,9 +480,20 @@ export function GatewaySettings() {
       setRemoteOauthStatus({ checkedInput: result.baseUrl, connected: result.connected })
 
       if (result.connected) {
-        const refreshed = await window.hermesDesktop.getConnectionConfig(scope)
+        const refreshed = IS_VANYUE_MANAGED_RELEASE
+          ? await window.hermesDesktop.applyConnectionConfig({
+              mode: 'remote',
+              remoteAuthMode: 'oauth',
+              remoteUrl: result.baseUrl
+            })
+          : await window.hermesDesktop.getConnectionConfig(scope)
+
         setState(refreshed)
-        notify({ kind: 'success', title: g.signedIn, message: g.connectedTo(providerLabel) })
+        notify({
+          kind: 'success',
+          title: IS_VANYUE_MANAGED_RELEASE ? '登录并连接成功' : g.signedIn,
+          message: IS_VANYUE_MANAGED_RELEASE ? '正在加载该员工的历史记录。' : g.connectedTo(providerLabel)
+        })
       } else {
         notify({
           kind: 'warning',
@@ -822,21 +841,11 @@ export function GatewaySettings() {
         </div>
       ) : null}
 
-      <div className="mb-5 grid gap-2">
-        <div className="text-[length:var(--conversation-caption-font-size)] font-medium text-(--ui-text-secondary)">
-          {g.modeTitle}
-        </div>
-        {IS_VANYUE_MANAGED_RELEASE ? (
-          <div className="flex items-start gap-2 rounded-xl border border-primary/25 bg-primary/5 px-3 py-2.5 text-[length:var(--conversation-caption-font-size)]">
-            <Globe className="mt-0.5 size-4 shrink-0 text-primary" />
-            <div>
-              <div className="font-medium text-(--ui-text-primary)">企业员工专属网关</div>
-              <div className="mt-1 leading-5 text-(--ui-text-tertiary)">
-                本版本已禁用本地网关、Hermes Cloud 和任意第三方地址。
-              </div>
-            </div>
+      {!IS_VANYUE_MANAGED_RELEASE ? (
+        <div className="mb-5 grid gap-2">
+          <div className="text-[length:var(--conversation-caption-font-size)] font-medium text-(--ui-text-secondary)">
+            {g.modeTitle}
           </div>
-        ) : (
           <div className="grid auto-rows-fr grid-cols-1 gap-2 min-[42rem]:grid-cols-3">
             <ModeCard
               active={state.mode === 'local'}
@@ -864,8 +873,8 @@ export function GatewaySettings() {
               title={g.remoteTitle}
             />
           </div>
-        )}
-      </div>
+        </div>
+      ) : null}
 
       {/* Hermes Cloud panel: one portal sign-in, then a discovered-agent picker
           whose selection drives the silent per-agent cascade + a cloud
@@ -1105,20 +1114,28 @@ export function GatewaySettings() {
                 ) : (
                   <Button disabled={signingIn || state.envOverride || !trimmedUrl} onClick={() => void signIn()}>
                     {signingIn ? <Loader2 className="animate-spin" /> : <LogIn />}
-                    {isPasswordProvider ? g.signIn : g.signInWith(providerLabel)}
+                    {IS_VANYUE_MANAGED_RELEASE
+                      ? '登录并连接'
+                      : isPasswordProvider
+                        ? g.signIn
+                        : g.signInWith(providerLabel)}
                   </Button>
                 )
               }
               description={
-                oauthConnected
-                  ? isPasswordProvider
-                    ? g.authSignedInPassword
-                    : g.authSignedInOauth
-                  : isPasswordProvider
-                    ? g.authNeedsPassword
-                    : g.authNeedsOauth(providerLabel)
+                IS_VANYUE_MANAGED_RELEASE
+                  ? oauthConnected
+                    ? '员工身份已验证，客户端已连接专属数据空间。'
+                    : '打开员工登录窗口；登录成功后会自动连接，不需要再次保存。'
+                  : oauthConnected
+                    ? isPasswordProvider
+                      ? g.authSignedInPassword
+                      : g.authSignedInOauth
+                    : isPasswordProvider
+                      ? g.authNeedsPassword
+                      : g.authNeedsOauth(providerLabel)
               }
-              title={g.authTitle}
+              title={IS_VANYUE_MANAGED_RELEASE ? '员工登录' : g.authTitle}
             />
           ) : null}
 
@@ -1152,7 +1169,7 @@ export function GatewaySettings() {
       {/* Test/Save apply to local + remote. Cloud connects via the agent picker
           above (which applies a cloud connection on select), so its only
           bottom-row action would be redundant — hidden in cloud mode. */}
-      {state.mode !== 'cloud' ? (
+      {state.mode !== 'cloud' && !IS_VANYUE_MANAGED_RELEASE ? (
         <div className="mt-6 flex flex-wrap items-center justify-end gap-4">
           {state.mode === 'remote' ? (
             <Button
