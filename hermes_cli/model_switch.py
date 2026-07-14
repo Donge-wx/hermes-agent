@@ -1258,6 +1258,23 @@ def switch_model(
     # --- Normalize model name for target provider ---
     new_model = normalize_model_for_provider(new_model, target_provider)
 
+    # Keep every direct switch entry point inside the same employee policy as
+    # the picker.  This protects CLI, gateway slash commands, and future
+    # callers that do not pass through the desktop's structured RPC.
+    try:
+        from hermes_cli.managed_model_policy import assert_managed_model_allowed
+
+        assert_managed_model_allowed(target_provider, new_model)
+    except ValueError as exc:
+        return ModelSwitchResult(
+            success=False,
+            new_model=new_model,
+            target_provider=target_provider,
+            provider_label=provider_label,
+            is_global=is_global,
+            error_message=str(exc),
+        )
+
     # --- Validate ---
     try:
         validation = validate_requested_model(

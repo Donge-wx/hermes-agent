@@ -235,6 +235,15 @@ def build_models_payload(
 
     if include_unconfigured:
         rows = list(rows) + [r for r in _append_unconfigured_rows(rows, ctx) if str(r.get("slug", "")).lower() != "moa"]
+
+    # Employee launchers set HERMES_MANAGED_EMPLOYEE=1.  Apply that immutable
+    # enterprise policy after every optional row expansion, otherwise
+    # include_unconfigured=True would quietly reintroduce providers that the
+    # employee edition must not expose.
+    from hermes_cli.managed_model_policy import filter_managed_model_rows
+
+    rows = filter_managed_model_rows(rows, current_provider=ctx.current_provider)
+
     if picker_hints:
         _apply_picker_hints(rows)
     if canonical_order:

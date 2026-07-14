@@ -154,6 +154,21 @@ def _employee_profile_allowed(profile: object) -> bool:
     return requested in {"", "current", "default", employee.casefold()}
 
 
+_EMPLOYEE_MODEL_TOKEN_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]*$")
+_MODEL_SWITCH_PROVIDER_TOKEN_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]*$")
+# The immutable employee policy is shared with the picker, switch pipeline,
+# and HTTP API.  Do not derive it from user config or live provider discovery:
+# employee homes are writable and would become an entitlement escape hatch.
+_EMPLOYEE_LEGACY_MODEL_SWITCH_RE = re.compile(
+    r"^\s*(?P<model>[A-Za-z0-9][A-Za-z0-9._:/-]*)\s+"
+    r"--provider\s+(?P<provider>[A-Za-z0-9][A-Za-z0-9._-]*)\s*$"
+)
+_EMPLOYEE_MODEL_SWITCH_PARAMS = frozenset(
+    {"session_id", "model", "provider", "confirm_expensive_model"}
+)
+_EMPLOYEE_LEGACY_MODEL_SWITCH_PARAMS = frozenset({"session_id", "key", "value"})
+
+
 _EMPLOYEE_ALLOWED_METHODS = frozenset(
     {
         # Core conversation/session lifecycle.
@@ -187,7 +202,7 @@ _EMPLOYEE_ALLOWED_METHODS = frozenset(
         "projects.tree", "projects.project_sessions",
         # Read-only setup/model/status surfaces used during desktop boot.
         "config.get", "setup.status", "setup.runtime_check",
-        "model.options", "paste.collapse", "insights.get",
+        "model.options", "model.switch", "paste.collapse", "insights.get",
         "rollback.list", "rollback.diff", "plugins.list",
         "tools.list", "tools.show", "toolsets.list", "agents.list",
         "process.list", "process.kill",
@@ -246,6 +261,146 @@ def _employee_request_paths(method_name: str, params: dict) -> list[object]:
     return paths
 
 
+def _live_session(session_id: object) -> tuple[str, dict] | None:
+    """Return one live session without any config/global fallback."""
+    if not isinstance(session_id, str):
+        return None
+    sid = session_id.strip()
+    if not sid:
+        return None
+    with _sessions_lock:
+        session = _sessions.get(sid)
+    return (sid, session) if isinstance(session, dict) else None
+
+
+def _employee_owned_live_session(session_id: object) -> tuple[str, dict] | None:
+    """Return an employee-owned live session, never a global-config fallback.
+
+    A managed employee gateway is launched with ``HERMES_HOME`` equal to its
+    employee home.  Its own sessions therefore have no ``profile_home``
+    override.  Keep the explicit path comparison for defense in depth: a
+    stale/injected session record scoped to another profile must not become a
+    switch target merely because its opaque runtime id was guessed.
+    """
+    scope = _employee_tenant_scope()
+    if scope is None:
+        return None
+    live = _live_session(session_id)
+    if live is None:
+        return None
+    sid, session = live
+    _employee, home = scope
+    raw_profile_home = session.get("profile_home")
+    if not raw_profile_home:
+        return sid, session
+    try:
+        session_home = Path(str(raw_profile_home)).expanduser().resolve(strict=False)
+    except (OSError, RuntimeError):
+        return None
+    if os.path.normcase(str(session_home)) != os.path.normcase(str(home)):
+        return None
+    return sid, session
+
+
+def _employee_model_selection_allowed(model: object, provider: object) -> bool:
+    """Validate a managed employee selection against the shared policy."""
+    if not isinstance(model, str) or not isinstance(provider, str):
+        return False
+    if not (
+        _EMPLOYEE_MODEL_TOKEN_RE.fullmatch(model)
+        and _MODEL_SWITCH_PROVIDER_TOKEN_RE.fullmatch(provider)
+    ):
+        return False
+    try:
+        policy = _managed_employee_model_policy()
+        return policy is not None and policy.allows(provider, model)
+    except ValueError:
+        return False
+
+
+def _managed_employee_model_policy():
+    """Return a valid managed policy, failing closed if it cannot be trusted."""
+    try:
+        from hermes_cli.managed_model_policy import get_managed_model_policy
+
+        policy = get_managed_model_policy()
+    except Exception as exc:
+        raise ValueError("员工模型策略无法加载") from exc
+    if policy is not None and not policy.is_valid:
+        raise ValueError(policy.rejection_message)
+    return policy
+
+
+def _employee_model_policy_error(rid) -> dict | None:
+    try:
+        policy = _managed_employee_model_policy()
+    except ValueError as exc:
+        return _err(rid, 5033, str(exc))
+    if policy is None:
+        return _err(rid, 5033, "employee model policy is unavailable")
+    return None
+
+
+def _model_switch_request(
+    params: dict, *, employee_only: bool
+) -> tuple[str, dict, str, str, bool] | None:
+    """Parse a structured, session-only model-switch RPC without flags."""
+    if not isinstance(params, dict) or set(params) - _EMPLOYEE_MODEL_SWITCH_PARAMS:
+        return None
+    confirmation = params.get("confirm_expensive_model", False)
+    if type(confirmation) is not bool:
+        return None
+    live = (
+        _employee_owned_live_session(params.get("session_id"))
+        if employee_only
+        else _live_session(params.get("session_id"))
+    )
+    if live is None:
+        return None
+    sid, session = live
+    model = params.get("model")
+    provider = params.get("provider")
+    if not isinstance(model, str) or not isinstance(provider, str):
+        return None
+    if not (
+        _EMPLOYEE_MODEL_TOKEN_RE.fullmatch(model)
+        and _MODEL_SWITCH_PROVIDER_TOKEN_RE.fullmatch(provider)
+    ):
+        return None
+    if employee_only and not _employee_model_selection_allowed(model, provider):
+        return None
+    return sid, session, model, provider, confirmation
+
+
+def _employee_model_switch_request(params: dict) -> tuple[str, dict, str, str, bool] | None:
+    """Parse the dedicated model-switch RPC under employee policy."""
+    return _model_switch_request(params, employee_only=True)
+
+
+def _employee_legacy_model_switch_request(params: dict) -> tuple[str, dict, str, str] | None:
+    """Accept only the pre-release desktop's exact session model-switch shape."""
+    if not isinstance(params, dict) or set(params) != _EMPLOYEE_LEGACY_MODEL_SWITCH_PARAMS:
+        return None
+    if params.get("key") != "model" or not isinstance(params.get("value"), str):
+        return None
+    match = _EMPLOYEE_LEGACY_MODEL_SWITCH_RE.fullmatch(params["value"])
+    if match is None:
+        return None
+    owned = _employee_owned_live_session(params.get("session_id"))
+    if owned is None:
+        return None
+    sid, session = owned
+    model = match.group("model")
+    provider = match.group("provider")
+    if not _employee_model_selection_allowed(model, provider):
+        return None
+    return sid, session, model, provider
+
+
+def _employee_model_switch_error(rid) -> dict:
+    return _err(rid, 4030, "employee model switch request is not allowed")
+
+
 def _employee_request_guard(rid, method_name: str, params: dict) -> dict | None:
     """Fail closed before an employee RPC can select another tenant/path."""
     config_error = _employee_tenant_config_error()
@@ -257,12 +412,28 @@ def _employee_request_guard(rid, method_name: str, params: dict) -> dict | None:
         )
     if _employee_tenant_scope() is None:
         return None
-    if method_name not in _EMPLOYEE_ALLOWED_METHODS:
+    policy_error = _employee_model_policy_error(rid)
+    if policy_error is not None:
+        return policy_error
+    if method_name == "session.create" and params.get("model"):
+        policy = _managed_employee_model_policy()
+        requested_model = params.get("model")
+        requested_provider = params.get("provider") or (policy.provider if policy else "")
+        if not _employee_model_selection_allowed(requested_model, requested_provider):
+            return _employee_model_switch_error(rid)
+    legacy_model_switch = (
+        _employee_legacy_model_switch_request(params)
+        if method_name == "config.set"
+        else None
+    )
+    if method_name not in _EMPLOYEE_ALLOWED_METHODS and legacy_model_switch is None:
         return _err(
             rid,
             4030,
             f"RPC method is disabled for employee gateways: {method_name}",
         )
+    if method_name == "model.switch" and _employee_model_switch_request(params) is None:
+        return _employee_model_switch_error(rid)
     if "profile" in params and not _employee_profile_allowed(params.get("profile")):
         return _err(rid, 4031, "cross-employee profile access is not allowed")
 
@@ -2352,6 +2523,11 @@ def resolve_skin() -> dict:
 
 
 def _resolve_model() -> str:
+    policy = _managed_employee_model_policy()
+    if policy is not None:
+        # Managed launch configuration is the authority.  Ignore both mutable
+        # employee config and launch-scoped model env vars for a fresh session.
+        return policy.default_model
     env = (
         os.environ.get("HERMES_MODEL", "")
         or os.environ.get("HERMES_INFERENCE_MODEL", "")
@@ -2419,6 +2595,9 @@ def _config_model_target() -> tuple[str, str]:
     and persisted globally, or would pin the session so dashboard/CLI
     model changes never reach an open chat.
     """
+    policy = _managed_employee_model_policy()
+    if policy is not None:
+        return policy.default_model, policy.provider
     cfg_model = _load_cfg().get("model")
     model = ""
     provider = ""
@@ -2442,6 +2621,9 @@ def _config_model_target() -> tuple[str, str]:
 
 
 def _resolve_startup_runtime() -> tuple[str, str | None]:
+    policy = _managed_employee_model_policy()
+    if policy is not None:
+        return policy.default_model, policy.provider
     model = _resolve_model()
     explicit_provider = os.environ.get("HERMES_TUI_PROVIDER", "").strip()
     if explicit_provider:
@@ -3264,6 +3446,30 @@ def _apply_model_switch(
         "warning": result.warning_message or "",
         "confirm_required": False,
     }
+
+
+def _apply_session_model_switch(
+    sid: str,
+    session: dict,
+    model: str,
+    provider: str,
+    *,
+    confirm_expensive_model: bool,
+) -> dict:
+    """Switch one live session without changing profile configuration."""
+    # Do not pass untrusted legacy text through to parse_model_flags.  The
+    # request helpers have already limited both tokens to the immutable managed
+    # model policy; this normalized tuple additionally makes the switch
+    # session-scoped even if model-switch persistence defaults change later.
+    parsed_flags = (model, provider, False, False, True)
+    return _apply_model_switch(
+        sid,
+        session,
+        f"{model} --provider {provider}",
+        confirm_expensive_model=confirm_expensive_model,
+        parsed_flags=parsed_flags,
+        persist_override=False,
+    )
 
 
 def _sync_agent_model_with_config(sid: str, session: dict) -> None:
@@ -4856,6 +5062,11 @@ def _make_agent(
             "requested": requested_provider,
             "target_model": model or None,
         })
+    policy = _managed_employee_model_policy()
+    if policy is not None and not policy.allows(
+        str(runtime.get("provider") or ""), model
+    ):
+        raise ValueError(policy.rejection_message)
     _pr = _load_provider_routing()
     return AIAgent(
         model=model,
@@ -11839,12 +12050,89 @@ def _(rid, params: dict) -> dict:
 # ── Methods: config ──────────────────────────────────────────────────
 
 
+@method("model.switch")
+def _(rid, params: dict) -> dict:
+    """Switch one live session through a structured, session-only contract."""
+    employee_only = _employee_tenant_scope() is not None
+    selection = _model_switch_request(
+        params,
+        employee_only=employee_only,
+    )
+    if selection is None:
+        if employee_only:
+            return _employee_model_switch_error(rid)
+        return _err(rid, 4002, "invalid session model switch request")
+    sid, session, model, provider, confirm_expensive_model = selection
+    if session.get("running"):
+        return _err(
+            rid,
+            4009,
+            "session busy — /interrupt the current turn before switching models",
+        )
+    try:
+        result = _apply_session_model_switch(
+            sid,
+            session,
+            model,
+            provider,
+            confirm_expensive_model=confirm_expensive_model,
+        )
+        return _ok(
+            rid,
+            {
+                "model": result["value"],
+                "provider": provider,
+                "warning": result["warning"],
+                "confirm_required": result.get("confirm_required", False),
+                "confirm_message": result.get("confirm_message", ""),
+            },
+        )
+    except Exception as e:
+        return _err(rid, 5001, str(e))
+
+
 @method("config.set")
 def _(rid, params: dict) -> dict:
     key, value = params.get("key", ""), params.get("value", "")
     session = _sessions.get(params.get("session_id", ""))
 
     if key == "model":
+        # Compatibility for already-packaged desktops.  The legacy UI sends
+        # ``config.set`` with a single ``model --provider provider`` value;
+        # accept only that exact employee-scoped request and never enter this
+        # handler's ordinary global-config fallback.
+        if _employee_tenant_scope() is not None:
+            selection = _employee_legacy_model_switch_request(params)
+            if selection is None:
+                return _employee_model_switch_error(rid)
+            sid, session, model, provider = selection
+            if session.get("running"):
+                return _err(
+                    rid,
+                    4009,
+                    "session busy — /interrupt the current turn before switching models",
+                )
+            try:
+                result = _apply_session_model_switch(
+                    sid,
+                    session,
+                    model,
+                    provider,
+                    confirm_expensive_model=False,
+                )
+                return _ok(
+                    rid,
+                    {
+                        "key": key,
+                        "value": result["value"],
+                        "warning": result["warning"],
+                        "confirm_required": result.get("confirm_required", False),
+                        "confirm_message": result.get("confirm_message", ""),
+                    },
+                )
+            except Exception as e:
+                return _err(rid, 5001, str(e))
+
         try:
             if not value:
                 return _err(rid, 4002, "model value required")

@@ -46,6 +46,347 @@ def test_employee_dispatch_rejects_dangerous_rpc_methods(
     assert "disabled" in response["error"]["message"].lower()
 
 
+def test_employee_model_switch_accepts_terra_for_own_live_session(
+    employee_scope,
+    monkeypatch,
+):
+    session = {"profile_home": None, "running": False}
+    monkeypatch.setitem(server._sessions, "own", session)
+    calls = []
+
+    def fake_apply(sid, passed_session, raw, **kwargs):
+        calls.append((sid, passed_session, raw, kwargs))
+        return {"value": "gpt-5.6-terra", "warning": ""}
+
+    monkeypatch.setattr(server, "_apply_model_switch", fake_apply)
+    response = server.handle_request(
+        {
+            "id": "terra",
+            "method": "model.switch",
+            "params": {
+                "session_id": "own",
+                "model": "gpt-5.6-terra",
+                "provider": "openai-codex",
+            },
+        }
+    )
+
+    assert response["result"]["model"] == "gpt-5.6-terra"
+    assert calls == [
+        (
+            "own",
+            session,
+            "gpt-5.6-terra --provider openai-codex",
+            {
+                "confirm_expensive_model": False,
+                "parsed_flags": (
+                    "gpt-5.6-terra",
+                    "openai-codex",
+                    False,
+                    False,
+                    True,
+                ),
+                "persist_override": False,
+            },
+        )
+    ]
+
+
+def test_employee_legacy_config_set_model_is_strict_and_session_only(
+    employee_scope,
+    monkeypatch,
+):
+    session = {"profile_home": None, "running": False}
+    monkeypatch.setitem(server._sessions, "own", session)
+    calls = []
+
+    def fake_apply(sid, passed_session, raw, **kwargs):
+        calls.append((sid, passed_session, raw, kwargs))
+        return {"value": "gpt-5.6-terra", "warning": ""}
+
+    monkeypatch.setattr(server, "_apply_model_switch", fake_apply)
+    response = server.handle_request(
+        {
+            "id": "legacy",
+            "method": "config.set",
+            "params": {
+                "session_id": "own",
+                "key": "model",
+                "value": "gpt-5.6-terra --provider openai-codex",
+            },
+        }
+    )
+
+    assert response["result"]["value"] == "gpt-5.6-terra"
+    assert calls[0][0:3] == (
+        "own",
+        session,
+        "gpt-5.6-terra --provider openai-codex",
+    )
+    assert calls[0][3]["persist_override"] is False
+    assert calls[0][3]["parsed_flags"] == (
+        "gpt-5.6-terra",
+        "openai-codex",
+        False,
+        False,
+        True,
+    )
+
+
+@pytest.mark.parametrize(
+    "params",
+    [
+        {
+            "session_id": "own",
+            "key": "model",
+            "value": "gpt-5.6-terra --provider openai-codex --global",
+        },
+        {
+            "session_id": "own",
+            "key": "model",
+            "value": "gpt-5.6-terra --provider openai-codex --session",
+        },
+        {
+            "session_id": "own",
+            "key": "model",
+            "value": "gpt-5.6-terra --provider openai-codex --refresh",
+        },
+        {
+            "session_id": "own",
+            "key": "model",
+            "value": "gpt-5.6-terra --provider openai-codex extra",
+        },
+        {
+            "session_id": "own",
+            "key": "model",
+            "value": "gpt-5.6-terra --provider openrouter",
+        },
+        {
+            "session_id": "own",
+            "key": "model",
+            "value": "gpt-5.6-terra --provider openai-codex",
+            "confirm_expensive_model": False,
+        },
+    ],
+)
+def test_employee_legacy_config_set_rejects_flags_and_extra_params(
+    employee_scope,
+    monkeypatch,
+    params,
+):
+    monkeypatch.setitem(server._sessions, "own", {"profile_home": None})
+    monkeypatch.setattr(
+        server,
+        "_apply_model_switch",
+        lambda *args, **kwargs: pytest.fail("rejected legacy request must not switch"),
+    )
+
+    response = server.handle_request(
+        {"id": "legacy-deny", "method": "config.set", "params": params}
+    )
+
+    assert response["error"]["code"] == 4030
+
+
+def test_employee_model_switch_rejects_missing_or_cross_employee_session(
+    employee_scope,
+    monkeypatch,
+):
+    _home, _workspace, sibling = employee_scope
+    monkeypatch.setitem(
+        server._sessions,
+        "foreign",
+        {"profile_home": str(sibling), "running": False},
+    )
+    common = {"model": "gpt-5.6-terra", "provider": "openai-codex"}
+
+    missing = server.handle_request(
+        {
+            "id": "missing",
+            "method": "model.switch",
+            "params": {"session_id": "missing", **common},
+        }
+    )
+    foreign = server.handle_request(
+        {
+            "id": "foreign",
+            "method": "model.switch",
+            "params": {"session_id": "foreign", **common},
+        }
+    )
+
+    assert missing["error"]["code"] == 4030
+    assert foreign["error"]["code"] == 4030
+
+
+@pytest.mark.parametrize(
+    "model, provider",
+    [
+        ("gpt-5.6-terra-pro", "openai-codex"),
+        ("gpt-5.6-terra --global", "openai-codex"),
+        ("gpt-5.6-terra", "openrouter"),
+    ],
+)
+def test_employee_model_switch_rejects_noncanonical_or_unapproved_selection(
+    employee_scope,
+    monkeypatch,
+    model,
+    provider,
+):
+    monkeypatch.setitem(server._sessions, "own", {"profile_home": None})
+    monkeypatch.setattr(
+        server,
+        "_apply_model_switch",
+        lambda *args, **kwargs: pytest.fail("rejected model must not switch"),
+    )
+
+    response = server.handle_request(
+        {
+            "id": "model-deny",
+            "method": "model.switch",
+            "params": {"session_id": "own", "model": model, "provider": provider},
+        }
+    )
+
+    assert response["error"]["code"] == 4030
+
+
+def test_employee_model_switch_rejects_running_session(employee_scope, monkeypatch):
+    monkeypatch.setitem(
+        server._sessions,
+        "own",
+        {"profile_home": None, "running": True},
+    )
+    monkeypatch.setattr(
+        server,
+        "_apply_model_switch",
+        lambda *args, **kwargs: pytest.fail("running session must not switch"),
+    )
+
+    response = server.handle_request(
+        {
+            "id": "busy",
+            "method": "model.switch",
+            "params": {
+                "session_id": "own",
+                "model": "gpt-5.6-terra",
+                "provider": "openai-codex",
+            },
+        }
+    )
+
+    assert response["error"]["code"] == 4009
+
+
+def test_employee_session_create_rejects_unapproved_model_override(employee_scope):
+    response = server.handle_request(
+        {
+            "id": "new-session-deny",
+            "method": "session.create",
+            "params": {
+                "source": "tui",
+                "model": "gpt-5.6-terra-pro",
+                "provider": "openai-codex",
+            },
+        }
+    )
+
+    assert response["error"]["code"] == 4030
+
+
+def test_employee_policy_error_blocks_requests_before_raw_config_is_used(
+    employee_scope, monkeypatch, tmp_path
+):
+    policy_dir = tmp_path / "managed"
+    policy_dir.mkdir()
+    (policy_dir / "config.yaml").write_text(
+        "model:\n  provider: openai-codex\n  allowed_models:\n  - gpt-5.6-terra\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("HERMES_MANAGED_DIR", str(policy_dir))
+
+    response = server.handle_request(
+        {"id": "bad-policy", "method": "model.options", "params": {}}
+    )
+
+    assert response["error"]["code"] == 5033
+
+
+def test_employee_fresh_runtime_uses_protected_policy_default(
+    employee_scope, monkeypatch, tmp_path
+):
+    home, _workspace, _sibling = employee_scope
+    (home / "config.yaml").write_text(
+        "model:\n  provider: openrouter\n  default: openai/gpt-5.6-terra-pro\n",
+        encoding="utf-8",
+    )
+    policy_dir = tmp_path / "managed"
+    policy_dir.mkdir()
+    (policy_dir / "config.yaml").write_text(
+        "model:\n  provider: openai-codex\n  default: gpt-5.6-sol\n  allowed_models:\n  - gpt-5.6-sol\n  - gpt-5.6-terra\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("HERMES_MANAGED_DIR", str(policy_dir))
+    monkeypatch.setenv("HERMES_MODEL", "openai/gpt-5.6-terra-pro")
+    monkeypatch.setattr(server, "_cfg_cache", None)
+    monkeypatch.setattr(server, "_cfg_mtime", None)
+    monkeypatch.setattr(server, "_cfg_path", None)
+
+    assert server._resolve_model() == "gpt-5.6-sol"
+    assert server._config_model_target() == ("gpt-5.6-sol", "openai-codex")
+    assert server._resolve_startup_runtime() == ("gpt-5.6-sol", "openai-codex")
+
+
+def test_unmanaged_model_switch_is_structured_and_session_only(monkeypatch):
+    monkeypatch.setenv("HERMES_MANAGED_EMPLOYEE", "0")
+    monkeypatch.delenv("HERMES_EMPLOYEE_HOME", raising=False)
+    monkeypatch.delenv("HERMES_EMPLOYEE_NAME", raising=False)
+    session = {"running": False}
+    monkeypatch.setitem(server._sessions, "ordinary", session)
+    calls = []
+
+    def fake_apply(sid, passed_session, raw, **kwargs):
+        calls.append((sid, passed_session, raw, kwargs))
+        return {"value": "custom/model", "warning": ""}
+
+    monkeypatch.setattr(server, "_apply_model_switch", fake_apply)
+    response = server.handle_request(
+        {
+            "id": "ordinary",
+            "method": "model.switch",
+            "params": {
+                "session_id": "ordinary",
+                "model": "custom/model",
+                "provider": "custom:xuanji",
+            },
+        }
+    )
+
+    assert response["result"]["model"] == "custom/model"
+    assert calls[0][0:3] == (
+        "ordinary",
+        session,
+        "custom/model --provider custom:xuanji",
+    )
+    assert calls[0][3]["persist_override"] is False
+
+
+def test_unmanaged_model_switch_invalid_request_is_a_validation_error(monkeypatch):
+    monkeypatch.setenv("HERMES_MANAGED_EMPLOYEE", "0")
+    monkeypatch.delenv("HERMES_EMPLOYEE_HOME", raising=False)
+    monkeypatch.delenv("HERMES_EMPLOYEE_NAME", raising=False)
+
+    response = server.handle_request(
+        {
+            "id": "ordinary-invalid",
+            "method": "model.switch",
+            "params": {"session_id": "missing", "model": ""},
+        }
+    )
+
+    assert response["error"]["code"] == 4002
+
+
 def test_employee_dispatch_allowlist_fails_closed_for_future_method(
     employee_scope,
     monkeypatch,

@@ -5950,6 +5950,17 @@ def _apply_model_assignment_sync(
     load_config/save_config lands in the requested profile.  Raises
     HTTPException for validation errors — the async wrapper re-raises them.
     """
+    # Employee model defaults are an administrator-managed protected policy.
+    # This endpoint writes global profile config directly, so allowing it would
+    # reintroduce the exact persistence path that the session RPC removes.
+    from hermes_cli.managed_model_policy import is_managed_employee
+
+    if is_managed_employee():
+        raise HTTPException(
+            status_code=403,
+            detail="员工版模型默认值由管理员策略管理；请在空闲对话中切换模型。",
+        )
+
     cfg = load_config()
 
     if scope == "main":
