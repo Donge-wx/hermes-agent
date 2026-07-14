@@ -26,7 +26,7 @@ function json(response: http.ServerResponse, body: unknown, statusCode = 200) {
   response.end(JSON.stringify(body))
 }
 
-test('streams a 49 MiB file as thirteen authenticated raw HTTP chunks', async t => {
+test('streams a 49 MiB file as authenticated raw HTTP chunks', async t => {
   const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'hermes-http-upload-test-'))
   const filePath = path.join(tempDir, '49m.bin')
   const source = Buffer.alloc(FILE_BYTES)
@@ -110,9 +110,77 @@ test('streams a 49 MiB file as thirteen authenticated raw HTTP chunks', async t 
 
   assert.equal(result?.attached, true)
   assert.equal(received, FILE_BYTES)
-  assert.equal(chunks, 13)
+  assert.equal(chunks, Math.ceil(FILE_BYTES / WEIJIA_HTTP_CHUNK_BYTES))
   assert.ok(connections <= 2, `expected persistent upload sockets, saw ${connections} connections`)
   assert.equal(receivedHash.digest('hex'), crypto.createHash('sha256').update(source).digest('hex'))
+})
+
+test('honors a smaller 4 MiB chunk cap advertised by an older managed backend', async t => {
+  const legacyChunkBytes = 4 * 1024 * 1024
+  const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'hermes-http-upload-legacy-cap-'))
+  const filePath = path.join(tempDir, 'legacy-cap.bin')
+  const source = Buffer.alloc(legacyChunkBytes + 17, 0x4b)
+  await fs.promises.writeFile(filePath, source)
+  t.after(() => fs.promises.rm(tempDir, { force: true, recursive: true }))
+
+  const receivedChunks: Buffer[] = []
+
+  const server = http.createServer(async (request, response) => {
+    const url = new URL(request.url || '/', 'http://127.0.0.1')
+    assert.equal(request.headers['x-hermes-session-token'], TOKEN)
+
+    if (url.pathname.endsWith('/upload-capabilities')) {
+      json(response, { enabled: true, max_bytes: 1024 ** 3, max_chunk_bytes: legacyChunkBytes })
+
+      return
+    }
+
+    if (url.pathname.endsWith('/upload-begin')) {
+      json(response, { upload_id: 'legacy-cap-upload', max_chunk_bytes: legacyChunkBytes })
+
+      return
+    }
+
+    if (url.pathname.endsWith('/upload-chunk')) {
+      const body = await readBody(request)
+      assert.ok(body.length > 0 && body.length <= legacyChunkBytes)
+      receivedChunks.push(body)
+      json(response, { received: receivedChunks.reduce((total, chunk) => total + chunk.length, 0) })
+
+      return
+    }
+
+    if (url.pathname.endsWith('/upload-finish')) {
+      assert.deepEqual(Buffer.concat(receivedChunks), source)
+      json(response, { attached: true, bytes: source.length, uploaded: true })
+
+      return
+    }
+
+    if (url.pathname.endsWith('/upload-cancel')) {
+      json(response, { cancelled: true })
+
+      return
+    }
+
+    json(response, { detail: 'not found' }, 404)
+  })
+
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+  t.after(() => new Promise<void>(resolve => server.close(() => resolve())))
+  const address = server.address()
+  assert.ok(address && typeof address === 'object')
+
+  const result = await uploadSessionAttachmentHttp({
+    baseUrl: `http://127.0.0.1:${address.port}`,
+    filePath,
+    name: 'legacy-cap.bin',
+    sessionId: 'session-wang',
+    token: TOKEN
+  })
+
+  assert.equal(result?.attached, true)
+  assert.equal(receivedChunks.length, 2)
 })
 
 test('uses a bounded parallel worker pool when the managed backend opts in', async t => {

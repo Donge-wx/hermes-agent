@@ -12,6 +12,9 @@ import pytest
 from starlette.testclient import TestClient
 
 
+CHUNK_BYTES = 8 * 1024 * 1024
+
+
 @pytest.fixture
 def employee_http_upload(monkeypatch, tmp_path, _isolate_hermes_home):
     from hermes_cli import web_server
@@ -25,8 +28,8 @@ def employee_http_upload(monkeypatch, tmp_path, _isolate_hermes_home):
     monkeypatch.setenv("HERMES_EMPLOYEE_HOME", str(employee_home))
     monkeypatch.setenv("HERMES_HOME", str(employee_home))
     monkeypatch.setenv("HERMES_ENABLE_HTTP_SESSION_UPLOAD", "1")
-    monkeypatch.setenv("HERMES_SESSION_ATTACHMENT_MAX_BYTES", "8388608")
-    monkeypatch.setenv("HERMES_SESSION_ATTACHMENT_HTTP_CHUNK_BYTES", "4194304")
+    monkeypatch.setenv("HERMES_SESSION_ATTACHMENT_MAX_BYTES", "16777216")
+    monkeypatch.setenv("HERMES_SESSION_ATTACHMENT_HTTP_CHUNK_BYTES", str(CHUNK_BYTES))
     monkeypatch.setenv("HERMES_FILE_ATTACH_MAX_ACTIVE_UPLOADS", "2")
 
     session_ids = ("employee-upload", "another-employee-session", "outside")
@@ -86,12 +89,12 @@ def _begin(
 
 def test_raw_http_upload_roundtrip_uses_employee_session_workspace(employee_http_upload):
     client, workspace, (session_id, _other_session, _outside_session) = employee_http_upload
-    payload = b"a" * (4 * 1024 * 1024) + b"b" * 913
+    payload = b"a" * CHUNK_BYTES + b"b" * 913
 
     capabilities = client.get("/api/session-attachments/upload-capabilities")
     assert capabilities.status_code == 200
     assert capabilities.json()["enabled"] is True
-    assert capabilities.json()["max_chunk_bytes"] == 4 * 1024 * 1024
+    assert capabilities.json()["max_chunk_bytes"] == CHUNK_BYTES
     assert capabilities.json()["parallel_chunks"] is True
 
     started = _begin(client, session_id, "client-report.bin", len(payload))
@@ -103,19 +106,19 @@ def test_raw_http_upload_roundtrip_uses_employee_session_workspace(employee_http
     first = client.post(
         "/api/session-attachments/upload-chunk",
         params={"upload_id": upload_id, "session_id": session_id, "offset": 0},
-        content=payload[: 4 * 1024 * 1024],
+        content=payload[:CHUNK_BYTES],
         headers={"content-type": "application/octet-stream"},
     )
     assert first.status_code == 200, first.text
-    assert first.json()["received"] == 4 * 1024 * 1024
+    assert first.json()["received"] == CHUNK_BYTES
     second = client.post(
         "/api/session-attachments/upload-chunk",
         params={
             "upload_id": upload_id,
             "session_id": session_id,
-            "offset": 4 * 1024 * 1024,
+            "offset": CHUNK_BYTES,
         },
-        content=payload[4 * 1024 * 1024 :],
+        content=payload[CHUNK_BYTES:],
         headers={"content-type": "application/octet-stream"},
     )
     assert second.status_code == 200, second.text
@@ -346,7 +349,7 @@ def test_http_upload_requires_a_request_id_and_applies_chunk_backpressure(
     oversized = client.post(
         "/api/session-attachments/upload-chunk",
         params={"upload_id": upload_id, "session_id": session_id, "offset": 0},
-        content=b"x" * (4 * 1024 * 1024 + 1),
+        content=b"x" * (CHUNK_BYTES + 1),
         headers={"content-type": "application/octet-stream"},
     )
     assert oversized.status_code == 413
