@@ -18,6 +18,20 @@ const MAX_JSON_RESPONSE_BYTES = 2 * 1024 * 1024
 const TRANSIENT_RETRY_ATTEMPTS = 5
 const TRANSIENT_RETRY_BASE_MS = 250
 
+// Upload chunks are deliberately sent by at most four workers.  Use the same
+// bound for persistent sockets so each worker can retain a direct HTTPS path
+// through Cloudflare instead of paying a new TCP/TLS setup for every 4 MiB
+// chunk.  A remote peer may still close an idle socket; the existing retry
+// policy treats that as a recoverable transport error.
+const HTTP_UPLOAD_AGENT_OPTIONS = {
+  keepAlive: true,
+  maxFreeSockets: MAX_PARALLEL_HTTP_CHUNKS,
+  maxSockets: MAX_PARALLEL_HTTP_CHUNKS
+}
+
+const httpUploadAgent = new http.Agent(HTTP_UPLOAD_AGENT_OPTIONS)
+const httpsUploadAgent = new https.Agent(HTTP_UPLOAD_AGENT_OPTIONS)
+
 export interface HttpJsonOptions {
   body?: Buffer | Record<string, unknown>
   contentType?: string
@@ -110,10 +124,12 @@ export function requestHttpJson(url: string, token: string, options: HttpJsonOpt
         : Buffer.from(JSON.stringify(options.body))
 
     const client = parsed.protocol === 'https:' ? https : http
+    const agent = parsed.protocol === 'https:' ? httpsUploadAgent : httpUploadAgent
 
     const request = client.request(
       parsed,
       {
+        agent,
         headers: {
           'Content-Type': options.contentType || 'application/json',
           'X-Hermes-Session-Token': token,
@@ -319,11 +335,7 @@ export async function uploadSessionAttachmentHttp(options: HttpSessionUploadOpti
           try {
             const progress = await uploadChunk(offset)
 
-            if (
-              !Number.isSafeInteger(progress.received) ||
-              progress.received <= 0 ||
-              progress.received > stat.size
-            ) {
+            if (!Number.isSafeInteger(progress.received) || progress.received <= 0 || progress.received > stat.size) {
               throw new Error(`Remote gateway returned invalid HTTP upload progress for ${name}`)
             }
           } catch (error) {

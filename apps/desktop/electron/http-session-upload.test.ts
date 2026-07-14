@@ -41,6 +41,7 @@ test('streams a 49 MiB file as thirteen authenticated raw HTTP chunks', async t 
   const receivedHash = crypto.createHash('sha256')
   let received = 0
   let chunks = 0
+  let connections = 0
 
   const server = http.createServer(async (request, response) => {
     assert.equal(request.headers['x-hermes-session-token'], TOKEN)
@@ -90,6 +91,10 @@ test('streams a 49 MiB file as thirteen authenticated raw HTTP chunks', async t 
     json(response, { detail: 'not found' }, 404)
   })
 
+  server.on('connection', () => {
+    connections += 1
+  })
+
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
   t.after(() => new Promise<void>(resolve => server.close(() => resolve())))
   const address = server.address()
@@ -106,6 +111,7 @@ test('streams a 49 MiB file as thirteen authenticated raw HTTP chunks', async t 
   assert.equal(result?.attached, true)
   assert.equal(received, FILE_BYTES)
   assert.equal(chunks, 13)
+  assert.ok(connections <= 2, `expected persistent upload sockets, saw ${connections} connections`)
   assert.equal(receivedHash.digest('hex'), crypto.createHash('sha256').update(source).digest('hex'))
 })
 
@@ -165,9 +171,7 @@ test('uses a bounded parallel worker pool when the managed backend opts in', asy
 
     if (url.pathname.endsWith('/upload-finish')) {
       const assembled = Buffer.concat(
-        [...receivedChunks.entries()]
-          .sort(([left], [right]) => left - right)
-          .map(([, chunk]) => chunk)
+        [...receivedChunks.entries()].sort(([left], [right]) => left - right).map(([, chunk]) => chunk)
       )
 
       assert.deepEqual(assembled, source)
