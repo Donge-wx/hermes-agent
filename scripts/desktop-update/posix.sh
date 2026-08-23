@@ -18,6 +18,8 @@
 #     [--relaunch-cwd <p>]     linux: working directory to restore on relaunch
 #     [--sandbox-fallback]     linux: the caller vouches for a sandbox opt-out
 #                              (ELECTRON_DISABLE_SANDBOX / --no-sandbox launch)
+#     [--backend-only]         update the agent runtime without rebuilding or
+#                              replacing the independently packaged My King UI
 #     [--no-ui] [--no-marker-cleanup] [--self-test-ui] [--self-test-gate]
 #     [--self-test-marker]
 #     [-- <args...>]           linux: filtered launch args to replay
@@ -38,7 +40,7 @@ set -u
 ORIGINAL_ARGS=("$@")
 INSTALL_ROOT="" BRANCH="main" DESKTOP_PID=0 RELAUNCH_TARGET=""
 RELAUNCH_CWD="" SANDBOX_FALLBACK=0 RELAUNCH_ARGS=()
-NO_UI=0 NO_MARKER_CLEANUP=0 SELF_TEST_UI=0 SELF_TEST_GATE=0 SELF_TEST_MARKER=0
+NO_UI=0 NO_MARKER_CLEANUP=0 SELF_TEST_UI=0 SELF_TEST_GATE=0 SELF_TEST_MARKER=0 BACKEND_ONLY=0
 HANDOFF_DAEMONIZED=0
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -48,6 +50,7 @@ while [ $# -gt 0 ]; do
     --relaunch-target) RELAUNCH_TARGET="$2"; shift 2 ;;
     --relaunch-cwd) RELAUNCH_CWD="$2"; shift 2 ;;
     --sandbox-fallback) SANDBOX_FALLBACK=1; shift ;;
+    --backend-only) BACKEND_ONLY=1; shift ;;
     --no-ui) NO_UI=1; shift ;;
     --no-marker-cleanup) NO_MARKER_CLEANUP=1; shift ;;
     --self-test-ui) SELF_TEST_UI=1; shift ;;
@@ -73,8 +76,45 @@ STARTED_AT="$(date +%s)"  # the shim's elapsed clock; see serve-ui.py
 UI_SERVER_PID="" UI_BROWSER_PID="" FINAL_CODE=1
 FINAL_MSG="update did not complete"
 DONE_NOTE=""  # set when the update succeeded but the app will NOT reopen itself
+FRONTEND_BACKUP_ROOT="$HERMES_HOME/.my-king-frontend-update-backup"
 
 log() { echo "$(date +%Y-%m-%dT%H:%M:%S%z) $1" | tee -a "$LOG" 2>/dev/null; }
+
+restore_frontend_artifacts() {
+  [ "$BACKEND_ONLY" -eq 1 ] || return 0
+  local name source target
+  for name in dist release; do
+    source="$FRONTEND_BACKUP_ROOT/$name"
+    target="$INSTALL_ROOT/apps/desktop/$name"
+    if [ -e "$source" ] && [ ! -e "$target" ]; then
+      mv "$source" "$target" 2>/dev/null || log "WARNING: could not restore preserved frontend artifact $name"
+    fi
+  done
+  rmdir "$FRONTEND_BACKUP_ROOT" 2>/dev/null || true
+}
+
+preserve_frontend_artifacts() {
+  [ "$BACKEND_ONLY" -eq 1 ] || return 0
+  restore_frontend_artifacts
+  mkdir -p "$FRONTEND_BACKUP_ROOT" 2>/dev/null || {
+    FINAL_CODE=3
+    FINAL_MSG="Update aborted: the My King frontend could not be isolated safely. Nothing was changed."
+    return 1
+  }
+  local name source
+  for name in dist release; do
+    source="$INSTALL_ROOT/apps/desktop/$name"
+    if [ -e "$source" ]; then
+      mv "$source" "$FRONTEND_BACKUP_ROOT/$name" 2>/dev/null || {
+        FINAL_CODE=3
+        FINAL_MSG="Update aborted: the My King frontend could not be isolated safely. Nothing was changed."
+        restore_frontend_artifacts
+        return 1
+      }
+    fi
+  done
+  log "preserved My King frontend artifacts; backend update cannot rebuild or replace the app"
+}
 
 # Keep a durable signal breadcrumb.  A detached hand-off used to leave only the
 # generic FINAL_MSG when it was terminated while the updater child was running,
@@ -309,6 +349,10 @@ mac_swap() {
 
 deliver_outcome() { # the truth-determining half: swap bundles / gate the relaunch
   [ -n "$RELAUNCH_TARGET" ] || return 0
+  # My King deliberately updates the backend and desktop on separate tracks.
+  # Even if an upstream update unexpectedly produced desktop artifacts, the
+  # backend updater is never allowed to replace the branded app bundle.
+  [ "$BACKEND_ONLY" -eq 1 ] && return 0
   if [ "$(uname)" = "Darwin" ]; then
     mac_swap
   else
@@ -370,6 +414,7 @@ finish() {
   # A rejected launch rewrites the result (nothing consumed it — the app
   # never started) so the next boot tells the truth too.
   deliver_outcome
+  restore_frontend_artifacts
   [ "$FINAL_CODE" -eq 0 ] && [ -n "$DONE_NOTE" ] && { FINAL_MSG="$DONE_NOTE"; MANUAL=1; }
   write_result
 
@@ -507,6 +552,8 @@ start_ui
 
 HERMES_BIN="$INSTALL_ROOT/venv/bin/hermes"
 [ -x "$HERMES_BIN" ] || { FINAL_CODE=3 FINAL_MSG="Update aborted: $HERMES_BIN is missing. The install needs repair (run the My King installer or hermes doctor)."; log "$FINAL_MSG"; exit 3; }
+
+preserve_frontend_artifacts || exit "$FINAL_CODE"
 
 # Run FROM the install root: `hermes update` resolves the tree it mutates
 # from the working directory, and we inherit the Desktop's cwd (which can be

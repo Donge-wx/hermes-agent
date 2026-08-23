@@ -2,7 +2,8 @@ import { act, cleanup, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { __resetBackendSkinSync, ingestBackendSkin } from './backend-sync'
-import { skinPref, ThemeProvider, useTheme } from './context'
+import { modePref, skinPref, ThemeProvider, useTheme } from './context'
+import { migrateMyKingAppearanceDefaults } from './my-king-appearance'
 import { everforestTheme } from './presets'
 
 // The live-authoring loop: Hermes writes/edits one skin file and every surface
@@ -67,6 +68,36 @@ describe('ThemeProvider ← backend skin sync', () => {
       ingestBackendSkin({ name: 'forest', colors: { background: '#001100', ui_text: '#66ff66' } }, { apply: false })
     )
     expect(cssVar('--theme-foreground')).toBe('#ff9f0a')
+  })
+})
+
+describe('My King appearance migration', () => {
+  beforeEach(() => window.localStorage.clear())
+
+  it('migrates legacy Classic/System defaults and profile assignments once', () => {
+    window.localStorage.setItem('hermes-desktop-theme-v2', 'nous')
+    window.localStorage.setItem('hermes-desktop-mode-v1', 'system')
+    window.localStorage.setItem('hermes-desktop-profile-themes-v1', JSON.stringify({ work: 'nous', custom: 'mono' }))
+    window.localStorage.setItem('hermes-desktop-profile-modes-v1', JSON.stringify({ work: 'system', custom: 'dark' }))
+
+    migrateMyKingAppearanceDefaults()
+
+    expect(skinPref.resolve('default')).toBe('liquid-glass')
+    expect(skinPref.resolve('work')).toBe('liquid-glass')
+    expect(skinPref.resolve('custom')).toBe('mono')
+    expect(modePref.resolve('default')).toBe('light')
+    expect(modePref.resolve('work')).toBe('light')
+    expect(modePref.resolve('custom')).toBe('dark')
+  })
+
+  it('preserves a deliberate non-default appearance', () => {
+    skinPref.assign('default', 'everforest')
+    modePref.assign('default', 'dark')
+
+    migrateMyKingAppearanceDefaults()
+
+    expect(skinPref.resolve('default')).toBe('everforest')
+    expect(modePref.resolve('default')).toBe('dark')
   })
 })
 

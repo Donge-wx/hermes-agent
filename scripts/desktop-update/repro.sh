@@ -120,12 +120,36 @@ case "$MODE" in
     # Result JSON must survive hostile strings (git allows `"` in branch
     # names; messages carry arbitrary text) -- parse it back with python.
     QHOME="$G/qhome"; mkdir -p "$QHOME/hermes-agent"
-    bash "$SCRIPT_DIR/posix.sh" --no-ui --no-marker-cleanup --desktop-pid 0 \
+    # Run the real orchestrator synchronously. Without --daemonized this call
+    # intentionally returns as soon as the detached child is accepted, racing
+    # the result-file assertion below.
+    bash "$SCRIPT_DIR/posix.sh" --daemonized --no-ui --no-marker-cleanup --desktop-pid 0 \
       --install-root "$QHOME/hermes-agent" --branch 'evil"branch\n$(x)' >/dev/null 2>&1 || true
     if python3 -c "import json,sys; d=json.load(open('$QHOME/.hermes-update-result.json')); sys.exit(0 if d['branch']=='evil\"branch\\\\n\$(x)' and d['ok']==False else 1)"; then
       printf 'ok   result JSON escapes hostile branch/message\n'
     else
       printf 'FAIL result JSON escaping\n'; fails=$((fails+1))
+    fi
+
+    # Backend-only updates must temporarily hide Desktop build artifacts so
+    # upstream cannot rebuild or swap the branded app, then restore them.
+    BHOME="$G/backend-only"; BROOT="$BHOME/hermes-agent"
+    mkdir -p "$BROOT/venv/bin" "$BROOT/apps/desktop/dist" "$BROOT/apps/desktop/release"
+    printf 'dist-before\n' > "$BROOT/apps/desktop/dist/marker"
+    printf 'release-before\n' > "$BROOT/apps/desktop/release/marker"
+    printf '%s\n' '#!/bin/bash' \
+      'case "$*" in *"update --help"*) echo "--keep-stash"; exit 0;; esac' \
+      '[ ! -e apps/desktop/dist ] && [ ! -e apps/desktop/release ] || exit 9' \
+      'exit 0' > "$BROOT/venv/bin/hermes"
+    chmod +x "$BROOT/venv/bin/hermes"
+    bash "$SCRIPT_DIR/posix.sh" --daemonized --backend-only --no-ui --no-marker-cleanup \
+      --desktop-pid 0 --install-root "$BROOT" --branch main >/dev/null 2>&1 || true
+    if [ "$(cat "$BROOT/apps/desktop/dist/marker" 2>/dev/null)" = dist-before ] \
+      && [ "$(cat "$BROOT/apps/desktop/release/marker" 2>/dev/null)" = release-before ] \
+      && python3 -c "import json,sys; d=json.load(open('$BHOME/.hermes-update-result.json')); sys.exit(0 if d['ok'] else 1)"; then
+      printf 'ok   backend-only update preserves frontend artifacts\n'
+    else
+      printf 'FAIL backend-only frontend isolation\n'; fails=$((fails+1))
     fi
 
     rm -rf "$G"

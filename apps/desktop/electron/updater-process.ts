@@ -12,6 +12,7 @@ export interface UpdaterChild {
 export interface ResolveUpdateScriptHandoffDeps {
   isWindows?: boolean
   fileExists?: (candidate: string) => boolean
+  resourcesPath?: string
 }
 
 export interface UpdateScriptHandoff {
@@ -90,18 +91,24 @@ export function resolvePosixScriptHandoff(
     return null
   }
 
-  const scriptPath = path.join(updateRoot, 'scripts', 'desktop-update', 'posix.sh')
   const exists = deps.fileExists ?? stagedFileExists
 
-  if (!exists(scriptPath)) {
-    return null
+  const candidates = [
+    deps.resourcesPath && path.join(deps.resourcesPath, 'my-king-update', 'posix.sh'),
+    path.join(updateRoot, 'scripts', 'desktop-update', 'posix.sh')
+  ].filter((candidate): candidate is string => Boolean(candidate))
+
+  for (const scriptPath of candidates) {
+    if (exists(scriptPath)) {
+      return {
+        command: '/bin/bash',
+        args: [scriptPath],
+        scriptPath
+      }
+    }
   }
 
-  return {
-    command: '/bin/bash',
-    args: [scriptPath],
-    scriptPath
-  }
+  return null
 }
 
 /**

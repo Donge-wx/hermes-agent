@@ -21,6 +21,14 @@ import { setAppearance } from '@/store/translucency'
 import { $accentOverride } from './accent-override'
 import { $backendThemes, $pendingSkinApply } from './backend-sync'
 import { harmonize, hexToRgb, mix, readableOn } from './color'
+import {
+  LAST_PROFILE_KEY,
+  migrateMyKingAppearanceDefaults,
+  MODE_KEY,
+  PROFILE_MODES_KEY,
+  PROFILE_SKINS_KEY,
+  SKIN_KEY
+} from './my-king-appearance'
 import { BUILTIN_THEME_LIST, DEFAULT_SKIN_NAME, DEFAULT_TYPOGRAPHY, nousTheme } from './presets'
 import { retintTheme } from './retint'
 import type { DesktopTheme, DesktopThemeColors } from './types'
@@ -29,15 +37,10 @@ import { $userThemes, listAllThemes, resolveTheme } from './user-themes'
 // Legacy global skin (pre per-profile themes). Still the inheritance fallback
 // for any profile without its own assignment, so single-profile users and old
 // installs are unaffected.
-const SKIN_KEY = 'hermes-desktop-theme-v2'
-const MODE_KEY = 'hermes-desktop-mode-v1'
 // Per-profile skin + light/dark mode assignments: { [profileKey]: value }. A
 // profile inherits the global default until it's given its own appearance.
-const PROFILE_SKINS_KEY = 'hermes-desktop-profile-themes-v1'
-const PROFILE_MODES_KEY = 'hermes-desktop-profile-modes-v1'
 // Last active profile, recorded so the boot-time paint can pick that profile's
 // theme before the gateway reports which profile actually launched.
-const LAST_PROFILE_KEY = 'hermes-desktop-active-profile-v1'
 // Skins that no longer exist. A profile still pointing at one falls back to
 // DEFAULT_SKIN_NAME rather than painting a name nothing resolves.
 const RETIRED_SKINS = new Set(['nous-light', 'default', 'gold'])
@@ -61,7 +64,7 @@ const normalizeSkin = (name: string | null): string =>
  * much heavier tint, tuned for a bright desktop they don't have.
  */
 const normalizeMode = (value: string | null): ThemeMode =>
-  value === 'light' || value === 'dark' || value === 'system' ? value : 'system'
+  value === 'light' || value === 'dark' || value === 'system' ? value : 'light'
 
 // ─── Per-profile appearance persistence ─────────────────────────────────────
 // Skin and mode are each stored per profile. "default" isn't a real profile —
@@ -371,12 +374,18 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     [userThemes, backendThemes, registryVersion]
   )
 
-  const [themeName, setThemeNameState] = useState(() =>
-    typeof window === 'undefined' ? DEFAULT_SKIN_NAME : skinPref.resolve(readBootProfileKey())
-  )
+  const [themeName, setThemeNameState] = useState(() => {
+    if (typeof window === 'undefined') {
+      return DEFAULT_SKIN_NAME
+    }
+
+    migrateMyKingAppearanceDefaults()
+
+    return skinPref.resolve(readBootProfileKey())
+  })
 
   const [mode, setModeState] = useState<ThemeMode>(() =>
-    typeof window === 'undefined' ? 'system' : modePref.resolve(readBootProfileKey())
+    typeof window === 'undefined' ? 'light' : modePref.resolve(readBootProfileKey())
   )
 
   // Follow profile switches: paint the profile's assigned skin + mode and

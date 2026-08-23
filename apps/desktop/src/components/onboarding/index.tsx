@@ -674,8 +674,8 @@ export function ApiKeyForm({
               'rounded-2xl border bg-background/60 p-3 text-left transition hover:bg-accent/50',
               option.envKey === o.envKey ? 'border-primary ring-2 ring-primary/20' : 'border-transparent'
             )}
-            data-slot="onboarding-provider-option"
             data-selected={option.envKey === o.envKey ? 'true' : 'false'}
+            data-slot="onboarding-provider-option"
             key={o.envKey}
             onClick={() => pick(o)}
             type="button"

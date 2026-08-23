@@ -196,6 +196,8 @@ import { buildHudWindowUrl } from './hud-url'
 import { createLinkTitleWindow, guardLinkTitleSession, readLinkTitleWindowTitle } from './link-title-window'
 import { ensureMainWindow } from './main-window-lifecycle'
 import { createMediaProtocolHandler, MEDIA_PROTOCOL } from './media-protocol'
+import { copyLegacyHermesDataIfNeeded, copyLegacyUserDataIfNeeded } from './my-king-migration'
+import { resolveMyKingHome, resolveMyKingUserData, shouldUseExternalHermesRuntime } from './my-king-paths'
 import {
   oauthGuardMayHardFail,
   oauthSessionIsLive,
@@ -359,8 +361,6 @@ import {
   writeSandboxMarker
 } from './windows-sandbox-fallback'
 import { installWindowsSystemCaTrust } from './windows-system-ca'
-import { copyLegacyHermesDataIfNeeded, copyLegacyUserDataIfNeeded } from './my-king-migration'
-import { resolveMyKingHome, resolveMyKingUserData, shouldUseExternalHermesRuntime } from './my-king-paths'
 import { isPackagedInstallPath as isPackagedInstallPathUnderRoots } from './workspace-cwd'
 import { readWslWindowsClipboardImage } from './wsl-clipboard-image'
 import { resolvePickerDefaultPath, setActiveGatewayProfile, setWslBridgeProfileState } from './wsl-path-bridge'
@@ -374,6 +374,7 @@ const INTERNAL_APP_NAME = APPLICATION_IDENTITY.internalName
 app.setName(INTERNAL_APP_NAME)
 
 const USER_DATA_OVERRIDE = process.env.HERMES_DESKTOP_USER_DATA_DIR
+
 const DEFAULT_MY_KING_USER_DATA = resolveMyKingUserData({
   appData: app.getPath('appData'),
   override: USER_DATA_OVERRIDE
@@ -381,6 +382,7 @@ const DEFAULT_MY_KING_USER_DATA = resolveMyKingUserData({
 
 if (!USER_DATA_OVERRIDE) {
   const legacyUserData = path.join(app.getPath('appData'), 'Hermes')
+
   if (copyLegacyUserDataIfNeeded(legacyUserData, DEFAULT_MY_KING_USER_DATA)) {
     console.log(`[my-king] copied legacy desktop settings from ${legacyUserData} to ${DEFAULT_MY_KING_USER_DATA}`)
   }
@@ -4011,7 +4013,7 @@ function preflightStateDb(hermesHome, rememberLog) {
 // to leave. Checkouts that predate the script get the manual card once.
 async function applyUpdatesPosixHandoff(opts: any) {
   const updateRoot = resolveUpdateRoot()
-  const handoff = resolvePosixScriptHandoff(updateRoot)
+  const handoff = resolvePosixScriptHandoff(updateRoot, { resourcesPath: process.resourcesPath })
 
   if (!handoff) {
     emitUpdateProgress({ stage: 'manual', message: 'hermes update', percent: null })
@@ -4033,22 +4035,22 @@ async function applyUpdatesPosixHandoff(opts: any) {
   // ── Pre-flight state.db integrity guard (#68474) ──
   preflightStateDb(HERMES_HOME, rememberLog)
 
-  // Branch-pin so a non-main checkout doesn't get switched to main (and
-  // self-heal to main when the pinned branch no longer exists on origin).
-  let branch = 'main'
+  // My King ships its renderer independently from the mutable backend clone.
+  // Backend updates therefore always follow upstream main and must never
+  // rebuild or replace the installed My King.app bundle.
+  const branch = 'main'
 
-  try {
-    const head = await runGit(['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: updateRoot })
-    const current = (head.stdout || '').trim()
+  const args = [
+    ...handoff.args,
+    '--install-root',
+    updateRoot,
+    '--branch',
+    branch,
+    '--desktop-pid',
+    String(process.pid),
+    '--backend-only'
+  ]
 
-    if (head.code === 0 && current && current !== 'HEAD') {
-      branch = await resolveHealedBranch(updateRoot, current)
-    }
-  } catch {
-    // best effort
-  }
-
-  const args = [...handoff.args, '--install-root', updateRoot, '--branch', branch, '--desktop-pid', String(process.pid)]
   const updateStartedAt = Math.floor(Date.now() / 1000)
 
   // Relaunch target: the running .app bundle on mac (script swaps the
@@ -4100,7 +4102,7 @@ async function applyUpdatesPosixHandoff(opts: any) {
   emitUpdateProgress({
     stage: 'restart',
     message:
-      'Updating My King — this window will close. Don’t reopen My King yourself; it restarts automatically when the update finishes.',
+      'Updating the My King backend — this window will close. The independent My King interface will remain unchanged and restart automatically.',
     percent: 100
   })
 

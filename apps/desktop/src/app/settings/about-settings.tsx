@@ -5,7 +5,7 @@ import { BrandMark } from '@/components/brand-mark'
 import { Button } from '@/components/ui/button'
 import { Codicon } from '@/components/ui/codicon'
 import { type Translations, useI18n } from '@/i18n'
-import { AlertTriangle, CheckCircle2, ExternalLink, Loader2, RefreshCw } from '@/lib/icons'
+import { AlertTriangle, CheckCircle2, Loader2, RefreshCw } from '@/lib/icons'
 import { cn } from '@/lib/utils'
 import {
   $desktopVersion,
@@ -20,9 +20,6 @@ import {
 
 import { ListRow, SectionHeading, SettingsContent } from './primitives'
 import { UninstallSection } from './uninstall-section'
-
-const RELEASE_NOTES_URL = 'https://github.com/NousResearch/hermes-agent/releases'
-const INSTALLER_URL = 'https://hermes-agent.nousresearch.com/'
 
 function relativeTime(ms: number | undefined, a: Translations['settings']['about']) {
   if (!ms) {
@@ -114,19 +111,9 @@ export function AboutSettings() {
               <div className="min-w-0">
                 <p className="font-medium">{a.bundleOutOfSync}</p>
                 <p className="mt-1 text-xs text-muted-foreground">{a.bundleOutOfSyncDesc}</p>
-                <Button asChild className="mt-2" size="sm" variant="textStrong">
-                  <a
-                    href={INSTALLER_URL}
-                    onClick={event => {
-                      event.preventDefault()
-                      void window.hermesDesktop?.openExternal?.(INSTALLER_URL)
-                    }}
-                    rel="noreferrer"
-                    target="_blank"
-                  >
-                    <ExternalLink className="size-3" />
-                    {a.bundleOutOfSyncAction}
-                  </a>
+                <Button className="mt-2" onClick={() => openUpdatesWindow()} size="sm" variant="textStrong">
+                  <RefreshCw className="size-3" />
+                  {a.bundleOutOfSyncAction}
                 </Button>
               </div>
             </div>
@@ -182,19 +169,8 @@ export function AboutSettings() {
               </>
             )}
 
-            <Button asChild className="ml-auto" size="sm" variant="text">
-              <a
-                href={RELEASE_NOTES_URL}
-                onClick={event => {
-                  event.preventDefault()
-                  void window.hermesDesktop?.openExternal?.(RELEASE_NOTES_URL)
-                }}
-                rel="noreferrer"
-                target="_blank"
-              >
-                <ExternalLink className="size-3" />
-                {a.releaseNotes}
-              </a>
+            <Button className="ml-auto" onClick={() => openUpdatesWindow()} size="sm" variant="text">
+              {a.releaseNotes}
             </Button>
           </div>
         </div>

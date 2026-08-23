@@ -39,6 +39,20 @@ async function resizeWindow(fixture: MockBackendFixture, viewport: ViewportCase)
 }
 
 test.describe('My King intro', () => {
+  test('starts a clean profile in the branded light Liquid Glass appearance', async () => {
+    test.setTimeout(300_000)
+    const fixture = await setupMockBackend()
+
+    try {
+      await waitForAppReady(fixture, 120_000)
+
+      await expect(fixture.page.locator('html')).toHaveAttribute('data-hermes-theme', 'liquid-glass')
+      await expect(fixture.page.locator('html')).toHaveAttribute('data-hermes-mode', 'light')
+    } finally {
+      await fixture.cleanup()
+    }
+  })
+
   test('keeps the approved lockup at narrow width before theme attributes settle', async ({ browserName: _browserName }, testInfo) => {
     test.setTimeout(300_000)
     const fixture = await setupMockBackend()

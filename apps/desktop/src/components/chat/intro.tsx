@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { type ReactNode, useState } from 'react'
 
 import { useI18n } from '@/i18n'
 import { BRAND, brandAssetPath } from '@/lib/brand'

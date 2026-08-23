@@ -265,6 +265,23 @@ test('resolvePosixScriptHandoff returns the bash recipe when the script exists',
   assert.deepEqual(handoff.args, [expected])
 })
 
+test('resolvePosixScriptHandoff prefers the immutable My King bundled updater', () => {
+  const root = '/home/myking/.myking/hermes-agent'
+  const resourcesPath = '/Applications/My King.app/Contents/Resources'
+  const bundled = path.join(resourcesPath, 'my-king-update', 'posix.sh')
+  const checkout = path.join(root, 'scripts', 'desktop-update', 'posix.sh')
+
+  const handoff = resolvePosixScriptHandoff(root, {
+    isWindows: false,
+    resourcesPath,
+    fileExists: candidate => candidate === bundled || candidate === checkout
+  })
+
+  assert.ok(handoff)
+  assert.equal(handoff.scriptPath, bundled)
+  assert.deepEqual(handoff.args, [bundled])
+})
+
 test('resolvePosixScriptHandoff is null when the checkout predates the script', () => {
   const handoff = resolvePosixScriptHandoff('/home/hermes/.hermes/hermes-agent', {
     isWindows: false,

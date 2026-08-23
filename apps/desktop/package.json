@@ -221,6 +221,15 @@
       {
         "from": "assets/icon.ico",
         "to": "icon.ico"
+      },
+      {
+        "from": "../../scripts/desktop-update",
+        "to": "my-king-update",
+        "filter": [
+          "posix.sh",
+          "serve-ui.py",
+          "ui.html"
+        ]
       }
     ],
     "asar": true,

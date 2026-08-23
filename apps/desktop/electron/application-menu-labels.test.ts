@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  buildApplicationMenuRoleItems,
+  buildApplicationMenuRoleLabels,
   MY_KING_APP_ID,
   MY_KING_HOME_DIRNAME,
   MY_KING_PROTOCOL,
   MY_KING_USER_DATA_DIRNAME,
   MY_KING_WINDOWS_HOME_DIRNAME,
-  buildApplicationMenuRoleItems,
-  buildApplicationMenuRoleLabels,
   resolveApplicationIdentity
 } from './application-menu-labels'
 

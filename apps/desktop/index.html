@@ -193,8 +193,23 @@
       // module graph has executed — i.e. the "white flash" on every new
       // window. applyTheme() in src/themes/context.tsx keeps these keys fresh.
       try {
+        const appearanceMigrationPending = !localStorage.getItem('my-king-liquid-glass-default-v1')
+        if (appearanceMigrationPending) {
+          const legacySkin = localStorage.getItem('hermes-desktop-theme-v2')
+          const legacyMode = localStorage.getItem('hermes-desktop-mode-v1')
+          if (!legacySkin || legacySkin === 'nous') {
+            localStorage.setItem('hermes-desktop-theme-v2', 'liquid-glass')
+          }
+          if (!legacyMode || legacyMode === 'system') {
+            localStorage.setItem('hermes-desktop-mode-v1', 'light')
+          }
+        }
         let bg = localStorage.getItem('hermes-boot-background')
         let scheme = localStorage.getItem('hermes-boot-color-scheme')
+        if (appearanceMigrationPending) {
+          bg = '#f8fbff'
+          scheme = 'light'
+        }
         if (!bg) {
           const dark = window.matchMedia('(prefers-color-scheme: dark)').matches
           bg = dark ? '#111111' : '#f7f7f7'
