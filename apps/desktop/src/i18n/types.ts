@@ -546,7 +546,8 @@ export interface Translations {
     fieldDescriptions: Record<string, string>
     about: {
       heading: string
-      version: (value: string) => string
+      desktopPackageVersion: (value: string) => string
+      backendRuntimeVersion: (value: string) => string
       versionUnavailable: string
       bundleOutOfSync: string
       bundleOutOfSyncDesc: string

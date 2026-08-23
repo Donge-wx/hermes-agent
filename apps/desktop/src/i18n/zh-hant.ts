@@ -693,7 +693,8 @@ export const zhHant = defineLocale({
     }),
     about: {
       heading: 'My King Desktop',
-      version: value => `版本 ${value}`,
+      desktopPackageVersion: value => `桌面介面 ${value}`,
+      backendRuntimeVersion: value => `後端 ${value}`,
       versionUnavailable: '版本不可用',
       bundleOutOfSync: '應用程式建置版本過舊',
       bundleOutOfSyncDesc:

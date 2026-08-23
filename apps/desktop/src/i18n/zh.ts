@@ -867,7 +867,8 @@ export const zh: Translations = {
     }),
     about: {
       heading: 'My King Desktop',
-      version: value => `版本 ${value}`,
+      desktopPackageVersion: value => `桌面界面 ${value}`,
+      backendRuntimeVersion: value => `后端 ${value}`,
       versionUnavailable: '版本不可用',
       bundleOutOfSync: '应用构建版本过旧',
       bundleOutOfSyncDesc:

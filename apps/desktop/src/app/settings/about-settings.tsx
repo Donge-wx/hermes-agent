@@ -100,9 +100,17 @@ export function AboutSettings() {
         <BrandMark className="size-16" />
         <div>
           <h2 className="text-lg font-semibold tracking-tight">{a.heading}</h2>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {version?.appVersion ? a.version(version.appVersion) : a.versionUnavailable}
-          </p>
+          {version ? (
+            <div className="mt-1 flex flex-wrap justify-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+              <span data-slot="desktop-package-version">
+                {a.desktopPackageVersion(version.desktopPackageVersion)}
+              </span>
+              <span aria-hidden>·</span>
+              <span data-slot="backend-runtime-version">{a.backendRuntimeVersion(version.appVersion)}</span>
+            </div>
+          ) : (
+            <p className="mt-1 text-xs text-muted-foreground">{a.versionUnavailable}</p>
+          )}
         </div>
         {version?.bundleOutOfSync && (
           <div className="mx-auto w-full max-w-2xl rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-left text-sm">

@@ -708,7 +708,8 @@ export const ja = defineLocale({
     }),
     about: {
       heading: 'My King Desktop',
-      version: value => `バージョン ${value}`,
+      desktopPackageVersion: value => `デスクトップ UI ${value}`,
+      backendRuntimeVersion: value => `バックエンド ${value}`,
       versionUnavailable: 'バージョンを取得できません',
       bundleOutOfSync: 'アプリのビルドが古くなっています',
       bundleOutOfSyncDesc:

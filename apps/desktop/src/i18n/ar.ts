@@ -661,7 +661,8 @@ export const ar = defineLocale({
     },
     about: {
       heading: 'حول My King',
-      version: value => `الإصدار ${value}`,
+      desktopPackageVersion: value => `واجهة سطح المكتب ${value}`,
+      backendRuntimeVersion: value => `الخلفية ${value}`,
       versionUnavailable: 'الإصدار غير متاح',
       bundleOutOfSync: 'إصدار التطبيق قديم',
       bundleOutOfSyncDesc:

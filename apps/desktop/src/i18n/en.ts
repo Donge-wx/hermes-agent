@@ -662,7 +662,8 @@ export const en: Translations = {
     fieldDescriptions: FIELD_DESCRIPTIONS,
     about: {
       heading: 'My King Desktop',
-      version: value => `Version ${value}`,
+      desktopPackageVersion: value => `Desktop interface ${value}`,
+      backendRuntimeVersion: value => `Backend ${value}`,
       versionUnavailable: 'Version unavailable',
       bundleOutOfSync: 'App build out of date',
       bundleOutOfSyncDesc:

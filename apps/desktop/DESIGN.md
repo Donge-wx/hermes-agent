@@ -123,6 +123,9 @@ Upgrade and functionality boundary:
 - The theme is registered only through `BUILTIN_THEMES` and imported CSS. It does
   not modify Electron IPC, backend/gateway code, updater/install code, theme
   persistence, or data flow.
+- About identifies the desktop interface package and backend runtime as two
+  separate versions. Backend-only updates must never be presented as a desktop
+  UI replacement.
 - Theme hooks are inert `data-*` attributes on existing DOM nodes. They expose
   presentation targets without adding handlers, state, navigation, or new
   component ownership.
