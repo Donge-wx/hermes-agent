@@ -157,7 +157,7 @@ function resolveCopy(personality?: string, seed?: number): IntroCopy {
 }
 
 function renderIntroText(locale: string, text: string): ReactNode {
-  if (locale !== 'zh' && locale !== 'zh-hant') {
+  if (locale !== 'zh' && locale !== 'zh-hant' && locale !== 'ja') {
     return text
   }
 

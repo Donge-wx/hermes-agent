@@ -182,7 +182,7 @@ Conversation primitives:
 - At narrow widths the message measures become fluid and horizontal padding
   compresses, while type size, status glyph size, keyboard focus, and all existing
   interaction targets remain intact.
-- **CJK intro phrase groups.** Chinese intro headlines and body copy preserve
+- **CJK intro phrase groups.** Chinese and Japanese intro headlines and body copy preserve
   semantic clauses as unbreakable inline groups, with wrapping allowed only
   between punctuation-delimited phrases. This prevents orphan punctuation and
   split predicates at 640/768 widths without changing the localized copy,

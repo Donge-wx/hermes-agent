@@ -47,9 +47,11 @@ describe('Intro', () => {
     // When: the branded empty state is shown.
     const headline = container.querySelector('[data-slot="aui_intro-headline"]')
     const body = container.querySelector('[data-slot="aui_intro-body"]')
+
     const headlinePhrases = Array.from(
       container.querySelectorAll('[data-slot="aui_intro-headline"] [data-intro-phrase]')
     ).map(element => element.textContent)
+
     const bodyPhrases = Array.from(
       container.querySelectorAll('[data-slot="aui_intro-body"] [data-intro-phrase]')
     ).map(element => element.textContent)
@@ -66,5 +68,19 @@ describe('Intro', () => {
       '告诉我目标，',
       '其余交给 My King。'
     ])
+  })
+
+  it('keeps Japanese semantic phrases intact for narrow layouts', () => {
+    const { container } = render(
+      <I18nProvider configClient={null} initialLocale="ja">
+        <Intro seed={0} />
+      </I18nProvider>
+    )
+
+    const headlinePhrases = Array.from(
+      container.querySelectorAll('[data-slot="aui_intro-headline"] [data-intro-phrase]')
+    ).map(element => element.textContent)
+
+    expect(headlinePhrases).toEqual(['あなたのワークスペースを、', '一言で始めよう。'])
   })
 })

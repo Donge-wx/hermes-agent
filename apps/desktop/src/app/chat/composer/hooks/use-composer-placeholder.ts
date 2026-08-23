@@ -19,7 +19,7 @@ interface UseComposerPlaceholderOptions {
  * down, it swaps to a reconnecting / starting message instead.
  */
 export function useComposerPlaceholder({ disabled, reconnecting, sessionId }: UseComposerPlaceholderOptions): string {
-  const { t } = useI18n()
+  const { locale, t } = useI18n()
   const newSessionPlaceholders = t.composer.newSessionPlaceholders
   const followUpPlaceholders = t.composer.followUpPlaceholders
 
@@ -28,11 +28,21 @@ export function useComposerPlaceholder({ disabled, reconnecting, sessionId }: Us
   )
 
   const prevSessionIdRef = useRef(sessionId)
+  const prevLocaleRef = useRef(locale)
 
   // eslint-disable-next-line no-restricted-syntax -- legitimate non-atom ref write (see eslint rule comment)
   useEffect(() => {
     const prev = prevSessionIdRef.current
+    const prevLocale = prevLocaleRef.current
+
     prevSessionIdRef.current = sessionId
+    prevLocaleRef.current = locale
+
+    if (prevLocale !== locale) {
+      setRestingPlaceholder(pickPlaceholder(sessionId ? followUpPlaceholders : newSessionPlaceholders))
+
+      return
+    }
 
     if (prev === sessionId) {
       return
@@ -46,7 +56,7 @@ export function useComposerPlaceholder({ disabled, reconnecting, sessionId }: Us
 
     resetBrowseState(prev)
     setRestingPlaceholder(pickPlaceholder(sessionId ? followUpPlaceholders : newSessionPlaceholders))
-  }, [followUpPlaceholders, newSessionPlaceholders, sessionId])
+  }, [followUpPlaceholders, locale, newSessionPlaceholders, sessionId])
 
   // When the transport is disabled it's because the gateway isn't open.
   // Distinguish a cold start ("Starting My King...") from a dropped connection
