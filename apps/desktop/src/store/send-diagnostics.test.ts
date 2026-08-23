@@ -120,6 +120,23 @@ describe('send-diagnostics store', () => {
     }
   })
 
+  it('uses the public My King brand when the gateway disappears before upload', async () => {
+    const original = $gateway.get()
+
+    try {
+      $gateway.set(null)
+      requestSendDiagnostics()
+      await confirmSendDiagnostics()
+
+      expect($sendDiagnostics.get()).toMatchObject({
+        error: 'My King gateway unavailable',
+        phase: 'error'
+      })
+    } finally {
+      $gateway.set(original)
+    }
+  })
+
   it('confirm is a no-op outside the consent phase (no double upload)', async () => {
     const request = vi.fn().mockResolvedValue({ ok: true })
     const restoreGateway = stubGateway(request)
