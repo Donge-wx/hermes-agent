@@ -1,6 +1,18 @@
 import { describe, expect, it } from 'vitest'
 
-import { acceptedMyKingDeepLinkSchemes, extractMyKingDeepLink } from './deep-link-protocols'
+import {
+  acceptedMyKingDeepLinkSchemes,
+  extractMyKingDeepLink,
+  selectMyKingDeepLinkProtocol
+} from './deep-link-protocols'
+
+describe('selectMyKingDeepLinkProtocol', () => {
+  it('keeps Electron defaultApp runs off the public production scheme', () => {
+    expect(selectMyKingDeepLinkProtocol(false, true)).toBe('myking-dev')
+    expect(selectMyKingDeepLinkProtocol(true, false)).toBe('myking-dev')
+    expect(selectMyKingDeepLinkProtocol(false, false)).toBe('myking')
+  })
+})
 
 describe('acceptedMyKingDeepLinkSchemes', () => {
   it('accepts only the public My King scheme in production', () => {

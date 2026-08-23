@@ -72,7 +72,7 @@ import { applyConnectionChange } from './connection-apply'
 import {
   acceptedMyKingDeepLinkSchemes,
   extractMyKingDeepLink,
-  MY_KING_DEV_PROTOCOL
+  selectMyKingDeepLinkProtocol
 } from './deep-link-protocols'
 import {
   apiRequestRegistryConnectionId,
@@ -14965,9 +14965,9 @@ ipcMain.handle('hermes:vscode-theme:search', async (_event, query) => searchMark
 // running app. Three delivery paths: macOS 'open-url',
 // Win/Linux running-app 'second-instance' (argv), Win/Linux cold-start argv.
 // ---------------------------------------------------------------------------
-const MY_KING_DEEP_LINK_PROTOCOL = DEV_SERVER ? MY_KING_DEV_PROTOCOL : MY_KING_PROTOCOL
+const MY_KING_DEEP_LINK_PROTOCOL = selectMyKingDeepLinkProtocol(Boolean(DEV_SERVER), process.defaultApp)
 /** Schemes accepted when parsing inbound URLs (dev also accepts the public scheme). */
-const DEEPLINK_SCHEMES = acceptedMyKingDeepLinkSchemes(Boolean(DEV_SERVER))
+const DEEPLINK_SCHEMES = acceptedMyKingDeepLinkSchemes(MY_KING_DEEP_LINK_PROTOCOL !== MY_KING_PROTOCOL)
 let _pendingDeepLink = null
 let _rendererReadyForDeepLink = false
 
