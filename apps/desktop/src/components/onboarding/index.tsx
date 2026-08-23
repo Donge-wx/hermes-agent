@@ -1,12 +1,15 @@
 import { useStore } from '@nanostores/react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
+import { BrandMark } from '@/components/brand-mark'
 import { Button } from '@/components/ui/button'
 import { Codicon } from '@/components/ui/codicon'
+import { ErrorBanner } from '@/components/ui/error-state'
 import { Input } from '@/components/ui/input'
 import { Progress } from '@/components/ui/progress'
 import { getGlobalModelOptions } from '@/hermes'
 import { useI18n } from '@/i18n'
+import { publicBrandText } from '@/lib/brand'
 import { Check, ChevronDown, ChevronLeft, KeyRound, Loader2 } from '@/lib/icons'
 import { isProviderSetupErrorMessage } from '@/lib/provider-setup-errors'
 import { cn } from '@/lib/utils'
@@ -302,7 +305,7 @@ export function DesktopOnboardingOverlay({
   return (
     <div
       className={cn(
-        'fixed inset-0 z-(--z-onboarding) flex items-center justify-center bg-(--ui-chat-surface-background) p-6 transition-opacity duration-[520ms] ease-out',
+        'fixed inset-0 z-(--z-onboarding) flex items-center justify-center bg-(--ui-chat-surface-background) p-6 transition-opacity duration-[520ms] ease-out max-[640px]:p-3',
         // On the bare confirm screen, hold the surface (text-out + hold) so the
         // per-element exit plays before it dissolves.
         bare && leaving ? '[transition-delay:660ms]' : '',
@@ -312,10 +315,11 @@ export function DesktopOnboardingOverlay({
       // window glass or the shell shows through. Contract:
       // `[data-glass-opaque]` in styles.css.
       data-glass-opaque=""
+      data-slot="onboarding-overlay"
     >
       <div
         className={cn(
-          'relative w-full max-w-[45rem] transition-all duration-500 ease-out',
+          'relative max-h-[calc(100dvh-1.5rem)] w-full max-w-[45rem] overflow-y-auto transition-all duration-500 ease-out',
           bare
             ? ''
             : 'overflow-hidden rounded-xl border border-(--stroke-nous) bg-(--ui-chat-bubble-background) shadow-nous',
@@ -325,6 +329,8 @@ export function DesktopOnboardingOverlay({
             ? '-translate-y-1 scale-[0.985] opacity-0 blur-[2px]'
             : 'translate-y-0 scale-100 opacity-100 blur-0'
         )}
+        data-slot="onboarding-surface"
+        data-view={bare ? 'bare' : 'card'}
       >
         {showPicker || !ready ? <Header /> : null}
         {onboarding.manual ? (
@@ -338,7 +344,7 @@ export function DesktopOnboardingOverlay({
             <Codicon name="close" size="1rem" />
           </Button>
         ) : null}
-        <div className="grid gap-3 p-5">
+        <div className="grid gap-3 p-5" data-slot="onboarding-content">
           {reason ? <ReasonNotice reason={reason} /> : null}
           {ready ? (
             showPicker ? (
@@ -360,34 +366,48 @@ export function DesktopOnboardingOverlay({
 // upstream), so it never shows the generic "no provider configured" noise.
 function ReasonNotice({ reason }: { reason: string }) {
   return (
-    <div className="rounded-2xl border border-(--ui-stroke-tertiary) bg-(--ui-bg-tertiary)/40 px-4 py-3 text-sm text-muted-foreground">
+    <div
+      className="rounded-2xl border border-(--ui-stroke-tertiary) bg-(--ui-bg-tertiary)/40 px-4 py-3 text-sm text-muted-foreground"
+      data-slot="onboarding-notice"
+    >
       {reason}
     </div>
   )
 }
 
-function Preparing({ boot }: { boot: DesktopBootState }) {
+export function Preparing({ boot }: { boot: DesktopBootState }) {
   const { t } = useI18n()
   const progress = Math.max(2, Math.min(100, Math.round(boot.progress)))
   const hasError = Boolean(boot.error)
   const installing = boot.phase.startsWith('runtime.')
 
   return (
-    <div className="grid gap-3" role="status">
+    <div
+      className="grid gap-3"
+      data-slot="onboarding-preparing"
+      data-state={hasError ? 'error' : 'loading'}
+      role="status"
+    >
       <p className="text-sm text-muted-foreground">
         {installing ? t.onboarding.preparingInstall : t.onboarding.starting}
       </p>
-      <Progress
-        aria-label={installing ? t.onboarding.preparingInstall : t.onboarding.starting}
-        destructive={hasError}
-        size="lg"
-        value={progress / 100}
-      />
+      <div data-slot="onboarding-preparing-progress">
+        <Progress
+          aria-label={installing ? t.onboarding.preparingInstall : t.onboarding.starting}
+          destructive={hasError}
+          size="lg"
+          value={progress / 100}
+        />
+      </div>
       <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
-        <span className="truncate">{boot.message}</span>
+        <span className="truncate">{publicBrandText(boot.message)}</span>
         <span>{progress}%</span>
       </div>
-      {hasError ? <p className="text-xs text-destructive">{boot.error}</p> : null}
+      {hasError ? (
+        <div data-slot="onboarding-preparing-error">
+          <ErrorBanner>{publicBrandText(boot.error!)}</ErrorBanner>
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -396,9 +416,22 @@ function Header() {
   const { t } = useI18n()
 
   return (
-    <div className="bg-(--ui-chat-bubble-background) px-5 pt-5 pb-1">
-      <h2 className="text-[0.9375rem] font-semibold tracking-tight">{t.onboarding.headerTitle}</h2>
-      <p className="mt-1 max-w-xl text-[0.8125rem] leading-5 text-(--ui-text-tertiary)">{t.onboarding.headerDesc}</p>
+    <div
+      className="flex items-center gap-4 bg-(--ui-chat-bubble-background) px-5 pt-5 pb-1"
+      data-slot="onboarding-header"
+    >
+      <BrandMark className="size-12" decorative={false} />
+      <div className="min-w-0">
+        <h2 className="text-[0.9375rem] font-semibold tracking-tight" data-slot="onboarding-title">
+          {t.onboarding.headerTitle}
+        </h2>
+        <p
+          className="mt-1 max-w-xl text-[0.8125rem] leading-5 text-(--ui-text-tertiary)"
+          data-slot="onboarding-description"
+        >
+          {t.onboarding.headerDesc}
+        </p>
+      </div>
     </div>
   )
 }
@@ -634,13 +667,15 @@ export function ApiKeyForm({
         </Button>
       ) : null}
 
-      <div className="grid max-h-[42dvh] gap-2 overflow-y-auto p-1 sm:grid-cols-2">
+      <div className="grid max-h-[42dvh] gap-2 overflow-y-auto p-1 md:grid-cols-2">
         {options.map(o => (
           <button
             className={cn(
               'rounded-2xl border bg-background/60 p-3 text-left transition hover:bg-accent/50',
               option.envKey === o.envKey ? 'border-primary ring-2 ring-primary/20' : 'border-transparent'
             )}
+            data-slot="onboarding-provider-option"
+            data-selected={option.envKey === o.envKey ? 'true' : 'false'}
             key={o.envKey}
             onClick={() => pick(o)}
             type="button"

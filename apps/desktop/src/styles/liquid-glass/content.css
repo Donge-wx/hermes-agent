@@ -1,0 +1,257 @@
+/* A quiet brand aura replaces the legacy illustration without competing with
+   the transcript. It remains a background material, never a fake UI layer. */
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='app-backdrop'] {
+  display: block;
+  z-index: 0;
+  opacity: var(--brand-backdrop-opacity);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='composer-bounds'] {
+  z-index: 1;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='aui_intro'] {
+  position: relative;
+  z-index: 3;
+  color: var(--lg-ink-secondary);
+}
+
+/* On compact layouts the navigation pane becomes a pinned overlay. Keep the
+   intro centered in the still-visible work area instead of letting the
+   overlay cover the lockup or copy. This is presentation-only: the overlay's
+   reveal state, routing, and pane geometry remain owned by LayoutTree. */
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-narrow-overlay=''][data-side='left'] {
+  width: min(var(--lg-measure-overlay-sidebar), 85vw) !important;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-narrow-overlay=''][data-side='right'] {
+  width: min(var(--lg-measure-overlay-sidebar), 85vw) !important;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  :has(> [data-narrow-overlay=''][data-side='left'])
+  [data-slot='aui_intro'] {
+  padding-inline-start: calc(min(var(--lg-measure-overlay-sidebar), 85vw) + var(--lg-space-2xl));
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  :has(> [data-narrow-overlay=''][data-side='right'])
+  [data-slot='aui_intro'] {
+  padding-inline-end: calc(min(var(--lg-measure-overlay-sidebar), 85vw) + var(--lg-space-2xl));
+}
+
+/* Balance the short page lead at high UI zoom so CJK phrases such as
+   `界面样式。` stay intact instead of leaving punctuation on an orphan line. */
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='settings-intro'] {
+  text-wrap: balance;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='aui_intro'] > div {
+  max-width: var(--lg-measure-intro-shell);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='aui_intro-brand'] {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  margin: 0 auto var(--lg-space-2xl);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='aui_intro-lockup'] {
+  display: block;
+  width: min(100%, var(--lg-size-intro-lockup));
+  height: auto;
+  margin-inline: auto;
+  opacity: 1;
+  filter: none;
+  mix-blend-mode: normal;
+  object-fit: contain;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='aui_intro-headline'] {
+  display: block;
+  max-width: var(--lg-measure-intro-display);
+  margin: 0 auto var(--lg-space-md);
+  color: var(--lg-ink);
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', system-ui, sans-serif;
+  font-size: var(--lg-type-intro-display);
+  font-weight: 620;
+  letter-spacing: var(--lg-tracking-intro-display);
+  line-height: var(--lg-line-intro-display);
+  text-wrap: balance;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='aui_intro-body'] {
+  max-width: var(--lg-measure-intro-body);
+  margin-inline: auto;
+  color: var(--lg-ink-tertiary);
+  font-size: var(--lg-type-body);
+  letter-spacing: var(--lg-tracking-intro-body);
+  line-height: var(--lg-line-intro-body);
+  text-wrap: pretty;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-intro-phrase] {
+  display: inline-block;
+  white-space: nowrap;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='composer-root'] {
+  --composer-fill: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--lg-white) 88%, transparent) 0%,
+    color-mix(in srgb, var(--lg-white) 72%, transparent) 42%,
+    color-mix(in srgb, var(--lg-ice-mist) 58%, transparent) 100%
+  );
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='composer-surface'] {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  min-height: var(--lg-size-composer);
+  border-color: var(--lg-rim-outer) !important;
+  border-radius: var(--lg-radius-composer);
+  background: var(--composer-fill) !important;
+  box-shadow: var(--lg-shadow-float);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  transition:
+    border-color var(--lg-duration-state) var(--lg-ease-out),
+    box-shadow var(--lg-duration-state) var(--lg-ease-out),
+    transform var(--lg-duration-state) var(--lg-ease-out);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='composer-surface']::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(70% 160% at 10% -68%, color-mix(in srgb, var(--lg-white) 96%, transparent), transparent 64%),
+    radial-gradient(62% 180% at 96% 130%, color-mix(in srgb, var(--lg-blue-mist) 42%, transparent), transparent 68%),
+    linear-gradient(90deg, transparent 54%, color-mix(in srgb, var(--lg-blue-mist) 22%, transparent));
+  content: '';
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='composer-surface']:hover:not(:focus-within) {
+  border-color: var(--lg-rim-strong) !important;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='composer-surface']:focus-within {
+  border-color: color-mix(in srgb, var(--lg-blue) 16%, var(--lg-rim-strong)) !important;
+  box-shadow: var(--lg-shadow-float), var(--lg-shadow-link-focus);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='composer-rich-input'] {
+  min-height: var(--composer-input-min-height);
+  color: var(--lg-ink);
+  font-size: var(--lg-type-body);
+  line-height: var(--lg-line-body);
+}
+
+/* Theme specimens are image-led choices, not a wall of outlined cards. */
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='theme-card'] {
+  position: relative;
+  border-color: transparent;
+  border-radius: var(--lg-radius-theme-card);
+  background: transparent;
+  color: var(--lg-ink);
+  box-shadow: none;
+  transition:
+    color var(--lg-duration-fast) var(--lg-ease-out),
+    background-color var(--lg-duration-fast) var(--lg-ease-out),
+    box-shadow var(--lg-duration-state) var(--lg-ease-out);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='theme-card']:hover {
+  border-color: transparent;
+  background: var(--lg-hover-wash);
+  box-shadow: none;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='theme-card'].border-primary {
+  border-color: transparent;
+  background: var(--lg-selected-wash);
+  box-shadow: var(--lg-shadow-theme-card-selected);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='theme-card'].border-primary::before {
+  position: absolute;
+  z-index: 2;
+  top: var(--lg-space-xl);
+  right: var(--lg-space-xl);
+  width: var(--lg-size-selection-badge);
+  height: var(--lg-size-selection-badge);
+  border-radius: var(--lg-radius-selection-badge);
+  background: var(--lg-blue);
+  box-shadow: var(--lg-shadow-selection-badge);
+  content: '';
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='theme-card'].border-primary::after {
+  position: absolute;
+  z-index: 3;
+  top: var(--lg-offset-selection-check-block);
+  right: var(--lg-offset-selection-check-inline);
+  width: var(--lg-size-selection-check-inline);
+  height: var(--lg-size-selection-check-block);
+  border-right: var(--lg-size-selection-check-stroke) solid var(--lg-white);
+  border-bottom: var(--lg-size-selection-check-stroke) solid var(--lg-white);
+  content: '';
+  transform: rotate(45deg);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='theme-preview'] {
+  border-color: var(--lg-rim-outer) !important;
+  border-radius: var(--lg-radius-control);
+  box-shadow: var(--lg-shadow-theme-preview);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='settings-content'] {
+  color: var(--lg-ink-secondary);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='settings-section-heading'] {
+  color: var(--lg-ink);
+  font-weight: 600;
+  letter-spacing: var(--lg-tracking-section-heading);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='settings-section-heading'] > svg {
+  color: var(--lg-blue);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='settings-row'] {
+  border-bottom: var(--lg-stroke-hairline) solid color-mix(in srgb, var(--lg-rim-outer) 58%, transparent);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='settings-row']:last-child {
+  border-bottom-color: transparent;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='settings-row-title'] {
+  color: var(--lg-ink);
+  font-weight: 560;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='settings-row-description'] {
+  color: var(--lg-ink-tertiary);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='model-stale-warning'] {
+  border-color: var(--lg-warning-seam);
+  background: var(--lg-warning-surface);
+  color: var(--lg-warning-ink);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] ::selection {
+  background: color-mix(in srgb, var(--lg-blue) 22%, transparent);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] * {
+  scrollbar-color: color-mix(in srgb, var(--lg-rim-strong) 70%, transparent) transparent;
+}

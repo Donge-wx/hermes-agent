@@ -165,7 +165,10 @@ function StaleAuxWarning({ applying, onReset, slots, taskLabel }: StaleAuxWarnin
   const names = slots.map(slot => taskLabel(slot.task)).join(', ')
 
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+    <div
+      className="flex flex-wrap items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200"
+      data-slot="model-stale-warning"
+    >
       <AlertTriangle className="size-3.5 shrink-0" />
       <span className="grow">
         {slots.length} auxiliary task{slots.length === 1 ? '' : 's'} ({names}) still run on{' '}
@@ -862,7 +865,7 @@ export function ModelSettings({ onMainModelChanged, scopeProfile }: ModelSetting
           <p className="mt-2 text-xs text-muted-foreground">
             {selectedProviderRow?.auth_type === 'api_key'
               ? `${selectedProviderRow?.name} needs an API key — set it up to choose a model.`
-              : `${selectedProviderRow?.name} signs in through your browser — Hermes runs the flow for you.`}
+              : `${selectedProviderRow?.name} signs in through your browser — My King runs the flow for you.`}
           </p>
         )}
         {config && mainModel && (reasoningSupported || fastSupported) && (
@@ -870,7 +873,7 @@ export function ModelSettings({ onMainModelChanged, scopeProfile }: ModelSetting
             <span className="text-xs text-muted-foreground">{m.defaultsLabel}</span>
             {reasoningSupported && (
               <div className="flex items-center gap-2 text-xs">
-                {m.reasoning}
+                <span data-slot="model-reasoning-label">{m.reasoning}</span>
                 <Select
                   onValueChange={value => void writeAgentDefault('agent.reasoning_effort', value)}
                   value={effortValue}

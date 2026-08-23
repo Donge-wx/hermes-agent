@@ -4,7 +4,7 @@ import { Check, ChevronRight, Terminal } from '@/lib/icons'
 import type { OAuthProvider } from '@/types/hermes'
 
 const PROVIDER_DISPLAY: Record<string, { order: number; title: string }> = {
-  nous: { order: 0, title: 'Nous Portal' },
+  nous: { order: 0, title: 'My King Portal' },
   'openai-codex': { order: 1, title: 'ChatGPT or Codex Subscription' },
   'minimax-oauth': { order: 2, title: 'MiniMax' },
   'qwen-oauth': { order: 3, title: 'Qwen Code' },
@@ -36,6 +36,7 @@ export function FeaturedProviderRow({
   return (
     <button
       className="group relative flex w-full items-center justify-between gap-4 rounded-[8px] bg-primary/[0.06] px-3 py-2.5 text-left transition-colors hover:bg-primary/10"
+      data-slot="onboarding-provider-featured"
       onClick={() => onSelect(provider)}
       type="button"
     >
@@ -79,7 +80,7 @@ const PROVIDER_ROW_CLASS =
 /** Quick-key row for API-key providers (Fireworks leads the expanded list after Nous, OpenRouter further down). */
 export function KeyProviderRow({ onClick, pitch, title }: { onClick: () => void; pitch: string; title: string }) {
   return (
-    <RowButton className={PROVIDER_ROW_CLASS} onClick={onClick}>
+    <RowButton className={PROVIDER_ROW_CLASS} data-slot="onboarding-provider-row" onClick={onClick}>
       <div className="min-w-0">
         <span className="text-[length:var(--conversation-text-font-size)] font-semibold">{title}</span>
         <p className="mt-1 text-xs leading-5 text-muted-foreground">{pitch}</p>
@@ -113,7 +114,7 @@ export function ProviderRow({
   const Trail = provider.flow === 'external' ? Terminal : ChevronRight
 
   return (
-    <RowButton className={PROVIDER_ROW_CLASS} onClick={() => onSelect(provider)}>
+    <RowButton className={PROVIDER_ROW_CLASS} data-slot="onboarding-provider-row" onClick={() => onSelect(provider)}>
       <div className="min-w-0">
         <div className="flex items-center gap-2">
           <span className="text-[length:var(--conversation-text-font-size)] font-semibold">

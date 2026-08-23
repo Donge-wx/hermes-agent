@@ -13,14 +13,16 @@ describe('normalizeHermesOpenString', () => {
     expect(normalizeHermesOpenString('#/index-network/intent/1')).toBe('/index-network/intent/1')
   })
 
-  it('maps plugin-scoped hermes:// deep links to the same path', () => {
+  it('maps My King links and legacy Hermes links to the same path', () => {
+    expect(normalizeHermesOpenString('myking://index-network/intent/1')).toBe('/index-network/intent/1')
     expect(normalizeHermesOpenString('hermes://index-network/intent/1')).toBe('/index-network/intent/1')
     expect(normalizeHermesOpenString('hermes://index-network/intent/1?focus=true')).toBe(
       '/index-network/intent/1?focus=true'
     )
   })
 
-  it('maps hermes://open/… deep links by stripping the open host', () => {
+  it('maps myking://open/… deep links by stripping the open host', () => {
+    expect(normalizeHermesOpenString('myking://open/index-network/intent/1')).toBe('/index-network/intent/1')
     expect(normalizeHermesOpenString('hermes://open/index-network/intent/1')).toBe('/index-network/intent/1')
     expect(normalizeHermesOpenString('hermes://open/settings/plugins')).toBe('/settings/plugins')
   })

@@ -221,6 +221,8 @@ pub(crate) fn resolve_hermes_desktop_exe(install_root: &std::path::Path) -> Opti
         ]
     } else if cfg!(target_os = "macos") {
         &[
+            ("mac/My King.app/Contents/MacOS", "Hermes"),
+            ("mac-arm64/My King.app/Contents/MacOS", "Hermes"),
             ("mac/Hermes.app/Contents/MacOS", "Hermes"),
             ("mac-arm64/Hermes.app/Contents/MacOS", "Hermes"),
         ]
@@ -240,7 +242,7 @@ pub(crate) fn resolve_hermes_desktop_app(install_root: &std::path::Path) -> Opti
     let exe = resolve_hermes_desktop_exe(install_root)?;
     #[cfg(target_os = "macos")]
     {
-        // .../Hermes.app/Contents/MacOS/Hermes -> .../Hermes.app
+        // .../<product>.app/Contents/MacOS/Hermes -> .../<product>.app
         let app = exe.parent()?.parent()?.parent()?.to_path_buf();
         if app.extension().and_then(|e| e.to_str()) == Some("app") && app.is_dir() {
             return Some(app);
@@ -1024,12 +1026,12 @@ mod tests {
         if cfg!(target_os = "macos") {
             let macos_dir = release
                 .join("mac-arm64")
-                .join("Hermes.app")
+                .join("My King.app")
                 .join("Contents")
                 .join("MacOS");
             std::fs::create_dir_all(&macos_dir).unwrap();
             std::fs::write(macos_dir.join("Hermes"), b"#!/bin/sh\n").unwrap();
-            macos_dir.parent().unwrap().parent().unwrap().to_path_buf() // .../Hermes.app
+            macos_dir.parent().unwrap().parent().unwrap().to_path_buf() // .../My King.app
         } else if cfg!(target_os = "windows") {
             let dir = release.join("win-unpacked");
             std::fs::create_dir_all(&dir).unwrap();

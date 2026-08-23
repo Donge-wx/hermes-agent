@@ -283,7 +283,6 @@ export async function waitForHermesReady(baseUrl: string, options: HermesReadyOp
   }
 
   const detail = lastError instanceof Error ? lastError.message : 'timeout'
-
   // When a Nous-managed cloud agent returns a server-side HTTP error
   // (502/503/504), the backend server itself is down — the user cannot
   // restart it and the generic "did not become ready" message is opaque.
@@ -296,5 +295,5 @@ export async function waitForHermesReady(baseUrl: string, options: HermesReadyOp
     throw cloudError
   }
 
-  throw new Error(`Hermes backend did not become ready: ${detail}`)
+  throw new Error(`My King backend did not become ready: ${detail}`)
 }

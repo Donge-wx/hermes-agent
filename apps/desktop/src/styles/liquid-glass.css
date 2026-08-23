@@ -1,0 +1,16 @@
+/* Apple 26-inspired optical system for the built-in Liquid Glass theme.
+   Responsibilities stay split so tokens, shell, controls, overlays, content,
+   and adaptive fallbacks can be reviewed independently. */
+
+@import './liquid-glass/tokens.css';
+@import './liquid-glass/shell.css';
+@import './liquid-glass/controls.css';
+@import './liquid-glass/widgets.css';
+@import './liquid-glass/overlays.css';
+@import './liquid-glass/content.css';
+@import './liquid-glass/transcript.css';
+@import './liquid-glass/scale.css';
+@import './liquid-glass/scale-content.css';
+@import './liquid-glass/chrome-islands.css';
+@import './liquid-glass/system-islands.css';
+@import './liquid-glass/accessibility.css';

@@ -1,0 +1,149 @@
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='checkbox'] {
+  border-color: var(--lg-rim-strong);
+  border-radius: var(--lg-radius-micro);
+  background: color-mix(in srgb, var(--lg-glass-raised) 88%, var(--lg-silver-200));
+  color: var(--lg-white);
+  box-shadow: var(--lg-shadow-checkbox);
+  transition:
+    transform var(--lg-duration-state) var(--lg-ease-out),
+    border-color var(--lg-duration-fast) var(--lg-ease-out),
+    background-color var(--lg-duration-fast) var(--lg-ease-out),
+    box-shadow var(--lg-duration-state) var(--lg-ease-out);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='checkbox']:hover {
+  border-color: color-mix(in srgb, var(--lg-blue) 54%, var(--lg-rim-strong));
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='checkbox']:is([data-state='checked'], [data-state='indeterminate']) {
+  border-color: color-mix(in srgb, var(--lg-blue) 82%, var(--lg-steel-800));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--lg-white) 12%, var(--lg-blue)), var(--lg-blue));
+  box-shadow: var(--lg-shadow-checkbox-checked);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='tabs-list'] {
+  border: var(--lg-stroke-hairline) solid var(--lg-rim-outer);
+  border-radius: var(--lg-radius-pill);
+  background: color-mix(in srgb, var(--lg-glass-chrome) 88%, var(--lg-silver-200));
+  box-shadow: var(--lg-shadow-tabs);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='tabs-trigger'] {
+  border: var(--lg-stroke-hairline) solid transparent;
+  border-radius: var(--lg-radius-pill);
+  color: var(--lg-ink-tertiary);
+  transition:
+    color var(--lg-duration-fast) var(--lg-ease-out),
+    background-color var(--lg-duration-fast) var(--lg-ease-out),
+    border-color var(--lg-duration-fast) var(--lg-ease-out),
+    box-shadow var(--lg-duration-state) var(--lg-ease-out);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='tabs-trigger']:not([data-state='active']):hover {
+  background: var(--lg-hover-wash);
+  color: var(--lg-ink);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='tabs-trigger'][data-state='active'] {
+  border-color: color-mix(in srgb, var(--lg-rim-outer) 76%, transparent);
+  background: var(--lg-glass-raised);
+  color: var(--lg-ink);
+  box-shadow: var(--lg-shadow-contact);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='command'] {
+  background: transparent;
+  color: var(--lg-ink);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='command-input-wrapper'] {
+  border-color: color-mix(in srgb, var(--lg-rim-outer) 76%, transparent);
+  background: color-mix(in srgb, var(--lg-white) 22%, transparent);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='command-item'] {
+  border-radius: var(--lg-radius-micro);
+  color: var(--lg-ink-secondary);
+  transition:
+    color var(--lg-duration-fast) var(--lg-ease-out),
+    background-color var(--lg-duration-fast) var(--lg-ease-out);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='command-item'][data-selected='true'] {
+  background: var(--lg-selected-wash-strong);
+  color: var(--lg-ink);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  :is([data-slot='command-separator'], [data-slot='separator']) {
+  background: color-mix(in srgb, var(--lg-rim-outer) 72%, transparent);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='progress'] {
+  background: color-mix(in srgb, var(--lg-silver-300) 84%, transparent);
+  box-shadow: var(--lg-shadow-progress);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='badge'] {
+  border-radius: var(--lg-radius-micro);
+  box-shadow: var(--lg-shadow-badge);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='kbd'] {
+  border-color: var(--lg-rim-outer);
+  background: var(--lg-glass-raised);
+  color: var(--lg-ink-secondary);
+  box-shadow: var(--lg-shadow-contact);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='scroll-area-thumb'] {
+  background: color-mix(in srgb, var(--lg-rim-strong) 72%, transparent);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='skeleton'] {
+  background: color-mix(in srgb, var(--lg-blue-soft) 38%, var(--lg-silver-200));
+}
+
+/* Newly introduced connector consent cards inherit transcript semantics but
+   need the same touch geometry as the rest of the My King control system. */
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='connector-card'][data-state='offer'] {
+  border-radius: var(--lg-radius-panel);
+  background:
+    linear-gradient(124deg, color-mix(in srgb, var(--lg-white) 46%, transparent), transparent 56%),
+    var(--lg-glass-raised);
+  box-shadow: var(--lg-shadow-contact);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='connector-card-title'] {
+  color: var(--lg-ink);
+  font-size: var(--lg-type-body);
+  font-weight: 600;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='connector-card-meta'] {
+  color: var(--lg-ink-tertiary);
+  font-size: var(--lg-type-caption);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='connector-card-actions'] {
+  gap: var(--lg-space-sm);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='connector-card-primary-shell'] {
+  height: var(--lg-size-control-compact);
+  border-color: color-mix(in srgb, var(--lg-blue) 18%, var(--lg-rim-outer));
+  border-radius: var(--lg-radius-pill);
+  background: color-mix(in srgb, var(--lg-blue) 10%, var(--lg-glass-raised));
+  box-shadow: var(--lg-shadow-contact);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='connector-card-actions']
+  button[data-connector-action] {
+  min-height: var(--lg-size-control-compact);
+  padding-inline: var(--lg-space-xl);
+  border-radius: var(--lg-radius-pill);
+  font-size: var(--lg-type-caption);
+}

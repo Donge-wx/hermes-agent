@@ -76,6 +76,7 @@ export function Loader({
     let frame = 0
     const startedAt = performance.now()
     const phaseOffset = Math.random()
+    const motionEnabled = !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
     particleRefs.current.length = CURVE.particleCount
 
     const render = (now: number) => {
@@ -97,7 +98,9 @@ export function Loader({
         node.setAttribute('opacity', p.opacity.toFixed(3))
       })
 
-      frame = window.requestAnimationFrame(render)
+      if (motionEnabled) {
+        frame = window.requestAnimationFrame(render)
+      }
     }
 
     render(performance.now())

@@ -33,7 +33,7 @@ export interface VoiceMenuProps {
 
 /**
  * Every voice control behind one trigger: dictation, spoken replies, the
- * "hey hermes" wake word, and starting a full conversation.
+ * the configured wake word, and starting a full conversation.
  *
  * The bar carried four separate icon buttons — mic, speaker, ear, and the
  * voice-conversation primary — which is most of a Spotlight-width composer
@@ -59,7 +59,6 @@ export function VoiceMenu({
   const c = t.composer
   const wake = useStore($wakeWord)
 
-  const phrase = wake.phrase || 'hey hermes'
   const dictating = state.voice.active || voiceStatus !== 'idle'
   const wakeListening = wake.listening
   // Anything live keeps the trigger lit, so a folded menu can never look idle
@@ -73,7 +72,7 @@ export function VoiceMenu({
         ? c.transcribingDictation
         : c.voiceDictation
 
-  const wakeLabel = wakeListening ? c.wakeWordListening(phrase) : c.wakeWordOff(phrase)
+  const wakeLabel = wakeListening ? c.wakeWordListening() : c.wakeWordOff()
   const triggerLabel = dictating ? dictationLabel : wakeListening ? wakeLabel : c.voiceControls
 
   return (

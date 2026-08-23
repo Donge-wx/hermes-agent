@@ -1,26 +1,28 @@
+import '@/styles/boot.css'
+
 import { useStore } from '@nanostores/react'
 import { useEffect, useRef, useState } from 'react'
 
-import { DecodeText } from '@/components/ui/decode-text'
+import { Loader } from '@/components/ui/loader'
 import { prefersReducedMotion } from '@/hooks/use-media-query'
+import { BRAND, brandAssetPath } from '@/lib/brand'
 import { cn } from '@/lib/utils'
 import { $desktopBoot } from '@/store/boot'
 import { $gatewaySwitching } from '@/store/gateway-switch'
 import { $gatewayState } from '@/store/session'
 
-// Decode mechanics live in the shared <DecodeText> primitive
-// (components/ui/decode-text.tsx). "CONN" stays legible via prefix={4}.
-const TEXT = 'CONNECTING'
-
-// Exit choreography (ms): text fades down + out, hold, then the overlay fades.
-const TEXT_OUT_MS = 360
-const POST_TEXT_HOLD_MS = 300
+// Exit choreography (ms): stage fades down + out, hold, then the overlay fades.
+const STAGE_OUT_MS = 360
+const POST_STAGE_HOLD_MS = 300
 const OVERLAY_OUT_MS = 520
 // Preview-only: how long to "connect" for, and the pause before replaying.
 const PREVIEW_CONNECT_MS = 2600
 const PREVIEW_REPLAY_MS = 1100
+const BOOT_STATUS_ID = 'my-king-boot-status'
+const BOOT_LOCKUP_WIDTH = 2048
+const BOOT_LOCKUP_HEIGHT = 768
 
-type Phase = 'live' | 'text-out' | 'overlay-out' | 'gone'
+type Phase = 'live' | 'stage-out' | 'overlay-out' | 'gone'
 
 // Dev affordance: a warm Cmd+R reconnects almost instantly, so the overlay
 // only flashes. Load with `?connecting=1` to force a looping preview.
@@ -42,7 +44,7 @@ export function GatewayConnectingOverlay() {
   const gatewaySwitching = useStore($gatewaySwitching)
   const [previewing] = useState(forcedPreview)
   const reduce = prefersReducedMotion()
-  // Under reduced motion, skip the multi-phase exit choreography (text-out →
+  // Under reduced motion, skip the multi-phase exit choreography (stage-out →
   // hold → overlay fade) and jump straight to gone so the overlay unmounts
   // the instant the gateway opens. E2E screenshots rely on this to avoid
   // catching the overlay mid-fade.
@@ -81,24 +83,24 @@ export function GatewayConnectingOverlay() {
     }
 
     if (previewing) {
-      const id = window.setTimeout(() => setPhase('text-out'), PREVIEW_CONNECT_MS)
+      const id = window.setTimeout(() => setPhase('stage-out'), PREVIEW_CONNECT_MS)
 
       return () => window.clearTimeout(id)
     }
 
     if (gatewayState === 'open' && shownRef.current) {
       // Under reduced motion, skip the multi-phase exit choreography
-      // (text-out → hold → overlay fade) and jump straight to gone so the
+      // (stage-out → hold → overlay fade) and jump straight to gone so the
       // overlay unmounts the instant the gateway opens. E2E screenshots
       // rely on this to avoid catching the overlay mid-fade.
-      setPhase(reduce ? 'gone' : 'text-out')
+      setPhase(reduce ? 'gone' : 'stage-out')
     }
   }, [phase, previewing, gatewayState, reduce])
 
-  // Advance the exit choreography: text-out -> overlay-out -> gone.
+  // Advance the exit choreography: stage-out -> overlay-out -> gone.
   useEffect(() => {
-    if (phase === 'text-out') {
-      const id = window.setTimeout(() => setPhase('overlay-out'), TEXT_OUT_MS + POST_TEXT_HOLD_MS)
+    if (phase === 'stage-out') {
+      const id = window.setTimeout(() => setPhase('overlay-out'), STAGE_OUT_MS + POST_STAGE_HOLD_MS)
 
       return () => window.clearTimeout(id)
     }
@@ -134,28 +136,55 @@ export function GatewayConnectingOverlay() {
 
   const leaving = phase !== 'live'
   const overlayHidden = phase === 'overlay-out' || phase === 'gone'
+  const progress = Math.max(0, Math.min(100, Math.round(boot.progress)))
 
   return (
     <div
       className={cn(
-        'fixed inset-0 z-(--z-connecting) grid place-items-center bg-(--ui-chat-surface-background) transition-opacity duration-500 ease-out',
+        'gateway-boot fixed inset-0 z-(--z-connecting) grid place-items-center',
         overlayHidden ? 'pointer-events-none opacity-0' : 'opacity-100'
       )}
       // Masks the whole app while booting — must stay filled under window
       // glass or the shell shows through. Contract: `[data-glass-opaque]`
       // in styles.css.
       data-glass-opaque=""
+      data-slot="gateway-boot-overlay"
     >
-      <DecodeText
-        active={phase === 'live' && (previewing || connecting)}
-        className={cn(
-          'pl-[0.4em] text-(--theme-primary) transition duration-300 ease-out',
-          leaving ? 'translate-y-2 opacity-0 saturate-0' : 'translate-y-0 opacity-100 saturate-100'
-        )}
-        cursor
-        prefix={4}
-        text={TEXT}
-      />
+      <div className="gateway-boot__stage" data-leaving={leaving || undefined} data-slot="gateway-boot-stage">
+        <img
+          alt={BRAND.accessibleName}
+          className="gateway-boot__lockup"
+          decoding="sync"
+          fetchPriority="high"
+          height={BOOT_LOCKUP_HEIGHT}
+          src={brandAssetPath(BRAND.lockupPath)}
+          width={BOOT_LOCKUP_WIDTH}
+        />
+
+        <Loader aria-hidden className="gateway-boot__loader" role="presentation" type="lemniscate-bloom" />
+
+        <div className="gateway-boot__copy">
+          <div className="gateway-boot__status-row">
+            <p aria-live="polite" className="gateway-boot__message" id={BOOT_STATUS_ID}>
+              {boot.message}
+            </p>
+            <span aria-hidden className="gateway-boot__percentage">
+              {progress}%
+            </span>
+          </div>
+
+          <div
+            aria-labelledby={BOOT_STATUS_ID}
+            aria-valuemax={100}
+            aria-valuemin={0}
+            aria-valuenow={progress}
+            className="gateway-boot__progress"
+            role="progressbar"
+          >
+            <span className="gateway-boot__progress-fill" style={{ transform: `scaleX(${progress / 100})` }} />
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

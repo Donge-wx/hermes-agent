@@ -1,11 +1,12 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 
+import type { DesktopBootState } from '@/store/boot'
 import { $desktopOnboarding, type DesktopOnboardingState, type OnboardingContext } from '@/store/onboarding'
 import { makeOAuthProvider } from '@/test/oauth-provider'
 import type { OAuthProvider } from '@/types/hermes'
 
-import { Picker } from '.'
+import { DesktopOnboardingOverlay, Picker, Preparing } from '.'
 
 function setProviders(providers: OAuthProvider[]) {
   $desktopOnboarding.set({
@@ -46,11 +47,11 @@ afterEach(() => {
 })
 
 describe('onboarding Picker', () => {
-  it('features Nous Portal and hides other providers behind a disclosure', () => {
+  it('features My King Portal and hides other providers behind a disclosure', () => {
     setProviders([makeOAuthProvider('anthropic', 'Anthropic Claude'), makeOAuthProvider('nous', 'Nous Portal')])
     render(<Picker ctx={ctx} />)
 
-    expect(screen.getByText('Nous Portal')).toBeTruthy()
+    expect(screen.getByText('My King Portal')).toBeTruthy()
     expect(screen.getByText('Recommended')).toBeTruthy()
     // Fireworks stays behind the disclosure with the other alternatives; only
     // Nous Portal is visible before the user expands the list.
@@ -76,11 +77,11 @@ describe('onboarding Picker', () => {
     const labels = screen
       .getAllByRole('button')
       .map(el => el.textContent ?? '')
-      .filter(text => /Nous Portal|Fireworks AI|ChatGPT or Codex|MiniMax|OpenRouter/.test(text))
+      .filter(text => /My King Portal|Fireworks AI|ChatGPT or Codex|MiniMax|OpenRouter/.test(text))
 
     const indexOf = (needle: string) => labels.findIndex(text => text.includes(needle))
-    expect(indexOf('Nous Portal')).toBeGreaterThanOrEqual(0)
-    expect(indexOf('Fireworks AI')).toBeGreaterThan(indexOf('Nous Portal'))
+    expect(indexOf('My King Portal')).toBeGreaterThanOrEqual(0)
+    expect(indexOf('Fireworks AI')).toBeGreaterThan(indexOf('My King Portal'))
     expect(indexOf('ChatGPT or Codex')).toBeGreaterThan(indexOf('Fireworks AI'))
     expect(indexOf('MiniMax')).toBeGreaterThan(indexOf('ChatGPT or Codex'))
   })
@@ -117,5 +118,39 @@ describe('onboarding Picker', () => {
     render(<Picker ctx={ctx} />)
 
     expect(screen.queryByRole('button', { name: "I'll choose a provider later" })).toBeNull()
+  })
+})
+
+describe('onboarding boot progress', () => {
+  it('uses the branded onboarding shell for the pre-gateway and error fallback', () => {
+    render(<DesktopOnboardingOverlay enabled={false} profile="" requestGateway={async () => undefined as never} />)
+
+    expect(document.querySelector('[data-slot="onboarding-overlay"]')).toBeTruthy()
+    expect(document.querySelector('[data-slot="onboarding-surface"]')).toBeTruthy()
+    expect(document.querySelector('[data-slot="onboarding-header"]')).toBeTruthy()
+    expect(document.querySelector('[data-slot="onboarding-preparing"]')).toBeTruthy()
+    expect(screen.getByRole('img', { name: 'My King — AI WROK OS' })).toBeTruthy()
+  })
+
+  it('brands public boot copy while preserving the internal connection protocol', () => {
+    const boot = {
+      error: "Error invoking remote method 'hermes:connection': Failed to connect to Hermes backend",
+      fakeMode: false,
+      message: 'Resolving Hermes backend',
+      phase: 'renderer.error',
+      progress: 8,
+      running: false,
+      timestamp: Date.now(),
+      visible: true
+    } satisfies DesktopBootState
+
+    render(<Preparing boot={boot} />)
+
+    expect(boot.error).toContain('hermes:connection')
+    expect(screen.getByText('Resolving My King backend')).toBeTruthy()
+    expect(screen.getByText(/My King connection/).textContent).toContain('My King backend')
+    expect(screen.queryByText(/hermes:connection/)).toBeNull()
+    expect(screen.queryByText(/Hermes backend/)).toBeNull()
+    expect(document.querySelector('[data-slot="onboarding-preparing-error"]')).toBeTruthy()
   })
 })

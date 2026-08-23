@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { $desktopBoot } from '@/store/boot'
 import { $desktopOnboarding } from '@/store/onboarding'
+import { makeOAuthProvider } from '@/test/oauth-provider'
 
 import { BootFailureOverlay } from './boot-failure-overlay'
 
@@ -65,6 +66,38 @@ beforeEach(() => {
 afterEach(cleanup)
 
 describe('BootFailureOverlay', () => {
+  it('shows only the My King brand in visible boot errors while retaining the raw store error', () => {
+    // Given a raw compatibility error from the backend.
+    $desktopBoot.set({
+      ...$desktopBoot.get(),
+      error: 'Failed to connect to Hermes backend via hermes:connection'
+    })
+
+    // When the recovery overlay renders the error.
+    render(<BootFailureOverlay />)
+
+    // Then the display boundary removes legacy branding without mutating diagnostics state.
+    expect(screen.getByText(/Failed to connect to My King backend/)).toBeTruthy()
+    expect(screen.getByText(/My King connection/)).toBeTruthy()
+    expect(screen.queryByText(/hermes:connection/i)).toBeNull()
+    expect(screen.queryByText(/Hermes backend/)).toBeNull()
+    expect($desktopBoot.get().error).toContain('hermes:connection')
+  })
+
+  it('leaves active onboarding in control of its own recovery surface', () => {
+    $desktopBoot.set({ ...$desktopBoot.get(), running: true })
+    $desktopOnboarding.set({
+      ...$desktopOnboarding.get(),
+      configured: false,
+      flow: { status: 'starting', provider: makeOAuthProvider('nous', 'Nous Portal') }
+    })
+
+    render(<BootFailureOverlay />)
+
+    expect(screen.queryByRole('button', { name: /retry/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /repair/i })).toBeNull()
+  })
+
   it('swaps to the in-place gateway settings view (no route nav) and back', async () => {
     render(<BootFailureOverlay />)
 

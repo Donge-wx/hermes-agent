@@ -456,6 +456,7 @@ function AddProfileButton({ label, onClick }: { label: string; onClick: () => vo
       <button
         aria-label={label}
         className="grid size-5 shrink-0 place-items-center rounded-[3px] text-(--ui-text-tertiary) opacity-55 transition hover:bg-(--ui-control-hover-background) hover:text-foreground hover:opacity-100"
+        data-profile-rail-action="utility"
         onClick={onClick}
         type="button"
       >
@@ -474,6 +475,7 @@ function ImportProfileButton({ label }: { label: string }) {
       <button
         aria-label={label}
         className="grid size-5 shrink-0 place-items-center rounded-[3px] text-(--ui-text-tertiary) opacity-55 transition hover:bg-(--ui-control-hover-background) hover:text-foreground hover:opacity-100"
+        data-profile-rail-action="utility"
         onClick={() => void runImportProfileFlow()}
         type="button"
       >
@@ -697,6 +699,7 @@ function ProfileSquare({
                       active ? 'opacity-100' : 'opacity-55',
                       isDragging && 'z-10 cursor-grabbing opacity-100'
                     )}
+                    data-profile-rail-action="identity"
                     ref={setNodeRef}
                     style={{
                       backgroundColor: profileColorSoft(hue, active ? 30 : 22),

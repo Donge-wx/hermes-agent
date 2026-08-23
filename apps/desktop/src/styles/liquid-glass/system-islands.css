@@ -1,0 +1,79 @@
+/* Titlebar and statusbar islands. The existing controls and status models are
+   untouched; this file only groups their rendered chrome. */
+
+/* The titlebar already owns the window-wide glass plane. Tool clusters sit
+   directly on that material so the chrome never becomes glass-on-glass. */
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] .titlebar-tool-island {
+  box-sizing: border-box;
+  min-height: var(--lg-size-toolbar-island);
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  .titlebar-tool-island
+  .titlebar-icon-button {
+  background: none;
+  box-shadow: none;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] .titlebar-tool-island .titlebar-icon-button:hover {
+  background:
+    radial-gradient(100% 120% at 18% 0%, color-mix(in srgb, var(--lg-white) 82%, transparent), transparent 68%),
+    var(--lg-glass-raised);
+  box-shadow: var(--lg-shadow-contact);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  .titlebar-tool-island
+  .titlebar-icon-button[aria-pressed='true'] {
+  background: none;
+  box-shadow: none;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  .titlebar-tool-island
+  .titlebar-icon-button:active:not(:disabled) {
+  background: var(--lg-selected-wash);
+  box-shadow: var(--lg-shadow-ghost-active);
+}
+
+/* Statusbar contents become two quiet identity islands. The last item in the
+   right cluster is always the client/backend version status by construction. */
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='statusbar'] > div {
+  min-height: var(--lg-size-status-pill);
+  align-self: center;
+  align-items: center;
+  border-radius: var(--lg-radius-pill);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--lg-white) 52%, transparent), transparent), var(--lg-glass-island);
+  box-shadow: var(--lg-shadow-island);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='statusbar'] > div > :is(button, a, div) {
+  min-height: var(--lg-size-status-pill);
+  border-radius: var(--lg-radius-pill);
+  padding-inline: var(--lg-space-md);
+  font-size: var(--lg-type-micro);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='statusbar']
+  > div:last-child
+  > :last-child {
+  background:
+    radial-gradient(120% 160% at 12% -60%, color-mix(in srgb, var(--lg-white) 86%, transparent), transparent 68%),
+    var(--lg-selected-wash);
+  color: var(--lg-blue-hover);
+  box-shadow: var(--lg-shadow-profile-action);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] .titlebar-tool-island {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}

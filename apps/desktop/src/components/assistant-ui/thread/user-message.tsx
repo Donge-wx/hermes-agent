@@ -418,6 +418,7 @@ export const UserMessage: FC<{
     <div
       className={cn(clampActive && 'sticky-human-clamp')}
       data-clamped={clampActive && bodyClamped ? 'true' : undefined}
+      data-slot="aui_user-message-content"
     >
       {/* Match the edit composer's collapsed line box (min-h-[1.25rem]) so
           clicking to edit can't grow the bubble by a sub-pixel and reflow the

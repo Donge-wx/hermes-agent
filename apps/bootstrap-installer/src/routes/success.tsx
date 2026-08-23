@@ -1,8 +1,9 @@
 import { AlertCircle } from 'lucide-react'
 import { useState } from 'react'
-import { type CSSProperties } from 'react'
 
+import { BrandLockup } from '../components/brand-mark'
 import { HackeryButton } from '../components/hackery-button'
+import { copy } from '../i18n'
 import { launchHermesDesktop } from '../store'
 
 /*
@@ -37,31 +38,22 @@ export default function Success() {
   return (
     <div className="hermes-fade-in flex h-full flex-col items-center justify-center gap-8 px-12 py-10">
       <div className="w-full max-w-2xl min-w-0 text-center">
-        <p
-          className="fit-text mx-auto mb-4 w-full font-['Collapse'] font-bold uppercase leading-[0.9] tracking-[0.08em] text-midground mix-blend-plus-lighter dark:text-foreground/90"
-          style={
-            {
-              '--fit-text-line-height': '0.9',
-              '--fit-text-max': '5rem',
-              '--fit-text-min': '2.25rem'
-            } as CSSProperties
-          }
-        >
-          <span>
-            <span>Hermes is ready</span>
-          </span>
-          <span aria-hidden="true">Hermes is ready</span>
-        </p>
+        <BrandLockup className="mx-auto mb-6 max-w-xl" />
+
+        <h1 className="mb-4 text-3xl font-semibold tracking-tight text-foreground">{copy.success.title}</h1>
 
         <p className="m-0 text-center text-base leading-normal tracking-tight text-muted-foreground">
-          You can launch from here, or any time from your terminal with{' '}
-          <code className="font-mono text-sm text-foreground/80">hermes desktop</code>.
+          {copy.success.description}{' '}
+          <code className="font-mono text-sm text-foreground/80" title={copy.success.compatibility}>
+            hermes desktop
+          </code>
+          。
         </p>
       </div>
 
       <HackeryButton
         disabled={launching}
-        label={launching ? 'Launching' : 'Launch'}
+        label={launching ? copy.success.launching : copy.success.launch}
         loading={launching}
         onClick={() => void handleLaunch()}
       />
@@ -70,7 +62,7 @@ export default function Success() {
         <div className="flex max-w-2xl items-start gap-2 text-sm" role="alert">
           <AlertCircle className="mt-0.5 shrink-0 text-destructive" size={16} />
           <div className="min-w-0">
-            <div className="font-medium text-destructive">Couldn&rsquo;t launch the desktop app</div>
+            <div className="font-medium text-destructive">{copy.success.failed}</div>
             <div className="mt-0.5 text-muted-foreground">{error}</div>
           </div>
         </div>

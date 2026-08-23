@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="plate" x1="120" y1="60" x2="900" y2="980" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="0.42" stop-color="#F4F8FF"/>
+      <stop offset="0.72" stop-color="#EEF5FF"/>
+      <stop offset="1" stop-color="#E8ECFF"/>
+    </linearGradient>
+    <radialGradient id="auraA" cx="0" cy="0" r="1" gradientTransform="translate(224 190) rotate(42) scale(610)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#B79CFF" stop-opacity="0.44"/>
+      <stop offset="1" stop-color="#B79CFF" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="auraB" cx="0" cy="0" r="1" gradientTransform="translate(806 750) rotate(-138) scale(600)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4DE6E2" stop-opacity="0.32"/>
+      <stop offset="1" stop-color="#4DE6E2" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="auraC" cx="0" cy="0" r="1" gradientTransform="translate(790 234) rotate(133) scale(520)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4DA4FF" stop-opacity="0.3"/>
+      <stop offset="1" stop-color="#4DA4FF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="rim" x1="160" y1="110" x2="868" y2="920" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF" stop-opacity="0.96"/>
+      <stop offset="0.48" stop-color="#DCEBFF" stop-opacity="0.72"/>
+      <stop offset="1" stop-color="#A9B5E9" stop-opacity="0.52"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="170%">
+      <feDropShadow dx="0" dy="34" stdDeviation="36" flood-color="#263E78" flood-opacity="0.22"/>
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#FFFFFF" flood-opacity="0.65"/>
+    </filter>
+  </defs>
+  <rect x="72" y="52" width="880" height="880" rx="224" fill="url(#plate)" filter="url(#shadow)"/>
+  <rect x="72" y="52" width="880" height="880" rx="224" fill="url(#auraA)"/>
+  <rect x="72" y="52" width="880" height="880" rx="224" fill="url(#auraB)"/>
+  <rect x="72" y="52" width="880" height="880" rx="224" fill="url(#auraC)"/>
+  <rect x="73.5" y="53.5" width="877" height="877" rx="222.5" fill="none" stroke="url(#rim)" stroke-width="3"/>
+  <path d="M176 168C254 98 378 76 512 76c208 0 352 72 424 196" fill="none" stroke="#FFFFFF" stroke-opacity="0.58" stroke-width="9" stroke-linecap="round"/>
+</svg>

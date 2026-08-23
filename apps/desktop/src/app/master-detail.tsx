@@ -50,7 +50,7 @@ export function ToolChip({ children, title }: { children: ReactNode; title?: str
 // (the MCP tab's cursor-driven layout) but must stay in step.
 // `--md-split` is the drag override slot: unset it falls back to the declared
 // track, so grids without a resize sash render exactly as before.
-export const MASTER_DETAIL_WIDE_COLS = 'sm:grid-cols-[minmax(0,var(--md-split,0.75fr))_minmax(0,1fr)]'
+export const MASTER_DETAIL_WIDE_COLS = 'md:grid-cols-[minmax(0,var(--md-split,0.75fr))_minmax(0,1fr)]'
 
 // Column-seam drag clamps: the rail can't shrink below a readable row, the
 // detail keeps enough room for its centered column.
@@ -117,8 +117,8 @@ export function MasterDetail({
     <div className="flex h-full min-h-0 flex-col">
       <div
         className={cn(
-          'grid min-h-0 flex-1 grid-cols-1',
-          split === 'wide' ? MASTER_DETAIL_WIDE_COLS : 'sm:grid-cols-[14rem_minmax(0,1fr)]'
+          'grid min-h-0 flex-1 grid-cols-1 grid-rows-[minmax(10rem,0.42fr)_minmax(0,1fr)] md:grid-rows-1',
+          split === 'wide' ? MASTER_DETAIL_WIDE_COLS : 'md:grid-cols-[14rem_minmax(0,1fr)]'
         )}
         ref={gridRef}
         style={override !== undefined ? ({ '--md-split': `${override}px` } as CSSProperties) : undefined}
@@ -128,7 +128,7 @@ export function MasterDetail({
             {list}
             <div className="relative grid min-h-0 min-w-0">
               <div
-                className="group/vsash absolute inset-y-0 left-0 z-10 hidden w-1 -translate-x-1/2 cursor-col-resize sm:block"
+                className="group/vsash absolute inset-y-0 left-0 z-10 hidden w-1 -translate-x-1/2 cursor-col-resize md:block"
                 onDoubleClick={() => setPaneWidthOverride(resizeId, undefined)}
                 onPointerDown={startSplitDrag}
               >

@@ -1686,6 +1686,26 @@ body.guest-pointer-lock :is(webview, iframe) {
      than the same dim over a dark one. Pairs with a grayscale pass on the same
      element — one treatment for the whole pane, not per-part tuning. */
   --chat-unfocused-opacity: 0.62;
+  --brand-backdrop-opacity: 0.35;
+  --brand-backdrop-symbol-inline-offset: -8vw;
+  --brand-backdrop-symbol-block-offset: -18vh;
+  --brand-backdrop-symbol-width: min(54rem, 72vw);
+  --brand-backdrop-symbol-rotation: -6deg;
+  --brand-backdrop-symbol-opacity: 0.075;
+  --brand-backdrop-symbol-saturation: 1.25;
+}
+
+[data-slot='app-backdrop'] {
+  opacity: var(--brand-backdrop-opacity);
+}
+
+[data-slot='app-backdrop-symbol'] {
+  right: var(--brand-backdrop-symbol-inline-offset);
+  bottom: var(--brand-backdrop-symbol-block-offset);
+  width: var(--brand-backdrop-symbol-width);
+  opacity: var(--brand-backdrop-symbol-opacity);
+  filter: saturate(var(--brand-backdrop-symbol-saturation));
+  transform: rotate(var(--brand-backdrop-symbol-rotation));
 }
 
 .dark {

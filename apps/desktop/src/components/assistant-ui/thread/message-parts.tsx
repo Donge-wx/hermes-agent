@@ -205,7 +205,9 @@ const ThinkingDisclosure: FC<{
     <div
       className="text-[length:var(--conversation-tool-font-size)] text-(--ui-text-tertiary)"
       data-conversation-scaffold=""
+      data-open={open ? 'true' : 'false'}
       data-slot="aui_thinking-disclosure"
+      data-state={pending ? 'active' : 'settled'}
       ref={enterRef}
     >
       <ScaffoldRow

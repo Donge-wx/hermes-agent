@@ -35,6 +35,7 @@ export function SegmentedControl<T extends string>({
         disabled && 'opacity-50',
         className
       )}
+      data-slot="segmented-control"
     >
       {options.map(({ id, label, icon: Icon }) => {
         const active = value === id
@@ -46,6 +47,7 @@ export function SegmentedControl<T extends string>({
               'flex items-center justify-center gap-1 rounded-[3px] px-2.5 py-0.5 text-[0.6875rem] font-medium transition-colors disabled:cursor-default',
               active ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
             )}
+            data-slot="segmented-control-option"
             disabled={disabled}
             key={id}
             onClick={() => onChange(id)}

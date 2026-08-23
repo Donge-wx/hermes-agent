@@ -24,8 +24,10 @@ export default function App() {
   }, [])
 
   return (
-    <div className="relative flex h-full flex-col overflow-hidden bg-background text-foreground">
-      <main className="relative z-10 flex flex-1 flex-col overflow-hidden">
+    <div className="installer-canvas relative flex h-full flex-col overflow-hidden bg-background text-foreground">
+      <div aria-hidden="true" className="installer-orb installer-orb-left" />
+      <div aria-hidden="true" className="installer-orb installer-orb-right" />
+      <main className="installer-stage relative z-10 m-5 flex flex-1 flex-col overflow-hidden">
         {route === 'welcome' && <Welcome />}
         {route === 'progress' && <Progress bootstrap={bootstrap} />}
         {route === 'success' && <Success />}

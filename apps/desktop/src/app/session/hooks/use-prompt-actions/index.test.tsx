@@ -560,7 +560,9 @@ describe('usePromptActions /wake', () => {
     expect(requestGateway).not.toHaveBeenCalledWith('slash.exec', expect.anything())
     expect(requestGateway).not.toHaveBeenCalledWith('command.dispatch', expect.anything())
     expect($wakeWord.get()).toMatchObject({ available: true, enabled: true, listening: true })
-    expect(renderedSeedTexts(seeds).join('\n')).toContain('Input: Microphone Array (Windows WASAPI)')
+    const output = renderedSeedTexts(seeds).join('\n')
+    expect(output).toContain('Input: Microphone Array (Windows WASAPI)')
+    expect(output).not.toMatch(/hermes/i)
   })
 
   it('uses gateway truth for a bare toggle and stops through wake.stop', async () => {

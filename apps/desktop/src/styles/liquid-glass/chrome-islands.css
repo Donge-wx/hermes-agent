@@ -1,0 +1,285 @@
+/* My King shell islands: one material per functional cluster. Geometry and
+   optical recipes come from tokens.css; existing controls keep their handlers. */
+
+/* The primary destinations share one navigation well rather than five cards. */
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='sidebar-content']
+  > [data-slot='sidebar-group']:first-child
+  > [data-slot='sidebar-group-content'] {
+  border-radius: var(--lg-radius-panel);
+  padding: var(--lg-space-xs);
+  background:
+    radial-gradient(120% 72% at 4% -12%, color-mix(in srgb, var(--lg-white) 78%, transparent), transparent 68%),
+    linear-gradient(112deg, color-mix(in srgb, var(--lg-white) 26%, transparent), transparent 58%),
+    var(--lg-glass-navigation-well);
+  box-shadow: var(--lg-shadow-navigation-well);
+  backdrop-filter: blur(var(--lg-blur-raised)) saturate(1.18);
+  -webkit-backdrop-filter: blur(var(--lg-blur-raised)) saturate(1.18);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='sidebar-content']
+  > [data-slot='sidebar-group']:first-child
+  [data-slot='sidebar-menu'] {
+  gap: var(--lg-space-3xs);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='sidebar-content']
+  > [data-slot='sidebar-group']:first-child
+  [data-sidebar='menu-button'] {
+  border-color: transparent;
+  border-radius: var(--lg-radius-control);
+  background: transparent;
+  box-shadow: none;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='sidebar-content']
+  > [data-slot='sidebar-group']:first-child
+  [data-sidebar='menu-button']:not([data-active='true']):hover {
+  border-color: color-mix(in srgb, var(--lg-rim-outer) 36%, transparent);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--lg-white) 48%, transparent), transparent), var(--lg-hover-wash);
+  box-shadow: var(--lg-shadow-chrome-hover);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='sidebar-content']
+  > [data-slot='sidebar-group']:first-child
+  [data-sidebar='menu-button'][data-active='true'] {
+  border-color: color-mix(in srgb, var(--lg-blue) 16%, var(--lg-rim-outer));
+  background:
+    radial-gradient(110% 160% at 8% -72%, color-mix(in srgb, var(--lg-white) 82%, transparent), transparent 66%),
+    var(--lg-selected-wash);
+  box-shadow: var(--lg-shadow-contact);
+}
+
+/* Sessions/Bots is one segmented lens. Other pane tab strips keep their editor
+   geometry; this selector is scoped to the sidebar's durable Sessions pane. */
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  :is(
+    [data-zone-tabstrip]:has([data-tree-tab='sessions']),
+    div:has(> [role='tablist'] > [data-narrow-overlay-tab='sessions'])
+  ) {
+  box-sizing: border-box;
+  min-height: var(--lg-size-sidebar-tab);
+  margin: var(--lg-space-xs);
+  padding: var(--lg-space-2xs);
+  border-radius: var(--lg-radius-island);
+  background:
+    radial-gradient(120% 180% at 8% -78%, color-mix(in srgb, var(--lg-white) 88%, transparent), transparent 64%),
+    linear-gradient(116deg, color-mix(in srgb, var(--lg-white) 30%, transparent), transparent 62%),
+    var(--lg-glass-island);
+  box-shadow: var(--lg-shadow-island);
+  backdrop-filter: blur(var(--lg-blur-raised)) saturate(1.22);
+  -webkit-backdrop-filter: blur(var(--lg-blur-raised)) saturate(1.22);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  :is(
+    [data-zone-tabstrip]:has([data-tree-tab='sessions']),
+    div:has(> [role='tablist'] > [data-narrow-overlay-tab='sessions'])
+  )
+  > [role='tablist'] {
+  display: grid;
+  width: 100%;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  overflow: hidden;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  :is(
+    [data-zone-tabstrip]:has([data-tree-tab='sessions']),
+    div:has(> [role='tablist'] > [data-narrow-overlay-tab='sessions'])
+  )
+  :is([data-tree-tab], [data-narrow-overlay-tab]) {
+  width: 100%;
+  min-height: calc(var(--lg-size-sidebar-tab) - var(--lg-space-sm));
+  max-width: none;
+  border: 0;
+  border-radius: calc(var(--lg-radius-island) - var(--lg-space-2xs));
+}
+
+/* Narrow-window overlays render the same Sessions/Bots panes through a
+   different inert data hook. Reapply the lens states so responsive collapse
+   never falls back to the legacy underline treatment. */
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-narrow-overlay-tab] {
+  --tab-bg: transparent;
+
+  border-color: transparent;
+  color: var(--lg-ink-tertiary);
+  box-shadow: none;
+  transition:
+    color var(--lg-duration-fast) var(--lg-ease-out),
+    background-color var(--lg-duration-fast) var(--lg-ease-out),
+    box-shadow var(--lg-duration-state) var(--lg-ease-out);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-narrow-overlay-tab]:not([data-active='true']):hover {
+  --tab-bg: var(--lg-hover-wash);
+
+  color: var(--lg-ink-secondary);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-narrow-overlay-tab][data-active='true'] {
+  --tab-bg: var(--lg-glass-raised);
+
+  color: var(--lg-ink);
+  box-shadow: var(--lg-shadow-contact);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-narrow-overlay-tab][data-active='true']
+  span:last-child {
+  font-weight: 600;
+  letter-spacing: 0.055em;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  :is(
+    [data-zone-tabstrip]:has([data-tree-tab='sessions']),
+    div:has(> [role='tablist'] > [data-narrow-overlay-tab='sessions'])
+  )
+  :is([data-tree-tab], [data-narrow-overlay-tab])
+  > :first-child {
+  width: 100%;
+  justify-content: center;
+  padding-inline: var(--lg-space-lg);
+  text-align: center;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  :is(
+    [data-zone-tabstrip]:has([data-tree-tab='sessions']),
+    div:has(> [role='tablist'] > [data-narrow-overlay-tab='sessions'])
+  )
+  :is([data-tree-tab], [data-narrow-overlay-tab])
+  > :first-child
+  > :first-child {
+  width: 100%;
+  font-size: var(--lg-type-control);
+  line-height: var(--lg-line-control);
+  text-align: center;
+  letter-spacing: 0.015em;
+}
+
+/* The minimize affordance must not consume a third grid column. Keeping it
+   over the trailing edge lets Sessions/Bots remain mathematically centered. */
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-zone-tabstrip]:has([data-tree-tab='sessions'])
+  > [data-slot='pane-strip-minimize'] {
+  position: absolute;
+  inset-inline-end: var(--lg-space-2xs);
+  top: 50%;
+  translate: 0 -50%;
+}
+
+/* Session section headings are compact semantic glass labels, not the legacy
+   dither-square captions. The icon is supplied by the section itself. */
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='sidebar-section-toggle'] {
+  min-height: var(--lg-size-control-compact);
+  gap: var(--lg-space-sm);
+  padding-inline: var(--lg-space-lg);
+  border-radius: var(--lg-radius-pill);
+  color: var(--lg-ink-secondary);
+  transition:
+    color var(--lg-duration-fast) var(--lg-ease-out),
+    background-color var(--lg-duration-fast) var(--lg-ease-out),
+    box-shadow var(--lg-duration-state) var(--lg-ease-out);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='sidebar-section-toggle']:hover {
+  background: color-mix(in srgb, var(--lg-hover-wash) 70%, transparent);
+  color: var(--lg-ink);
+  box-shadow: var(--lg-shadow-navigation-hover);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='sidebar-section-toggle'] > .codicon {
+  color: var(--lg-blue-hover);
+  font-size: var(--lg-type-body) !important;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='sidebar-panel-label'] {
+  padding: 0;
+  color: inherit;
+  font-size: var(--lg-type-caption);
+  letter-spacing: 0.08em;
+}
+
+/* Empty sidebar state: a compact stage, not an orphaned icon and text. */
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='sidebar-empty-stage'] {
+  width: min(100%, var(--lg-measure-sidebar-empty));
+  padding: var(--lg-space-3xl) var(--lg-space-2xl) calc(var(--lg-space-3xl) + var(--lg-space-2xs));
+  border-radius: var(--lg-radius-panel);
+  background:
+    radial-gradient(92% 78% at 12% 0%, color-mix(in srgb, var(--lg-white) 82%, transparent), transparent 72%),
+    linear-gradient(145deg, color-mix(in srgb, var(--lg-blue-mist) 22%, transparent), transparent 66%),
+    var(--lg-glass-navigation-well);
+  box-shadow: var(--lg-shadow-navigation-well);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='sidebar-empty-glyph'] {
+  width: var(--lg-size-icon-control-large);
+  height: var(--lg-size-icon-control-large);
+  border-radius: var(--lg-radius-control);
+  background:
+    radial-gradient(90% 100% at 18% 0%, color-mix(in srgb, var(--lg-white) 92%, transparent), transparent 64%),
+    var(--lg-glass-raised);
+  color: var(--lg-ink-secondary);
+  box-shadow: var(--lg-shadow-contact);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='sidebar-empty-action'] {
+  border-radius: var(--lg-radius-pill);
+  background: color-mix(in srgb, var(--lg-white) 48%, transparent);
+  box-shadow: var(--lg-shadow-sidebar-empty-action);
+}
+
+/* Existing profile buttons sit inside one shared dock material. */
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='profile-rail'] {
+  box-sizing: border-box;
+  min-height: var(--lg-size-control);
+  width: 100%;
+  gap: var(--lg-space-3xs);
+  padding: var(--lg-space-2xs);
+  border-radius: var(--lg-radius-island);
+  background:
+    radial-gradient(84% 180% at 12% -72%, color-mix(in srgb, var(--lg-white) 90%, transparent), transparent 66%),
+    linear-gradient(112deg, color-mix(in srgb, var(--lg-white) 28%, transparent), transparent 58%),
+    var(--lg-glass-island);
+  box-shadow: var(--lg-shadow-island);
+  backdrop-filter: blur(var(--lg-blur-raised)) saturate(1.2);
+  -webkit-backdrop-filter: blur(var(--lg-blur-raised)) saturate(1.2);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='profile-rail']
+  :is(button, [role='button']) {
+  min-width: var(--lg-size-icon-control);
+  min-height: var(--lg-size-icon-control);
+  border-radius: var(--lg-radius-control);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='profile-rail']
+  [data-profile-rail-action='utility'] {
+  width: var(--lg-size-icon-control);
+  height: var(--lg-size-icon-control);
+  opacity: 0.72;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+    :is(
+      [data-slot='profile-rail'],
+      [data-zone-tabstrip]:has([data-tree-tab='sessions']),
+      div:has(> [role='tablist'] > [data-narrow-overlay-tab='sessions']),
+      [data-slot='sidebar-content'] > [data-slot='sidebar-group']:first-child > [data-slot='sidebar-group-content']
+    ) {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}

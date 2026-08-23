@@ -1267,15 +1267,15 @@ test('source contract: workspace header offers disband behind a ConfirmDialog', 
   assert.match(pluginSource, /title: `Disband the \$\{group\} group chat`/)
 })
 
-test('default profile speaks as Hermes in room transcripts, not @default', () => {
+test('default profile speaks as My King in room transcripts, not @default', () => {
   const gc = load(() => '(pass)')
   const line = gc.formatGroupChatLine({ from: { kind: 'member', name: 'default' }, text: 'hello room' }, 'builder')
-  assert.equal(line, 'Hermes: hello room')
+  assert.equal(line, 'My King: hello room')
   assert.doesNotMatch(line, /default/)
 
   // Other members keep their profile name; the (you) suffix survives.
   const you = gc.formatGroupChatLine({ from: { kind: 'member', name: 'default' }, text: 'hi' }, 'default')
-  assert.equal(you, 'Hermes (you): hi')
+  assert.equal(you, 'My King (you): hi')
   const plain = gc.formatGroupChatLine({ from: { kind: 'member', name: 'builder' }, text: 'yo' }, 'research')
   assert.equal(plain, 'builder: yo')
 })

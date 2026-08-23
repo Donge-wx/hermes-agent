@@ -1,15 +1,9 @@
+import { PACKAGED_BINARY_PATH, type PackagedAppFixture, packagedBinaryExists, setupPackagedApp } from './fixtures'
 import { expect, test } from './test'
-
-import {
-  PACKAGED_BINARY_PATH,
-  type PackagedAppFixture,
-  packagedBinaryExists,
-  setupPackagedApp,
-} from './fixtures'
 import { expectVisualSnapshot } from './visual-snapshot'
 
 /**
- * E2E smoke tests for the packaged Hermes desktop app.
+ * E2E smoke tests for the packaged My King desktop app.
  *
  * Launches the real packaged Electron binary (produced by `npm run pack` →
  * `electron-builder --dir`) with BOOT_FAKE=1 and full sandbox isolation
@@ -21,10 +15,7 @@ import { expectVisualSnapshot } from './visual-snapshot'
 let fixture: PackagedAppFixture | null = null
 
 test.beforeAll(async () => {
-  test.skip(
-    !packagedBinaryExists(),
-    `Built app binary not found: ${PACKAGED_BINARY_PATH}. Run 'npm run pack' first.`,
-  )
+  test.skip(!packagedBinaryExists(), `Built app binary not found: ${PACKAGED_BINARY_PATH}. Run 'npm run pack' first.`)
 
   fixture = await setupPackagedApp()
 })
@@ -34,9 +25,9 @@ test.afterAll(async () => {
   fixture = null
 })
 
-test('window opens with the Hermes title', async () => {
+test('window opens with the My King title', async () => {
   const title = await fixture!.page.title()
-  expect(title).toContain('Hermes')
+  expect(title).toContain('My King')
 })
 
 test('renderer loads and shows DOM content', async () => {
@@ -50,9 +41,11 @@ test('HUD composer remains fully inside the transparent window', async () => {
   const hudPagePromise = fixture!.app.waitForEvent('window')
 
   await fixture!.page.evaluate(() =>
-    (window as typeof window & {
-      hermesDesktop?: { hud?: { open: (options: { sessionId: null }) => Promise<void> } }
-    }).hermesDesktop?.hud?.open({ sessionId: null })
+    (
+      window as typeof window & {
+        hermesDesktop?: { hud?: { open: (options: { sessionId: null }) => Promise<void> } }
+      }
+    ).hermesDesktop?.hud?.open({ sessionId: null })
   )
 
   const hudPage = await hudPagePromise
@@ -85,7 +78,7 @@ test('HUD composer remains fully inside the transparent window', async () => {
       // Tailwind's standalone `translate: -50%` live and shifting the dock
       // half a window off-screen. Surface the computed value so a failure
       // says WHY the dock moved, not just that it did.
-      dockTranslate: getComputedStyle(dock).translate,
+      dockTranslate: getComputedStyle(dock).translate
     }
   })
 
@@ -114,33 +107,21 @@ test('HUD composer remains fully inside the transparent window', async () => {
   await hudPage.close()
 })
 
-test('boot progress overlay fades out or shows error state', async () => {
+test('boot progress overlay yields to the active surface', async () => {
   const page = fixture!.page
+
+  // Onboarding and boot-failure surfaces can intentionally cover the gateway
+  // overlay before it unmounts. Assert the user-facing contract instead: the
+  // boot overlay no longer owns the interactive center of the window.
   await page.waitForFunction(
     () => {
-      const root = document.getElementById('root')
+      const overlay = document.querySelector('[data-slot="gateway-boot-overlay"]')
+      const topmost = document.elementFromPoint(window.innerWidth / 2, window.innerHeight / 2)
 
-      if (!root) {
-        return false
-      }
-
-      const text = root.textContent ?? ''
-
-      // Error path: boot failure overlay renders an error message.
-      if (text.includes('error') || text.includes('Error') || text.includes('failed')) {
-        return true
-      }
-
-      // Success path: overlay disappears and the app renders. If there's
-      // no "boot" / "starting" / "installing" text visible, boot has
-      // completed (either to the main UI or to onboarding).
-      const bootIndicators = ['starting', 'resolving', 'spawning', 'waiting', 'installing']
-      const lower = text.toLowerCase()
-
-      return !bootIndicators.some((word) => lower.includes(word))
+      return overlay === null || (topmost !== null && !overlay.contains(topmost))
     },
     undefined,
-    { timeout: 60_000 },
+    { timeout: 60_000 }
   )
 })
 

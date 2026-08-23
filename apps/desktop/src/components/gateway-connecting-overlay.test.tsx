@@ -1,6 +1,7 @@
 import { act, cleanup, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
+import { BRAND } from '@/lib/brand'
 import { $desktopBoot } from '@/store/boot'
 import { $gatewaySwitching } from '@/store/gateway-switch'
 import { $desktopOnboarding } from '@/store/onboarding'
@@ -51,16 +52,42 @@ function resetStores() {
 beforeEach(resetStores)
 afterEach(cleanup)
 
-// The connecting overlay renders "CONN" + a scrambled tail inside one
-// uppercase span; match that node specifically so the recovery overlay's
-// "Lost connection…" copy doesn't read as a false positive.
-const isConnectingShown = () =>
-  screen.queryAllByText((_, el) => /^CONN[/\\|\-_=+<>~:*A-Z]*$/.test(el?.textContent?.trim() ?? '')).length > 0
+const isBootStageShown = () => Boolean(screen.queryByRole('img', { name: BRAND.accessibleName }))
 
 const isRecoveryShown = () =>
   Boolean(screen.queryByText(/use local gateway/i) || screen.queryByText(/retry/i) || screen.queryByText(/sign in/i))
 
 describe('connecting overlay vs recovery surface', () => {
+  it('shows the My King branded boot stage with real progress during cold start', async () => {
+    $desktopBoot.set({
+      ...$desktopBoot.get(),
+      message: 'Loading My King settings',
+      phase: 'renderer.settings',
+      progress: 42,
+      running: true,
+      visible: true
+    })
+
+    await act(async () => {
+      render(<GatewayConnectingOverlay />)
+    })
+
+    expect(isBootStageShown()).toBe(true)
+    const lockup = screen.getByRole('img', { name: BRAND.accessibleName })
+    const lockupWidth = Number(lockup.getAttribute('width'))
+    const lockupHeight = Number(lockup.getAttribute('height'))
+
+    expect(lockupWidth).toBeGreaterThan(0)
+    expect(lockupHeight).toBeGreaterThan(0)
+    expect(lockupWidth / lockupHeight).toBeCloseTo(2048 / 768, 3)
+    expect(lockup.getAttribute('decoding')).toBe('sync')
+    expect(lockup.getAttribute('fetchpriority')).toBe('high')
+    expect(screen.getByText('Loading My King settings')).toBeTruthy()
+    expect(screen.getByRole('progressbar', { name: 'Loading My King settings' }).getAttribute('aria-valuenow')).toBe(
+      '42'
+    )
+  })
+
   it('hard initial-boot failure surfaces the recovery overlay (the working path)', async () => {
     // failDesktopBoot() ran: error set, gateway never opened.
     $desktopBoot.set({
@@ -82,7 +109,7 @@ describe('connecting overlay vs recovery surface', () => {
 
     expect(isRecoveryShown()).toBe(true)
     // Connecting overlay bows out when boot.error is set.
-    expect(isConnectingShown()).toBe(false)
+    expect(isBootStageShown()).toBe(false)
   })
 
   it('post-boot socket drops do not re-cover the app with the initial CONNECTING overlay', async () => {
@@ -101,7 +128,7 @@ describe('connecting overlay vs recovery surface', () => {
       rerender = result.rerender
     })
 
-    expect(isConnectingShown()).toBe(false)
+    expect(isBootStageShown()).toBe(false)
 
     // 2. The remote VPS socket drops (sleep/wake, remote restart, network).
     //    bootCompleted is true, so useGatewayBoot routes this through
@@ -118,7 +145,7 @@ describe('connecting overlay vs recovery surface', () => {
 
     // The initial-boot connecting overlay stays out of the way, so settings and
     // the composer remain reachable during the reconnect loop.
-    expect(isConnectingShown()).toBe(false)
+    expect(isBootStageShown()).toBe(false)
     expect(isRecoveryShown()).toBe(false)
 
     // 3. Reconnect loops against the dead remote: gatewayState bounces closed
@@ -134,7 +161,7 @@ describe('connecting overlay vs recovery surface', () => {
       )
     })
     expect($desktopBoot.get().error).toBeNull()
-    expect(isConnectingShown()).toBe(false)
+    expect(isBootStageShown()).toBe(false)
     expect(isRecoveryShown()).toBe(false)
   })
 
@@ -166,7 +193,7 @@ describe('connecting overlay vs recovery surface', () => {
       )
     })
 
-    expect(isConnectingShown()).toBe(false)
+    expect(isBootStageShown()).toBe(false)
     expect(isRecoveryShown()).toBe(false)
   })
 
@@ -194,6 +221,6 @@ describe('connecting overlay vs recovery surface', () => {
     // Escape hatch is now reachable; the connecting overlay bows out.
     expect(isRecoveryShown()).toBe(true)
     expect(screen.getByRole('button', { name: /gateway settings/i })).toBeTruthy()
-    expect(isConnectingShown()).toBe(false)
+    expect(isBootStageShown()).toBe(false)
   })
 })

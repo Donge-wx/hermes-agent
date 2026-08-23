@@ -1,6 +1,7 @@
 import { atom } from 'nanostores'
 
 import { translateNow } from '@/i18n'
+import { publicBrandText } from '@/lib/brand'
 
 export type NotificationKind = 'error' | 'warning' | 'info' | 'success'
 
@@ -163,11 +164,11 @@ export function notify(input: NotificationInput): string {
     kind,
     icon: input.icon,
     accentColor: input.accentColor,
-    meta: input.meta,
-    title: input.title,
-    message: input.message,
-    detail: input.detail,
-    action: input.action,
+    meta: input.meta ? publicBrandText(input.meta) : undefined,
+    title: input.title ? publicBrandText(input.title) : undefined,
+    message: publicBrandText(input.message),
+    detail: input.detail ? publicBrandText(input.detail) : undefined,
+    action: input.action ? { ...input.action, label: publicBrandText(input.action.label) } : undefined,
     onDismiss: input.onDismiss,
     createdAt: Date.now(),
     placement: input.placement ?? defaultPlacement(kind, input.action)

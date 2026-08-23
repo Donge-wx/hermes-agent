@@ -1264,6 +1264,7 @@ export function ChatBar({
                     composerFill,
                     composerSurfaceGlass
                   )}
+                  data-slot="composer-backdrop"
                 />
                 <CodingStatusRow
                   onBranchOff={handleBranchOff}
@@ -1371,7 +1372,10 @@ export function ChatBarFallback() {
       )}
       data-slot="composer-root"
     >
-      <div className="composer-fallback-surface relative isolate h-(--composer-fallback-height) w-full rounded-[inherit] border border-[color-mix(in_srgb,var(--dt-composer-ring)_calc(18%*var(--composer-ring-strength)),var(--dt-input))]">
+      <div
+        className="composer-fallback-surface relative isolate h-(--composer-fallback-height) w-full rounded-[inherit] border border-[color-mix(in_srgb,var(--dt-composer-ring)_calc(18%*var(--composer-ring-strength)),var(--dt-input))]"
+        data-slot="composer-surface"
+      >
         <div
           aria-hidden
           className={cn(
@@ -1379,6 +1383,7 @@ export function ChatBarFallback() {
             composerFill,
             composerSurfaceGlass
           )}
+          data-slot="composer-backdrop"
         />
       </div>
     </div>

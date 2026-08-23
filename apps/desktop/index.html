@@ -8,7 +8,184 @@
     <link rel="icon" type="image/png" sizes="180x180" href="/apple-touch-icon.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <link rel="shortcut icon" href="/apple-touch-icon.png" />
-    <title>Hermes</title>
+    <link rel="preload" as="image" href="./brand/my-king-lockup.png" fetchpriority="high" />
+    <style>
+      :root {
+        --preboot-frame-background:
+          radial-gradient(circle at 17% 16%, rgb(150 211 255 / 44%), transparent 36%),
+          radial-gradient(circle at 84% 82%, rgb(214 242 255 / 78%), transparent 44%),
+          linear-gradient(145deg, #f8fbff, #eaf4fc);
+        --preboot-atmosphere-primary: rgb(147 206 255 / 52%);
+        --preboot-atmosphere-secondary: rgb(222 246 255 / 82%);
+        --preboot-stage-surface:
+          radial-gradient(68% 42% at 14% 0%, rgb(255 255 255 / 72%), transparent 74%),
+          linear-gradient(118deg, rgb(255 255 255 / 36%), transparent 48%), rgb(247 251 255 / 78%);
+        --preboot-stage-rim: rgb(255 255 255 / 82%);
+        --preboot-stage-specular: linear-gradient(
+          135deg,
+          rgb(255 255 255 / 42%),
+          transparent 34%,
+          rgb(162 211 255 / 18%)
+        );
+        --preboot-stage-shadow:
+          0 0.125rem 0.25rem rgb(33 62 93 / 14%), 0 1rem 2.5rem rgb(46 83 120 / 18%),
+          inset 0 0.0625rem 0 rgb(255 255 255 / 88%);
+        --preboot-loader-track: rgb(79 117 153 / 14%);
+        --preboot-brand-purple: #8764e8;
+        --preboot-brand-cyan: #27c6e9;
+        --preboot-brand-blue: #1675ec;
+        --preboot-stage-blur: 1.5rem;
+        --preboot-stage-width: 34rem;
+        --preboot-lockup-width: min(21rem, 72vw);
+        --preboot-loader-width: 5rem;
+        --preboot-stage-gap: 1.75rem;
+        --preboot-stage-padding-block: clamp(2rem, 6vh, 3rem);
+        --preboot-stage-padding-inline: clamp(1.5rem, 5vw, 3rem);
+        --preboot-stage-radius: 1.5rem;
+      }
+
+      :root[data-preboot-scheme='dark'] {
+        --preboot-frame-background:
+          radial-gradient(circle at 17% 16%, rgb(68 101 158 / 38%), transparent 36%),
+          radial-gradient(circle at 84% 82%, rgb(55 91 130 / 38%), transparent 44%),
+          linear-gradient(145deg, #111722, #0b1019);
+        --preboot-atmosphere-primary: rgb(50 113 177 / 34%);
+        --preboot-atmosphere-secondary: rgb(82 104 142 / 28%);
+        --preboot-stage-surface:
+          radial-gradient(68% 42% at 14% 0%, rgb(255 255 255 / 14%), transparent 74%),
+          linear-gradient(118deg, rgb(255 255 255 / 8%), transparent 48%), rgb(25 34 48 / 78%);
+        --preboot-stage-rim: rgb(255 255 255 / 18%);
+        --preboot-stage-specular: linear-gradient(
+          135deg,
+          rgb(255 255 255 / 18%),
+          transparent 34%,
+          rgb(61 132 208 / 18%)
+        );
+        --preboot-stage-shadow:
+          0 0.125rem 0.25rem rgb(0 0 0 / 28%), 0 1rem 2.5rem rgb(0 0 0 / 36%),
+          inset 0 0.0625rem 0 rgb(255 255 255 / 18%);
+        --preboot-loader-track: rgb(189 218 245 / 16%);
+      }
+
+      .pre-react-boot-frame {
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+        background: var(--preboot-frame-background);
+        isolation: isolate;
+      }
+
+      .pre-react-boot-frame::before,
+      .pre-react-boot-frame::after {
+        position: absolute;
+        z-index: -1;
+        border-radius: 50%;
+        content: '';
+        filter: blur(4.25rem);
+      }
+
+      .pre-react-boot-frame::before {
+        bottom: -18%;
+        left: -14%;
+        width: min(58rem, 88vw);
+        aspect-ratio: 1.55 / 1;
+        background: var(--preboot-atmosphere-primary);
+        transform: rotate(-9deg);
+      }
+
+      .pre-react-boot-frame::after {
+        top: -16%;
+        right: -12%;
+        width: min(48rem, 74vw);
+        aspect-ratio: 1.3 / 1;
+        background: var(--preboot-atmosphere-secondary);
+        transform: rotate(12deg);
+      }
+
+      .pre-react-boot {
+        position: relative;
+        display: grid;
+        width: min(var(--preboot-stage-width), calc(100vw - 2rem));
+        justify-items: center;
+        gap: var(--preboot-stage-gap);
+        padding: var(--preboot-stage-padding-block) var(--preboot-stage-padding-inline);
+        overflow: hidden;
+        box-sizing: border-box;
+        border: 1px solid var(--preboot-stage-rim);
+        border-radius: var(--preboot-stage-radius);
+        background: var(--preboot-stage-surface);
+        box-shadow: var(--preboot-stage-shadow);
+        backdrop-filter: blur(var(--preboot-stage-blur)) saturate(148%);
+        -webkit-backdrop-filter: blur(var(--preboot-stage-blur)) saturate(148%);
+      }
+
+      .pre-react-boot::before {
+        position: absolute;
+        inset: 0;
+        background: var(--preboot-stage-specular);
+        content: '';
+        pointer-events: none;
+      }
+
+      .pre-react-boot__lockup {
+        position: relative;
+        display: block;
+        width: var(--preboot-lockup-width);
+        max-width: 100%;
+        height: auto;
+        object-fit: contain;
+      }
+
+      .pre-react-boot__loader {
+        position: relative;
+        display: block;
+        width: var(--preboot-loader-width);
+        height: auto;
+        overflow: visible;
+      }
+
+      .pre-react-boot__loader-track,
+      .pre-react-boot__loader-accent {
+        fill: none;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        stroke-width: 5;
+      }
+
+      .pre-react-boot__loader-track {
+        stroke: var(--preboot-loader-track);
+      }
+
+      .pre-react-boot__brand-stop--purple {
+        stop-color: var(--preboot-brand-purple);
+      }
+
+      .pre-react-boot__brand-stop--cyan {
+        stop-color: var(--preboot-brand-cyan);
+      }
+
+      .pre-react-boot__brand-stop--blue {
+        stop-color: var(--preboot-brand-blue);
+      }
+
+      .pre-react-boot__loader-accent {
+        stroke: url('#pre-react-boot-gradient');
+        stroke-dasharray: 34 66;
+        stroke-dashoffset: 8;
+      }
+
+      @media (max-width: 40rem), (max-height: 38rem) {
+        :root {
+          --preboot-stage-gap: 1.25rem;
+          --preboot-stage-padding-block: 1.5rem;
+          --preboot-lockup-width: min(18rem, 76vw);
+          --preboot-loader-width: 4.5rem;
+        }
+      }
+    </style>
+    <title>My King</title>
     <script>
       // Pre-paint the themed background before the app bundle loads. Without
       // this, the first frame (which is what `ready-to-show` waits for) is the
@@ -26,6 +203,7 @@
         document.documentElement.style.backgroundColor = bg
         if (scheme === 'dark' || scheme === 'light') {
           document.documentElement.style.colorScheme = scheme
+          document.documentElement.dataset.prebootScheme = scheme
         }
       } catch {
         // localStorage unavailable — keep UA defaults.
@@ -33,7 +211,39 @@
     </script>
   </head>
   <body>
-    <div id="root" class="scrollbar-dt"></div>
+    <div id="root" class="scrollbar-dt">
+      <div aria-label="Starting My King" class="pre-react-boot-frame" data-slot="pre-react-boot-frame" role="status">
+        <div class="pre-react-boot" data-slot="pre-react-boot">
+          <img
+            alt="My King — AI WROK OS"
+            class="pre-react-boot__lockup"
+            decoding="sync"
+            fetchpriority="high"
+            height="768"
+            src="./brand/my-king-lockup.png"
+            width="2048"
+          />
+          <svg aria-hidden="true" class="pre-react-boot__loader" fill="none" role="presentation" viewBox="0 0 100 64">
+            <defs>
+              <linearGradient id="pre-react-boot-gradient" x1="12" x2="88" y1="16" y2="48">
+                <stop class="pre-react-boot__brand-stop--purple" offset="0" />
+                <stop class="pre-react-boot__brand-stop--cyan" offset="0.48" />
+                <stop class="pre-react-boot__brand-stop--blue" offset="1" />
+              </linearGradient>
+            </defs>
+            <path class="pre-react-boot__loader-track" d="M17 32c9-21 24-21 33 0s24 21 33 0-24-21-33 0-24 21-33 0Z" />
+            <path class="pre-react-boot__loader-accent" d="M17 32c9-21 24-21 33 0s24 21 33 0-24-21-33 0-24 21-33 0Z" />
+          </svg>
+        </div>
+      </div>
+    </div>
+    <script>
+      // Auxiliary windows own their own first frame. Remove the main-window
+      // boot shell synchronously so HUD / quick entry / overlays never flash it.
+      if (new URLSearchParams(window.location.search).has('win')) {
+        document.getElementById('root')?.replaceChildren()
+      }
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -21,8 +21,10 @@
 
 import {
   $accentOverride,
+  Button,
   contrastRatio,
   hexToOklch,
+  Input,
   maxChroma,
   type Oklch,
   oklchToHex,
@@ -31,6 +33,7 @@ import {
   PopoverContent,
   PopoverTrigger,
   setAccentOverride,
+  Tip,
   useTheme,
   useValue
 } from '@hermes/plugin-sdk'
@@ -158,7 +161,7 @@ function ChromaLightnessField({
     >
       <canvas className="block size-full" height={FIELD_H} ref={canvas} width={FIELD_W} />
       <div
-        className="pointer-events-none absolute size-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow-[0_0_0_1px_rgba(0,0,0,.6)]"
+        className="pointer-events-none absolute size-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-background ring-1 ring-foreground/60"
         style={{ left: `${(lch.c / CHROMA_MAX) * 100}%`, top: `${(1 - lch.l) * 100}%` }}
       />
     </div>
@@ -191,7 +194,7 @@ function HueRail({ lch, onPick }: { lch: Oklch; onPick: (h: number) => void }) {
       style={{ background: gradient, height: RAIL_H, width: FIELD_W }}
     >
       <div
-        className="pointer-events-none absolute top-1/2 size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow-[0_0_0_1px_rgba(0,0,0,.6)]"
+        className="pointer-events-none absolute top-1/2 size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-background ring-1 ring-foreground/60"
         style={{ left: `${(lch.h / 360) * 100}%` }}
       />
     </div>
@@ -237,8 +240,8 @@ function AccentPicker() {
 
       <div className="flex items-center gap-1.5">
         <span className="size-5 shrink-0 rounded-sm border border-(--dt-border)" style={{ background: painted }} />
-        <input
-          className="min-w-0 flex-1 rounded-sm border border-(--dt-border) bg-transparent px-1.5 py-0.5 font-mono text-[11px] uppercase"
+        <Input
+          className="min-w-0 flex-1 font-mono text-[11px] uppercase"
           onChange={event => {
             setText(event.target.value)
             setAccentOverride(event.target.value)
@@ -246,25 +249,23 @@ function AccentPicker() {
           spellCheck={false}
           value={text}
         />
-        <button
-          className="shrink-0 rounded-sm border border-(--dt-border) px-1.5 py-0.5 text-[11px]"
-          onClick={() => setAccentOverride(null)}
-          type="button"
-        >
+        <Button onClick={() => setAccentOverride(null)} size="xs" type="button" variant="ghost">
           reset
-        </button>
+        </Button>
       </div>
 
       <div className="grid grid-cols-8 gap-1">
         {SWATCHES.map(swatch => (
-          <button
-            className="size-5 rounded-sm border border-(--dt-border)"
-            key={swatch.hex}
-            onClick={() => setAccentOverride(swatch.hex)}
-            style={{ background: swatch.hex }}
-            title={`${swatch.name} · ${swatch.hex}`}
-            type="button"
-          />
+          <Tip key={swatch.hex} label={`${swatch.name} · ${swatch.hex}`}>
+            <Button
+              aria-label={`${swatch.name} · ${swatch.hex}`}
+              onClick={() => setAccentOverride(swatch.hex)}
+              size="icon-xs"
+              style={{ background: swatch.hex }}
+              type="button"
+              variant="outline"
+            />
+          </Tip>
         ))}
       </div>
 
@@ -300,10 +301,12 @@ export function AccentPickerTrigger() {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <button
-          className="inline-flex h-full items-center gap-1.5 px-1.5 text-[0.6875rem] text-(--ui-text-tertiary) hover:bg-(--chrome-action-hover) hover:text-foreground"
-          title="Accent color (dev)"
+        <Button
+          aria-label="Accent color (dev)"
+          className="font-mono tabular-nums"
+          size="micro"
           type="button"
+          variant="ghost"
         >
           <span
             className="size-2.5 shrink-0 rounded-full border border-(--dt-border)"
@@ -312,10 +315,10 @@ export function AccentPickerTrigger() {
           {/* Always the hex, never a word: a label that alternated between
               `accent` and `#rrggbb` changed width on the first drag, which
               reflowed the bar under the cursor. Seven mono characters, always. */}
-          <span className="text-center font-mono tabular-nums" style={{ width: `${HEX_CH}ch` }}>
+          <span className="text-center" style={{ width: `${HEX_CH}ch` }}>
             {theme.colors.primary}
           </span>
-        </button>
+        </Button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-auto p-0" side="top">
         <AccentPicker />

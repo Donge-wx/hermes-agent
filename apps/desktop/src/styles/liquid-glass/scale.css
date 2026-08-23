@@ -1,0 +1,180 @@
+/* macOS 26-scale geometry for Liquid Glass chrome, navigation, and controls.
+   Work-area density lives in scale-content.css. */
+
+/* The native frame keeps its compatibility height. Only the
+   Liquid Glass hit targets grow, centered inside that existing titlebar. */
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] .contents:has(.titlebar-icon-button) {
+  --titlebar-controls-top: var(--lg-offset-hairline) !important;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] .titlebar-icon-button {
+  width: var(--lg-size-titlebar-control) !important;
+  height: var(--lg-size-titlebar-control) !important;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] .titlebar-icon-button .codicon[class*='codicon-'] {
+  font-size: var(--lg-size-icon-glyph) !important;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='sidebar-wrapper'] {
+  --sidebar-width-icon: var(--lg-measure-sidebar-collapsed) !important;
+}
+
+/* A persisted pane can be narrower than the Liquid Glass rail token. Keep the
+   larger control geometry, but let the rail itself contract to its pane so the
+   pane remains the sole scroll owner and never gains a horizontal scrollbar. */
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='sidebar'] {
+  max-inline-size: 100%;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  button:is([data-size='default'], [data-size='lg']):not([data-variant='link']):not([data-variant='text']):not(
+    [data-variant='textStrong']
+  ) {
+  min-height: var(--lg-size-control);
+  padding-inline: var(--lg-space-2xl);
+  font-size: var(--lg-type-control);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  button:is([data-size='xs'], [data-size='sm']):not([data-variant='link']):not([data-variant='text']):not(
+    [data-variant='textStrong']
+  ) {
+  min-height: var(--lg-size-control-compact);
+  padding-inline: var(--lg-space-xl);
+  font-size: var(--lg-type-caption);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  button:is([data-size='icon'], [data-size='icon-xs'], [data-size='icon-sm'], [data-size='icon-titlebar']) {
+  width: var(--lg-size-icon-control);
+  height: var(--lg-size-icon-control);
+  padding: 0;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] button[data-size='icon-lg'] {
+  width: var(--lg-size-icon-control-large);
+  height: var(--lg-size-icon-control-large);
+  padding: 0;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] button[data-size^='icon'] :is(svg, .codicon) {
+  width: var(--lg-size-icon-glyph);
+  height: var(--lg-size-icon-glyph);
+  font-size: var(--lg-size-icon-glyph) !important;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  :is([data-sidebar='menu-button'], [data-slot='overlay-nav-item']) {
+  min-height: var(--lg-size-nav-row);
+  gap: var(--lg-space-md);
+  padding-inline: var(--lg-space-lg);
+  font-size: var(--lg-type-control);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  :is([data-sidebar='menu-button'], [data-slot='overlay-nav-item'])
+  > svg {
+  width: var(--lg-size-icon-glyph);
+  height: var(--lg-size-icon-glyph);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='overlay-sidebar'] {
+  width: var(--lg-measure-overlay-sidebar);
+  padding: var(--lg-space-lg);
+  gap: var(--lg-space-2xs);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-zone-tabstrip] {
+  min-height: var(--lg-size-nav-row);
+  padding: var(--lg-space-2xs);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-zone-tabstrip] [data-tree-tab] {
+  min-height: var(--lg-size-nav-row-compact);
+  padding-inline: var(--lg-space-lg);
+  font-size: var(--lg-type-micro);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='statusbar'] {
+  min-height: var(--lg-size-statusbar);
+  padding-inline: var(--lg-space-md);
+  font-size: var(--lg-type-micro);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='segmented-control'] {
+  min-height: var(--lg-size-control);
+  padding: var(--lg-space-3xs);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='segmented-control-option'] {
+  min-height: calc(var(--lg-size-control) - var(--lg-space-sm));
+  gap: var(--lg-space-xs);
+  padding-inline: var(--lg-space-xl);
+  font-size: var(--lg-type-caption);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  :is(
+    .desktop-input-chrome,
+    [data-slot='input-group'],
+    [data-slot='textarea'],
+    [data-slot='appearance-theme-search'],
+    [data-slot='select-trigger'],
+    [data-slot='sidebar-input']
+  ) {
+  min-height: var(--lg-size-control);
+  padding-inline: var(--lg-space-lg);
+  font-size: var(--lg-type-control);
+  line-height: var(--lg-line-control);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='switch'] {
+  width: var(--lg-size-switch-inline);
+  height: var(--lg-size-switch-block);
+  padding: var(--lg-space-nano);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='switch-thumb'] {
+  width: var(--lg-size-switch-thumb);
+  height: var(--lg-size-switch-thumb);
+  translate: 0;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='switch-thumb'][data-state='checked'] {
+  translate: var(--lg-offset-switch-thumb);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='checkbox'] {
+  width: var(--lg-size-checkbox);
+  height: var(--lg-size-checkbox);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  :is([data-slot='tabs-list'], [data-slot='command-input-wrapper']) {
+  min-height: var(--lg-size-control);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  :is([data-slot='tabs-trigger'], [data-slot='command-item']) {
+  min-height: var(--lg-size-control-compact);
+  padding-inline: var(--lg-space-xl);
+  font-size: var(--lg-type-control);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  :is(
+    [data-slot='dropdown-menu-item'],
+    [data-slot='dropdown-menu-checkbox-item'],
+    [data-slot='dropdown-menu-radio-item'],
+    [data-slot='dropdown-menu-sub-trigger'],
+    [data-slot='context-menu-item'],
+    [data-slot='context-menu-checkbox-item'],
+    [data-slot='context-menu-sub-trigger'],
+    [data-slot='select-item']
+  ) {
+  min-height: var(--lg-size-menu-row);
+  gap: var(--lg-space-md);
+  padding-inline: var(--lg-space-lg);
+  font-size: var(--lg-type-control);
+}

@@ -1,0 +1,87 @@
+@media (prefers-contrast: more) {
+  :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] {
+    --lg-glass-chrome: color-mix(in srgb, var(--lg-pearl-200) 96%, transparent);
+    --lg-glass-raised: color-mix(in srgb, var(--lg-white) 98%, transparent);
+    --lg-glass-overlay: var(--lg-pearl-50);
+    --lg-seam-outer: color-mix(in srgb, var(--lg-steel-800) 82%, transparent);
+    --lg-seam-soft: color-mix(in srgb, var(--lg-steel-600) 62%, transparent);
+    --lg-rim-outer: color-mix(in srgb, var(--lg-steel-600) 66%, transparent);
+    --lg-rim-strong: color-mix(in srgb, var(--lg-steel-800) 78%, transparent);
+    --ui-text-secondary: color-mix(in srgb, var(--lg-ink) 84%, transparent);
+    --ui-text-tertiary: color-mix(in srgb, var(--lg-ink) 74%, transparent);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] {
+    --lg-glass-chrome: var(--lg-silver-100);
+    --lg-glass-raised: var(--lg-white);
+    --lg-glass-overlay: var(--lg-pearl-50);
+  }
+
+  :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-chat-surface],
+  :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='overlay-main'] {
+    background: var(--lg-content);
+  }
+
+  :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='composer-surface']::before {
+    display: none;
+  }
+
+  :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+    :is(
+      [data-contrib-shell] > :first-child,
+      [data-chat-surface] > header,
+      [data-overlay-surface],
+      [data-slot='sidebar'],
+      [data-slot='overlay-sidebar'],
+      [data-slot='statusbar'],
+      [data-slot='composer-surface'],
+      .desktop-input-chrome,
+      [data-slot='appearance-theme-search'],
+      [data-slot='select-trigger'],
+      [data-glass-raised],
+      [data-slot='dialog-content'],
+      [data-slot='dropdown-menu-content'],
+      [data-slot='dropdown-menu-sub-content'],
+      [data-slot='context-menu-content'],
+      [data-slot='context-menu-sub-content'],
+      [data-slot='select-content'],
+      [data-slot='popover-content'],
+      [data-slot='thread-timeline-popover'],
+      [data-slot='composer-completion-drawer'],
+      [data-slot='sheet-content'],
+      [data-slot='alert']
+    ) {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+    :is(
+      button[data-variant],
+      [data-slot='segmented-control-option'],
+      [data-slot='overlay-nav-item'],
+      [data-sidebar='menu-button'],
+      [data-profile-rail-action],
+      [data-slot='theme-card'],
+      [data-slot='switch'],
+      [data-slot='switch-thumb'],
+      [data-slot='composer-surface']
+    ) {
+    transition-duration: 0.01ms;
+  }
+
+  :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+    :is(button[data-variant]:hover, button[data-variant]:active, [data-slot='theme-card']:hover) {
+    transform: none;
+  }
+
+  :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+    [data-slot='switch']:active:not(:disabled)
+    [data-slot='switch-thumb'] {
+    transform: none;
+  }
+}

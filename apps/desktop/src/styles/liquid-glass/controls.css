@@ -1,0 +1,243 @@
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] button[data-variant] {
+  transition:
+    transform var(--lg-duration-state) var(--lg-ease-out),
+    color var(--lg-duration-fast) var(--lg-ease-out),
+    background-color var(--lg-duration-fast) var(--lg-ease-out),
+    border-color var(--lg-duration-fast) var(--lg-ease-out),
+    box-shadow var(--lg-duration-state) var(--lg-ease-out),
+    opacity var(--lg-duration-fast) var(--lg-ease-out);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  button[data-variant]:not([data-size^='icon']):not([data-size='inline']):not([data-size='micro']) {
+  border-radius: var(--lg-radius-control);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  button[data-variant='default']:not([data-size^='icon']) {
+  border-radius: var(--lg-radius-pill);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--lg-white) 14%, var(--lg-blue)), var(--lg-blue));
+  box-shadow: var(--lg-shadow-primary-button);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] button[data-variant='default']:hover {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--lg-white) 10%, var(--lg-blue-hover)),
+    var(--lg-blue-hover)
+  );
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  button:is([data-variant='secondary'], [data-variant='outline']) {
+  border: var(--lg-stroke-hairline) solid var(--lg-rim-outer);
+  background:
+    linear-gradient(122deg, color-mix(in srgb, var(--lg-white) 64%, transparent), transparent 48%),
+    var(--lg-glass-raised);
+  color: var(--lg-ink);
+  box-shadow: var(--lg-shadow-contact);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  button:is([data-variant='secondary'], [data-variant='outline']):hover {
+  border-color: var(--lg-rim-strong);
+  background: color-mix(in srgb, var(--lg-hover-wash) 70%, var(--lg-glass-raised));
+  box-shadow: var(--lg-shadow-float);
+  transform: translateY(calc(-1 * var(--lg-offset-hairline)));
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] button[data-variant='ghost']:hover {
+  background: var(--lg-hover-wash);
+  color: var(--lg-ink);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] button[data-variant='destructive'] {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--lg-white) 12%, var(--lg-red)), var(--lg-red));
+  box-shadow: var(--lg-shadow-destructive-button);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] button[data-size^='icon'] {
+  border-radius: 50%;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] button[data-size='icon-titlebar'] {
+  border-radius: var(--lg-radius-micro);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] button[data-variant]:active:not(:disabled) {
+  transform: translateY(var(--lg-offset-hairline)) scale(0.97);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] button[data-variant='ghost']:active:not(:disabled) {
+  background: color-mix(in srgb, var(--lg-silver-200) 58%, transparent);
+  box-shadow: var(--lg-shadow-ghost-active);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] button[data-variant]:disabled {
+  filter: saturate(0.62);
+  opacity: 0.46;
+  transform: none;
+}
+
+/* Keyboard focus is the only external blue ring; selection and hover stay internal. */
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  :is(
+    button[data-variant],
+    [data-slot='segmented-control-option'],
+    [data-slot='overlay-nav-item'],
+    [data-sidebar='menu-button'],
+    [data-profile-rail-action],
+    [data-slot='theme-card'],
+    [data-slot='select-trigger'],
+    [data-slot='checkbox'],
+    [data-slot='switch'],
+    [data-slot='tabs-trigger'],
+    [data-slot='command-item'],
+    [data-slot='row-button'],
+    .desktop-input-chrome,
+    [contenteditable='true']:not([data-slot='composer-rich-input'])
+  ):focus-visible {
+  outline: var(--lg-stroke-focus) solid var(--lg-focus-ring);
+  outline-offset: var(--lg-stroke-focus);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='segmented-control'] {
+  border: var(--lg-stroke-hairline) solid var(--lg-rim-outer);
+  border-radius: var(--lg-radius-pill);
+  background:
+    linear-gradient(122deg, color-mix(in srgb, var(--lg-white) 36%, transparent), transparent 58%),
+    color-mix(in srgb, var(--lg-glass-chrome) 82%, var(--lg-silver-200));
+  box-shadow: var(--lg-shadow-segmented-well);
+  padding: var(--lg-space-3xs);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='segmented-control-option'] {
+  border: var(--lg-stroke-hairline) solid transparent;
+  border-radius: var(--lg-radius-pill);
+  color: var(--lg-ink-tertiary);
+  transition:
+    color var(--lg-duration-fast) var(--lg-ease-out),
+    background-color var(--lg-duration-fast) var(--lg-ease-out),
+    border-color var(--lg-duration-fast) var(--lg-ease-out),
+    box-shadow var(--lg-duration-state) var(--lg-ease-out),
+    transform var(--lg-duration-state) var(--lg-ease-out);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='segmented-control-option']:not([aria-pressed='true']):hover {
+  color: var(--lg-ink);
+  background: var(--lg-hover-wash);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='segmented-control-option'][aria-pressed='true'] {
+  border-color: color-mix(in srgb, var(--lg-rim-outer) 72%, transparent);
+  background: var(--lg-glass-raised);
+  color: var(--lg-ink);
+  box-shadow: var(--lg-shadow-contact);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  :is(
+    .desktop-input-chrome,
+    [data-slot='input-group'],
+    [data-slot='textarea'],
+    [data-slot='appearance-theme-search'],
+    [data-slot='select-trigger'],
+    [data-slot='sidebar-input']
+  ) {
+  border-color: var(--lg-rim-outer);
+  border-radius: var(--lg-radius-control);
+  background:
+    linear-gradient(125deg, color-mix(in srgb, var(--lg-white) 54%, transparent), transparent 52%),
+    var(--lg-glass-raised);
+  color: var(--lg-ink);
+  box-shadow: var(--lg-shadow-input);
+  backdrop-filter: var(--lg-backdrop-input);
+  -webkit-backdrop-filter: var(--lg-backdrop-input);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  :is(
+    .desktop-input-chrome,
+    [data-slot='input-group'],
+    [data-slot='textarea'],
+    [data-slot='appearance-theme-search'],
+    [data-slot='select-trigger'],
+    [data-slot='sidebar-input']
+  ):hover {
+  border-color: var(--lg-rim-strong);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  :is(
+    .desktop-input-chrome,
+    [data-slot='input-group'],
+    [data-slot='textarea'],
+    [data-slot='appearance-theme-search'],
+    [data-slot='select-trigger'],
+    [data-slot='sidebar-input']
+  ):is(:focus, :focus-within, [data-state='open']) {
+  border-color: var(--lg-focus-ring-soft);
+  box-shadow: var(--lg-shadow-input-focus);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='switch'] {
+  border: var(--lg-stroke-hairline) solid var(--lg-rim-strong);
+  background: color-mix(in srgb, var(--lg-silver-300) 88%, transparent);
+  box-shadow: var(--lg-shadow-switch);
+  transition:
+    background-color var(--lg-duration-fast) var(--lg-ease-out),
+    border-color var(--lg-duration-fast) var(--lg-ease-out),
+    box-shadow var(--lg-duration-state) var(--lg-ease-out);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='switch'][data-state='checked'] {
+  border-color: color-mix(in srgb, var(--lg-blue) 82%, var(--lg-steel-800));
+  background: var(--lg-blue);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='switch']:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--lg-blue) 28%, var(--lg-rim-strong));
+  background: color-mix(in srgb, var(--lg-white) 18%, var(--lg-silver-300));
+  box-shadow: var(--lg-shadow-switch-hover);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='switch'][data-state='checked']:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--lg-blue-hover) 76%, var(--lg-steel-800));
+  background: var(--lg-blue-hover);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='switch']:active:not(:disabled) {
+  border-color: color-mix(in srgb, var(--lg-steel-800) 58%, var(--lg-blue));
+  background: color-mix(in srgb, var(--lg-silver-300) 78%, var(--lg-steel-800));
+  box-shadow: var(--lg-shadow-switch-active);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='switch'][data-state='checked']:active:not(:disabled) {
+  background: color-mix(in srgb, var(--lg-blue-hover) 78%, var(--lg-steel-800));
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='switch-thumb'] {
+  background: var(--lg-white);
+  box-shadow: var(--lg-shadow-switch-thumb);
+  transition:
+    translate var(--lg-duration-state) var(--lg-ease-out),
+    transform var(--lg-duration-state) var(--lg-ease-out),
+    box-shadow var(--lg-duration-fast) var(--lg-ease-out);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='switch']:hover:not(:disabled)
+  [data-slot='switch-thumb'] {
+  box-shadow: var(--lg-shadow-switch-thumb-hover);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='switch']:active:not(:disabled)
+  [data-slot='switch-thumb'] {
+  box-shadow: var(--lg-shadow-switch-thumb-active);
+  transform: scale(0.9);
+}

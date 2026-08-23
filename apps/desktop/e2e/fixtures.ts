@@ -27,7 +27,8 @@ import * as path from 'node:path'
 
 import { _electron, type ElectronApplication, type Page } from '@playwright/test'
 
-import { startMockServer, type MockServerOptions } from './mock-server'
+import { detachElectronTracing } from './fix-electron-tracing'
+import { type MockServerOptions, startMockServer } from './mock-server'
 import { installErrorBannerGuard } from './test'
 
 const DESKTOP_ROOT = path.resolve(import.meta.dirname, '..')
@@ -343,6 +344,83 @@ export async function launchDesktop(
   return { app, page }
 }
 
+/**
+ * Tear down the isolated E2E Electron process without invoking Playwright's
+ * ElectronApplication.close(). On macOS that API call can remain tracked after
+ * the process is already gone and consume the entire test timeout. This is
+ * deliberately test-only process cleanup, not product shutdown evidence; the
+ * packaged app's real Quit path is verified separately. We still require the
+ * isolated process tree to exit within a bounded interval.
+ */
+async function closeElectronApp(app: ElectronApplication, timeoutMs = 5_000): Promise<void> {
+  const rootPid = app.process().pid
+
+  detachElectronTracing(app)
+
+  if (!rootPid) {
+    return
+  }
+
+  const rows = spawnSync('ps', ['-axo', 'pid=,ppid='], { encoding: 'utf8' }).stdout
+    .split('\n')
+    .map(line => line.trim().split(/\s+/).map(Number))
+    .filter((row): row is [number, number] => row.length === 2 && row.every(Number.isFinite))
+
+  const children = new Map<number, number[]>()
+
+  for (const [pid, parentPid] of rows) {
+    children.set(parentPid, [...(children.get(parentPid) ?? []), pid])
+  }
+
+  const targets: number[] = []
+
+  const collect = (pid: number) => {
+    targets.push(pid)
+
+    for (const childPid of children.get(pid) ?? []) {
+      collect(childPid)
+    }
+  }
+
+  collect(rootPid)
+
+  for (const pid of [...targets].reverse()) {
+    try {
+      process.kill(pid, 'SIGTERM')
+    } catch {
+      // The process may have exited while its siblings were being signalled.
+    }
+  }
+
+  const deadline = Date.now() + timeoutMs
+
+  const isAlive = (pid: number) => {
+    try {
+      process.kill(pid, 0)
+
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  while (targets.some(isAlive)) {
+    if (Date.now() >= deadline) {
+      for (const pid of targets.filter(isAlive).reverse()) {
+        try {
+          process.kill(pid, 'SIGKILL')
+        } catch {
+          // Best effort after the bounded graceful signal failed.
+        }
+      }
+
+      throw new Error(`E2E Electron process did not exit within ${timeoutMs}ms after SIGTERM`)
+    }
+
+    await new Promise(resolve => setTimeout(resolve, 50))
+  }
+}
+
 // ─── Public fixtures ────────────────────────────────────────────────────
 
 export interface MockBackendFixture {
@@ -365,6 +443,9 @@ export interface MockBackendOptions {
   extraConfig?: string
   /** Override the mock model's context window for compression scenarios. */
   modelContextLength?: number
+  /** Slow real boot phases for startup-surface and transition assertions. */
+  bootFakeStepMs?: number
+  mockServer?: MockServerOptions
 }
 
 /**
@@ -374,9 +455,6 @@ export interface MockBackendOptions {
  *   3. Launch the desktop app
  *   4. Return handles for test interaction
  */
-export interface MockBackendOptions {
-  mockServer?: MockServerOptions
-}
 
 export async function setupMockBackend(options: MockBackendOptions = {}): Promise<MockBackendFixture> {
   // 1. Start mock server
@@ -394,7 +472,16 @@ export async function setupMockBackend(options: MockBackendOptions = {}): Promis
   writeEnvFile(sandbox.hermesHome)
 
   // 3. Build env + launch
-  const env = buildAppEnv(sandbox)
+  const env = buildAppEnv(
+    sandbox,
+    options.bootFakeStepMs
+      ? {
+          HERMES_DESKTOP_BOOT_FAKE: '1',
+          HERMES_DESKTOP_BOOT_FAKE_STEP_MS: String(options.bootFakeStepMs),
+        }
+      : {},
+  )
+
   const { app, page } = await launchDesktop(env)
 
   return {
@@ -404,9 +491,12 @@ export async function setupMockBackend(options: MockBackendOptions = {}): Promis
     mockUrl: mock.url,
     sandbox,
     cleanup: async () => {
-      await app.close().catch(() => undefined)
-      await mock.close()
-      sandbox.cleanup()
+      try {
+        await closeElectronApp(app)
+      } finally {
+        await mock.close()
+        sandbox.cleanup()
+      }
     },
   }
 }
@@ -434,8 +524,11 @@ export async function setupNoProvider(): Promise<NoProviderFixture> {
     page,
     sandbox,
     cleanup: async () => {
-      await app.close().catch(() => undefined)
-      sandbox.cleanup()
+      try {
+        await closeElectronApp(app)
+      } finally {
+        sandbox.cleanup()
+      }
     },
   }
 }
@@ -487,7 +580,16 @@ providers:
   )
   writeEnvFile(sandbox.hermesHome)
 
-  const env = buildAppEnv(sandbox, options.fakeError ? { HERMES_DESKTOP_BOOT_FAKE_ERROR: 'Failed to connect to Hermes backend: connection refused' } : {})
+  const env = buildAppEnv(
+    sandbox,
+    options.fakeError
+      ? {
+          HERMES_DESKTOP_BOOT_FAKE_ERROR:
+            'Failed to connect to Hermes backend via hermes:connection: connection refused',
+        }
+      : {},
+  )
+
   const { app, page } = await launchDesktop(env)
 
   return {
@@ -495,8 +597,11 @@ providers:
     page,
     sandbox,
     cleanup: async () => {
-      await app.close().catch(() => undefined)
-      sandbox.cleanup()
+      try {
+        await closeElectronApp(app)
+      } finally {
+        sandbox.cleanup()
+      }
     },
   }
 }
@@ -515,7 +620,7 @@ function resolvePackagedBinaryPath(): string {
   if (process.platform === 'darwin') {
     const arch = process.arch === 'arm64' ? 'arm64' : 'x64'
 
-    return path.join(RELEASE_ROOT, `mac-${arch}`, 'Hermes.app', 'Contents', 'MacOS', 'Hermes')
+    return path.join(RELEASE_ROOT, `mac-${arch}`, 'My King.app', 'Contents', 'MacOS', 'Hermes')
   }
 
   return path.join(RELEASE_ROOT, 'linux-unpacked', 'hermes')
@@ -581,8 +686,11 @@ export async function setupPackagedApp(): Promise<PackagedAppFixture> {
     page,
     sandbox,
     cleanup: async () => {
-      await app.close().catch(() => undefined)
-      sandbox.cleanup()
+      try {
+        await closeElectronApp(app)
+      } finally {
+        sandbox.cleanup()
+      }
     },
   }
 }
@@ -632,6 +740,7 @@ export async function waitForAppReady(fixture: MockBackendFixture | NoProviderFi
       // `position: fixed; inset: 0`. If the hit element or an ancestor
       // is a full-viewport fixed overlay, we're still covered.
       let node: Element | null = el
+
       while (node) {
         const cs = window.getComputedStyle(node)
 

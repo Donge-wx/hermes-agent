@@ -500,6 +500,10 @@ export interface Translations {
       installed: (name: string) => string
       removeTheme: string
       importedBadge: string
+      themeSearchPlaceholder: string
+      themeNoMatches: (query: string) => string
+      themeNames: Record<string, string>
+      themeDescriptions: Record<string, string>
       pet: {
         title: string
         intro: string
@@ -570,6 +574,20 @@ export interface Translations {
       minAgo: (count: number) => string
       hoursAgo: (count: number) => string
       daysAgo: (count: number) => string
+      uninstall: {
+        dangerZone: string
+        checking: string
+        confirmTitle: string
+        confirmDescription: (consequence: string) => string
+        appPath: (path: string) => string
+        failedStart: string
+        uninstalling: string
+        confirmAction: string
+        cancel: string
+        title: string
+        description: string
+        options: Record<'gui' | 'lite' | 'full', { title: string; description: string; consequence: string }>
+      }
     }
     config: {
       none: string
@@ -1399,6 +1417,7 @@ export interface Translations {
 
   messaging: {
     search: string
+    platformSummary: (name: string) => string
     loading: string
     loadFailed: string
     states: Record<string, string>
@@ -1919,6 +1938,10 @@ export interface Translations {
   }
 
   composer: {
+    intro: {
+      headline: string
+      body: string
+    }
     message: string
     wakingProfile: (profile: string) => string
     placeholderStarting: string
@@ -1949,9 +1972,9 @@ export interface Translations {
     voiceDictation: string
     speakReplies: string
     stopSpeakingReplies: string
-    wakeWordListening: (phrase: string) => string
-    wakeWordOff: (phrase: string) => string
-    wakeWordPausedVoice: (phrase: string) => string
+    wakeWordListening: () => string
+    wakeWordOff: () => string
+    wakeWordPausedVoice: () => string
     lookupLoading: string
     lookupNoMatches: string
     lookupTry: string
@@ -2390,6 +2413,7 @@ export interface Translations {
       showTerminal: string
       hideTerminal: string
       gateway: string
+      gatewayConnected: string
       gatewayReady: string
       gatewayNeedsSetup: string
       gatewayChecking: string

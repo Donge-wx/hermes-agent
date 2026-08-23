@@ -51,6 +51,7 @@ export function OverlaySplitLayout({ children, className }: OverlaySplitLayoutPr
         'grid h-full min-h-0 flex-1 grid-cols-[13rem_minmax(0,1fr)] overflow-hidden bg-transparent max-[47.5rem]:grid-cols-1 max-[47.5rem]:grid-rows-[auto_minmax(0,1fr)]',
         className
       )}
+      data-slot="overlay-split-layout"
     >
       {children}
     </div>
@@ -72,6 +73,7 @@ export function OverlaySidebar({ children, className }: OverlaySidebarProps) {
       // Every overlay's left nav (settings, cron, profiles, agents) answers to
       // one name, so a tour can point at "the nav" without knowing which
       // overlay is open. See lib/tour.
+      data-slot="overlay-sidebar"
       data-tour="overlay-nav"
     >
       {children}
@@ -94,6 +96,7 @@ export function OverlayMain({ children, className }: OverlayMainProps) {
         PAGE_MAX_W,
         className
       )}
+      data-slot="overlay-main"
     >
       {children}
     </main>
@@ -111,6 +114,7 @@ export const OverlayNavItem = memo(function OverlayNavItem({
 }: OverlayNavItemProps) {
   return (
     <button
+      aria-current={active ? 'page' : undefined}
       className={cn(
         'flex h-7 w-full items-center justify-start gap-2 rounded-md border px-2 text-left text-[length:var(--conversation-text-font-size)] font-normal transition-colors',
         nested
@@ -120,7 +124,8 @@ export const OverlayNavItem = memo(function OverlayNavItem({
           : active
             ? 'border-(--ui-stroke-tertiary) bg-(--ui-bg-tertiary) text-foreground'
             : 'border-transparent bg-transparent text-(--ui-text-secondary) hover:bg-(--chrome-action-hover) hover:text-foreground'
-      )}
+        )}
+      data-slot="overlay-nav-item"
       // Names the row by its own id, so a tour can address one link
       // (`[data-tour="nav-models"]`) instead of guessing at nth-child.
       data-tour={id ? `nav-${id}` : undefined}

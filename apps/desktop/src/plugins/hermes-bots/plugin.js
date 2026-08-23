@@ -1,13 +1,13 @@
 /**
- * Hermes Bot Mode — a "one chat per agent" roster for the Hermes desktop.
+ * My King Bot Mode — a "one chat per agent" roster for the My King desktop.
  *
- * Left pane "Bots": one row per Hermes profile (a bot = an agent profile) with
+ * Left pane "Bots": one row per My King profile (a bot = an agent profile) with
  * a customizable avatar (shape + color + eyes, image, or pet). Click opens that
  * bot's chat; right-click → Edit Profile (avatar, title, description).
  * "New Agent" creates a profile — Name / Title / Description with an
  * "Advanced" disclosure for full profile config.
  *
- * Right tile "Routines": scheduled tasks (Hermes cron jobs) scoped to the
+ * Right tile "Routines": scheduled tasks (My King cron jobs) scoped to the
  * bot you're currently chatting with — follows the live gateway profile.
  *
  * Bots message each other straight into each bot's ONE canonical "Bot
@@ -1617,7 +1617,7 @@ async function duplicateBot(bot, roster) {
   return name
 }
 
-/** Permanently delete a bot's Hermes profile, then remove plugin-local state
+/** Permanently delete a bot's My King profile, then remove plugin-local state
  * that would otherwise leave stale appearance/unread data behind.
  *
  * Prefer the SDK's `host.deleteProfile` when this Desktop build ships it: it
@@ -3298,7 +3298,7 @@ function AvatarPicker({ shape, color, image, onShape, onColor, onImage, generate
               className: 'px-2 py-3 text-center text-xs leading-5 text-(--ui-text-tertiary)',
               children:
                 imagen === false
-                  ? 'No image model available. If you just enabled one (or updated Hermes), restart the gateway: Ctrl+K → "Restart gateway".'
+                  ? 'No image model available. If you just enabled one (or updated My King), restart the gateway: Ctrl+K → "Restart gateway".'
                   : 'Checking image backend…'
             })
         : null,
@@ -4046,7 +4046,7 @@ const CANONICAL_CHAT_TITLE = 'Bot Chat'
 
 async function openStoredBotChat(name, storedId, summary) {
   if (!storedId || typeof host.openSession !== 'function') {
-    throw new Error('This Hermes Desktop version cannot open stored sessions')
+    throw new Error('This My King Desktop version cannot open stored sessions')
   }
 
   const hasAuthoritativeCount =
@@ -4239,7 +4239,7 @@ async function prepareBotSource(bot) {
   }
 
   if (typeof host.ensureAgent !== 'function') {
-    throw new Error('Update Hermes Desktop to chat with agents on other connections.')
+    throw new Error('Update My King Desktop to chat with agents on other connections.')
   }
 
   await host.ensureAgent(bot.connectionId, bot.name)
@@ -4262,7 +4262,7 @@ async function prepareBotSource(bot) {
 function displayName(bot, meta) {
   // Only THIN rows from another source trade the friendly name for their
   // connection label — the active gateway's own default must keep reading
-  // "Hermes". Annotated active rows carry sourceScoped too, and keying this
+  // "My King". Annotated active rows carry sourceScoped too, and keying this
   // off sourceScoped renamed the user's main agent to an IP-derived label
   // (community report, Aug 17 2026).
   if (bot?.remoteSource && (bot.name || '').trim().toLowerCase() === 'default' && bot.connectionLabel) {
@@ -4281,13 +4281,17 @@ function displayName(bot, meta) {
   }
 
   // The primary profile is literally named "default" — as a bot identity
-  // that reads like nobody bothered. Present it as Hermes (the agent it is)
+  // that reads like nobody bothered. Present it as My King (the agent it is)
   // unless the user gives it a real title.
   if ((bot.name || '').trim().toLowerCase() === 'default' && !bot.title) {
-    return 'Hermes'
+    return 'My King'
   }
 
   const raw = (bot.title || bot.name || '').replace(/[-_]+/g, ' ').trim()
+  if (raw.toLowerCase() === 'hermes') {
+    return 'My King'
+  }
+
   return raw.replace(/\b\w/g, ch => ch.toUpperCase())
 }
 
@@ -4488,7 +4492,7 @@ function knownGroups(metaByName) {
 // actually speaks is its own turn's choice — replying with exactly "(pass)"
 // (or nothing, or failing) is silence. Hard caps end every turn; a round in
 // which everyone passed means the conversation settled. Each member runs its
-// turn in its OWN persistent per-group Hermes session and is fed only the
+// turn in its OWN persistent per-group My King session and is fed only the
 // room messages that are NEW since it last saw the room.
 
 const GROUP_CHAT_MAX_ROUNDS = 3
@@ -4617,10 +4621,11 @@ function rotateGroupSpeakers(members, round) {
 }
 
 /** Transcript form of a room speaker's profile name. The primary profile is
- *  literally named "default" — render it as Hermes (matching displayName and
+ *  literally named "default" — render it as My King (matching displayName and
  *  the @hermes handle) so the main agent never loses its name in rooms. */
 function groupSpeakerLabel(name) {
-  return (name || '').trim().toLowerCase() === 'default' ? 'Hermes' : name
+  const normalized = (name || '').trim().toLowerCase()
+  return normalized === 'default' || normalized === 'hermes' ? 'My King' : name
 }
 
 /** Room-log line as a member sees it: `Name (user): …` / `Name: …` /
@@ -6530,7 +6535,7 @@ function AdvancedProfileConfig({ bot, state, setState }) {
   if (unsupported) {
     return jsx('div', {
       className: 'px-2 py-3 text-center text-xs text-(--ui-text-tertiary)',
-      children: 'Full configuration needs a newer gateway (restart it after updating Hermes).'
+      children: 'Full configuration needs a newer gateway (restart it after updating My King).'
     })
   }
 
@@ -6922,7 +6927,7 @@ function HubSkillsSection({ forProfile, onInstalled }) {
                 },
                 children: jsx('iframe', {
                   src: HUB_PICKER_URL,
-                  title: 'Hermes Skills Hub',
+                  title: 'My King Skills Hub',
                   ref: frameRef,
                   style: {
                     width: '133.34%',
@@ -7954,7 +7959,7 @@ function CreateAgentDialog({ open, onClose, roster }) {
                         ? jsx('div', {
                             className: 'px-2 py-3 text-center text-xs text-(--ui-text-tertiary)',
                             children:
-                              'Capability catalog needs a newer gateway (restart it after updating Hermes).'
+                              'Capability catalog needs a newer gateway (restart it after updating My King).'
                           })
                         : !caps
                           ? jsx('div', {
@@ -8421,7 +8426,7 @@ function RoutineRow({ job, profile }) {
 
 // Structured schedule picker: frequency first, then only the detail that
 // frequency needs (time of day, weekday, day of month, interval). Emits a
-// Hermes-native schedule string; Advanced exposes it raw.
+// My King-native schedule string; Advanced exposes it raw.
 const FREQUENCIES = [
   { id: 'once', label: 'Once, in\u2026' },
   { id: 'hourly', label: 'Every hour' },
@@ -8455,7 +8460,7 @@ const TIMES = (() => {
   return out
 })()
 
-/** Compose the Hermes schedule string from picker state. */
+/** Compose the My King schedule string from picker state. */
 function composeSchedule(state) {
   const [h, m] = (state.time || '9:0').split(':').map(Number)
 
@@ -10241,7 +10246,7 @@ function GroupChatWorkspace({ group, members, onBack, visible = true }) {
                   const meta = isUser || entry.from.source ? null : allMeta[entry.from.name]
                   // Match this speaker back to its member descriptor so display
                   // names and disambiguating handles come from the roster (the
-                  // primary "default" profile renders as Hermes, remote dupes
+                  // primary "default" profile renders as My King, remote dupes
                   // carry their @name-device handle) instead of raw profile ids.
                   const member = isUser
                     ? null
@@ -11174,7 +11179,7 @@ function BotsPane() {
               children: [
                 jsx('div', {
                   children: gatewayUp
-                    ? `Roster unavailable: ${error instanceof Error ? error.message : 'gateway error'}. If your gateway predates profiles.list, update Hermes and restart the gateway.`
+                    ? `Roster unavailable: ${error instanceof Error ? error.message : 'gateway error'}. If your gateway predates profiles.list, update My King and restart the gateway.`
                     : 'Waiting for the gateway connection… (remote gateways can take a few seconds; retries automatically)'
                 }),
                 jsx(Button, {
@@ -11272,7 +11277,7 @@ function BotsPane() {
               children: [
                 'This will permanently delete the bot ',
                 jsx('span', { className: 'font-medium text-foreground', children: deleting.name }),
-                ' and its associated Hermes profile at ',
+                ' and its associated My King profile at ',
                 jsx('span', { className: 'font-mono text-xs', children: deleting.path }),
                 '. This cannot be undone.'
               ]

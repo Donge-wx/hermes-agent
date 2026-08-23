@@ -127,7 +127,7 @@ describe('ModelSettings profile scope', () => {
 
 describe('ModelSettings', () => {
   it('loads the current main model and lists configured providers only', async () => {
-    await renderModelSettings()
+    const { container } = await renderModelSettings()
 
     await waitFor(() => expect(getGlobalModelInfo).toHaveBeenCalled())
     await waitFor(() => expect(getGlobalModelOptions).toHaveBeenCalled())
@@ -135,6 +135,8 @@ describe('ModelSettings', () => {
     // Open the provider Select — only configured providers should be listed.
     const triggers = await screen.findAllByRole('combobox')
     fireEvent.click(triggers[0])
+
+    expect(container.querySelector('[data-slot="model-reasoning-label"]')?.textContent).toBe('Reasoning')
 
     // "Nous" shows in both the trigger and the open list.
     expect((await screen.findAllByText('Nous')).length).toBeGreaterThan(0)

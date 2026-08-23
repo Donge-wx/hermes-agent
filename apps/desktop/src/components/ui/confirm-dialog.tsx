@@ -11,8 +11,8 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/components/ui/dialog'
+import { ErrorBanner } from '@/components/ui/error-state'
 import { useI18n } from '@/i18n'
-import { AlertTriangle } from '@/lib/icons'
 
 interface ConfirmDialogProps {
   open: boolean
@@ -151,12 +151,7 @@ export function ConfirmDialog({
           {description ? <DialogDescription>{description}</DialogDescription> : null}
         </DialogHeader>
 
-        {error && (
-          <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-            <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
-            <span>{error}</span>
-          </div>
-        )}
+        {error && <ErrorBanner>{error}</ErrorBanner>}
 
         <DialogFooter>
           <Button disabled={busy} onClick={onClose} type="button" variant="ghost">

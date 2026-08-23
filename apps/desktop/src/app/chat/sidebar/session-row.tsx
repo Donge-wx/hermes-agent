@@ -13,6 +13,7 @@ import { Codicon } from '@/components/ui/codicon'
 import { OverflowTip, Tip } from '@/components/ui/tooltip'
 import type { SessionInfo } from '@/hermes'
 import { type Translations, useI18n } from '@/i18n'
+import { publicBrandText } from '@/lib/brand'
 import { sessionTitle } from '@/lib/chat-runtime'
 import { pathLeaf } from '@/lib/display-path'
 import { compactNumber } from '@/lib/format'
@@ -144,7 +145,9 @@ function SidebarSessionRowImpl({
   const { t } = useI18n()
   const r = t.sidebar.row
   const { cancelPrewarm, startPrewarm } = useProfilePrewarm(session.profile)
-  const title = sessionTitle(session)
+  // Session titles are backend-owned data, so keep the stored value intact.
+  // Compatibility branding is rewritten only at this public display boundary.
+  const title = publicBrandText(sessionTitle(session))
   const density = useStore($sessionListDensity)
   const fmt = t.sidebar
 
@@ -369,6 +372,9 @@ function SidebarSessionRowImpl({
           className
         )}
         data-glass-opaque={dragging ? '' : undefined}
+        data-selected={isSelected ? 'true' : 'false'}
+        data-slot="session-row"
+        data-unread={unread ? 'true' : 'false'}
         data-working={liveTurn ? 'true' : undefined}
         // The row runs BOTH drags off one press, and each declines outside its
         // own region — so no timing/arbitration rule is needed and neither can

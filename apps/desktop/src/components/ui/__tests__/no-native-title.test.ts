@@ -41,7 +41,7 @@ describe('no native title= on button elements', () => {
   // multiple lines).
   it('uses <Tip> instead of native title= on all button elements', () => {
     const violations: string[] = []
-    const srcDir = resolve(__dirname, '../..')
+    const srcDir = resolve(__dirname, '../../..')
 
     for (const filePath of collectTsxFiles(srcDir)) {
       const content = readFileSync(filePath, 'utf-8')

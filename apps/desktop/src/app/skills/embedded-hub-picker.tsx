@@ -172,7 +172,7 @@ export const EmbeddedHubPicker = memo(function EmbeddedHubPicker({
         // the list's strip/footer painted straight over this header. Now the
         // section clips its own content and gives height back to the list;
         // min-h keeps the header row itself always visible.
-        'relative flex min-h-9 flex-col overflow-hidden border-t border-(--ui-stroke-secondary)',
+        'relative flex min-h-9 flex-col overflow-hidden border-t border-(--ui-stroke-secondary) max-[640px]:max-h-52',
         hidden && 'hidden'
       )}
       ref={sectionRef}
@@ -218,7 +218,7 @@ export const EmbeddedHubPicker = memo(function EmbeddedHubPicker({
               flex: `0 1 ${height}px`,
               maxWidth: '100%',
               minHeight: 0,
-              minWidth: 320,
+              minWidth: 0,
               overflow: 'hidden',
               position: 'relative',
               width: '100%'

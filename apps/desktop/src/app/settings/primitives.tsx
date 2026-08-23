@@ -14,7 +14,7 @@ import { PAGE_INSET_X } from '../layout-constants'
 // surface (e.g. the boot-failure recovery card owns its own padding).
 export function SettingsContent({ children, bare = false }: { children: ReactNode; bare?: boolean }) {
   return (
-    <section className="min-h-0 overflow-hidden">
+    <section className="min-h-0 overflow-hidden" data-slot="settings-content">
       <div className={cn('h-full min-h-0 overflow-y-auto', bare ? 'px-5 pb-6' : cn('pb-20', PAGE_INSET_X))}>
         {children}
       </div>
@@ -42,7 +42,10 @@ export function SectionHeading({
   title: string
 }) {
   return (
-    <div className="mb-2.5 flex items-center gap-2 pt-2 text-[length:var(--conversation-text-font-size)] font-medium">
+    <div
+      className="mb-2.5 flex items-center gap-2 pt-2 text-[length:var(--conversation-text-font-size)] font-medium"
+      data-slot="settings-section-heading"
+    >
       <Icon className="size-4 shrink-0 text-muted-foreground" />
       <span>{title}</span>
       {meta && <Pill>{meta}</Pill>}
@@ -131,7 +134,7 @@ export function ListRow({
     // Container-queried, not viewport-queried: the label/control split keys on
     // the row's own pane width, so a narrow detail column (messaging, split
     // views) stacks instead of squishing the label against minmax(15rem,…).
-    <div className={cn('@container', className)} data-tour={dataTour} id={id}>
+    <div className={cn('@container', className)} data-slot="settings-row" data-tour={dataTour} id={id}>
       <div
         className={cn(
           'grid gap-3 py-3',
@@ -139,9 +142,17 @@ export function ListRow({
         )}
       >
         <div className="min-w-0">
-          <div className="text-[length:var(--conversation-text-font-size)] font-medium text-foreground">{title}</div>
+          <div
+            className="text-[length:var(--conversation-text-font-size)] font-medium text-foreground"
+            data-slot="settings-row-title"
+          >
+            {title}
+          </div>
           {description && (
-            <div className="mt-1 text-[length:var(--conversation-caption-font-size)] leading-(--conversation-caption-line-height) text-(--ui-text-tertiary)">
+            <div
+              className="mt-1 text-[length:var(--conversation-caption-font-size)] leading-(--conversation-caption-line-height) text-(--ui-text-tertiary)"
+              data-slot="settings-row-description"
+            >
               {description}
             </div>
           )}

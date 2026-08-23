@@ -1,8 +1,7 @@
 import { useStore } from '@nanostores/react'
 
+import { BRAND, brandAssetPath } from '@/lib/brand'
 import { $backdrop } from '@/store/backdrop'
-
-const assetPath = (path: string) => `${import.meta.env.BASE_URL}${path.replace(/^\/+/, '')}`
 
 export function Backdrop() {
   const on = useStore($backdrop)
@@ -12,12 +11,23 @@ export function Backdrop() {
   }
 
   return (
-    <div aria-hidden className="pointer-events-none absolute inset-0 z-2 opacity-[0.025] mix-blend-difference">
+    <div
+      aria-hidden
+      className="pointer-events-none absolute inset-0 z-2"
+      data-slot="app-backdrop"
+    >
       <img
         alt=""
-        className="h-[160dvh] w-auto min-w-dvw object-cover object-left-top [filter:invert(var(--backdrop-invert-mul,1))]"
+        className="size-full object-cover object-center"
         fetchPriority="low"
-        src={assetPath('ds-assets/filler-bg0.jpg')}
+        src={brandAssetPath('brand/ambient-background.svg')}
+      />
+      <img
+        alt=""
+        className="absolute max-w-none"
+        data-slot="app-backdrop-symbol"
+        fetchPriority="low"
+        src={brandAssetPath(BRAND.symbolPath)}
       />
     </div>
   )

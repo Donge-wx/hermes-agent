@@ -2,6 +2,7 @@
 
 import { type ReactNode, useEffect, useRef, useState } from 'react'
 
+import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { Tip } from '@/components/ui/tooltip'
 import { Check, Copy, Maximize, RefreshCw, X, ZoomIn, ZoomOut } from '@/lib/icons'
@@ -34,19 +35,22 @@ export function Zoomable({ children, overlay, onCopy, label = 'Open full view', 
     <>
       <div className={cn('group/zoomable relative', className)}>
         {/* The whole content is the trigger — click anywhere to open, like an image. */}
-        <button
-          className="block w-full cursor-zoom-in text-left"
-          onClick={() => setOpen(true)}
-          title={label}
-          type="button"
-        >
-          {children}
-        </button>
+        <Tip label={label}>
+          <button
+            aria-label={label}
+            className="block w-full cursor-zoom-in text-left"
+            onClick={() => setOpen(true)}
+            type="button"
+          >
+            {children}
+          </button>
+        </Tip>
         <span
           aria-hidden
-          className="pointer-events-none absolute right-2 top-2 grid size-8 place-items-center rounded-full border border-border/70 bg-background/80 text-muted-foreground opacity-0 shadow-sm backdrop-blur transition-opacity group-hover/zoomable:opacity-100"
+          className="pointer-events-none absolute right-2 top-2 grid size-8 place-items-center rounded-full border border-(--stroke-nous) bg-(--ui-chat-bubble-background) text-muted-foreground opacity-0 shadow-nous transition-opacity group-hover/zoomable:opacity-100"
+          data-slot="zoomable-expand-indicator"
         >
-          <Maximize className="size-4" />
+          <Maximize />
         </span>
       </div>
       {open && (
@@ -82,6 +86,7 @@ function ZoomPanViewer({
       <DialogContent
         bodyClassName="flex min-h-0 flex-1 flex-col gap-0 overflow-hidden p-0"
         className="h-[85vh] w-[90vw] max-w-[90vw]"
+        data-zoom-viewer=""
         showCloseButton={false}
       >
         <div
@@ -89,6 +94,7 @@ function ZoomPanViewer({
             'relative flex-1 touch-none select-none overflow-hidden',
             panning ? 'cursor-grabbing' : 'cursor-grab'
           )}
+          data-slot="zoom-stage"
           {...stageProps}
         >
           <div className="absolute inset-0 grid place-items-center">
@@ -153,47 +159,51 @@ function Toolbar({
   }
 
   return (
-    <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-full border border-border/70 bg-background/85 p-1 shadow-sm backdrop-blur">
+    <div
+      className="absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-xl border border-(--stroke-nous) bg-(--ui-chat-bubble-background) p-1 shadow-nous"
+      data-slot="zoom-toolbar"
+    >
       <ToolbarButton label="Zoom out" onClick={zoomOut}>
-        <ZoomOut className="size-4" />
+        <ZoomOut />
       </ToolbarButton>
       <ToolbarButton label="Reset" onClick={reset}>
-        <RefreshCw className="size-4" />
+        <RefreshCw />
       </ToolbarButton>
       <ToolbarButton label="Zoom in" onClick={zoomIn}>
-        <ZoomIn className="size-4" />
+        <ZoomIn />
       </ToolbarButton>
       {onCopy && (
         <>
           <Divider />
           <ToolbarButton label={copied ? 'Copied' : 'Copy'} onClick={() => void copy()}>
-            {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
+            {copied ? <Check /> : <Copy />}
           </ToolbarButton>
         </>
       )}
       <Divider />
       <ToolbarButton label="Close" onClick={onClose}>
-        <X className="size-4" />
+        <X />
       </ToolbarButton>
     </div>
   )
 }
 
 function Divider() {
-  return <span className="mx-0.5 h-5 w-px bg-border" />
+  return <span className="mx-0.5 h-5 w-px bg-(--ui-stroke-tertiary)" />
 }
 
 function ToolbarButton({ children, label, onClick }: { children: ReactNode; label: string; onClick: () => void }) {
   return (
     <Tip label={label}>
-      <button
+      <Button
         aria-label={label}
-        className="grid size-8 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
         onClick={onClick}
+        size="icon-sm"
         type="button"
+        variant="ghost"
       >
         {children}
-      </button>
+      </Button>
     </Tip>
   )
 }

@@ -157,24 +157,43 @@ case "$MODE" in
     mkdir -p "$UNPACKED"
     printf '#!/bin/sh\nexit 1\n' > "$UNPACKED/hermes"; chmod +x "$UNPACKED/hermes"
     if [ "$(uname)" != "Darwin" ]; then
-      bash "$SCRIPT_DIR/posix.sh" --no-ui --desktop-pid 0 --install-root "$L/hermes-agent" \
+      bash "$SCRIPT_DIR/posix.sh" --daemonized --no-ui --desktop-pid 0 --install-root "$L/hermes-agent" \
         --relaunch-target "$UNPACKED/hermes" >/dev/null 2>&1 || true
-      expect_msg "instant-exit relaunch downgrades to manual" "d['ok']==True and d['manual']==True and 'Reopen Hermes' in d['message']"
+      expect_msg "instant-exit relaunch downgrades to manual" "d['ok']==True and d['manual']==True and 'Reopen My King' in d['message']"
     else
       # mac: a SUPPLIED target that is missing is a REJECTED launch and
       # must downgrade to manual — never a clean "Update complete."
-      bash "$SCRIPT_DIR/posix.sh" --no-ui --desktop-pid 0 --install-root "$L/hermes-agent" \
+      bash "$SCRIPT_DIR/posix.sh" --daemonized --no-ui --desktop-pid 0 --install-root "$L/hermes-agent" \
         --relaunch-target "$L/NoSuch.app" >/dev/null 2>&1 || true
-      expect_msg "missing bundle downgrades to manual" "d['ok']==True and d['manual']==True and 'Reopen Hermes' in d['message']"
+      expect_msg "missing bundle downgrades to manual" "d['ok']==True and d['manual']==True and 'Reopen My King' in d['message']"
     fi
 
     # 2. gated skew: success result carries the skew message (the manual
     #    event's payload), never a bare "Update complete."
     stub_install
-    bash "$SCRIPT_DIR/posix.sh" --no-ui --desktop-pid 0 --install-root "$L/hermes-agent" \
+    bash "$SCRIPT_DIR/posix.sh" --daemonized --no-ui --desktop-pid 0 --install-root "$L/hermes-agent" \
       --relaunch-target /opt/Hermes/hermes >/dev/null 2>&1 || true
     if [ "$(uname)" != "Darwin" ]; then
       expect_msg "skew outcome surfaces in result message" "d['ok']==True and d['manual']==True and 'was not changed' in d['message']"
+    fi
+
+    # 3. macOS native My King builds must be selected as the update source.
+    # The installed target name is deliberately unrelated: mac_swap replaces
+    # the exact bundle Electron is currently running, not a hardcoded path.
+    if [ "$(uname)" = "Darwin" ]; then
+      stub_install
+      REBUILT="$L/hermes-agent/apps/desktop/release/mac-arm64/My King.app"
+      TARGET="$L/Installed My King.app"
+      mkdir -p "$REBUILT/Contents" "$TARGET/Contents"
+      printf 'new\n' > "$REBUILT/Contents/build-id"
+      printf 'old\n' > "$TARGET/Contents/build-id"
+      bash "$SCRIPT_DIR/posix.sh" --daemonized --no-ui --desktop-pid 0 --install-root "$L/hermes-agent" \
+        --relaunch-target "$TARGET" >/dev/null 2>&1 || true
+      if [ "$(cat "$TARGET/Contents/build-id" 2>/dev/null)" = "new" ]; then
+        printf 'ok   native My King bundle is selected for macOS swap\n'
+      else
+        printf 'FAIL native My King bundle was not selected for macOS swap\n'; fails=$((fails+1))
+      fi
     fi
 
     rm -rf "$L"

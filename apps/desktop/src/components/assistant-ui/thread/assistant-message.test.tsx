@@ -107,6 +107,20 @@ describe('AssistantMessage branch button visibility (bug #2 fix)', () => {
   })
 })
 
+describe('conversation presentation hooks', () => {
+  it('exposes stable user, assistant, and settled-reasoning slots without changing message content', async () => {
+    const { container } = render(<Harness />)
+
+    await screen.findByText('done')
+
+    expect(container.querySelector('[data-slot="aui_user-message-root"]')).toBeTruthy()
+    expect(container.querySelector('[data-slot="aui_user-message-content"]')?.textContent).toContain('question one')
+    expect(container.querySelector('[data-slot="aui_assistant-message-root"]')).toBeTruthy()
+    expect(container.querySelector('[data-slot="aui_assistant-message-content"]')?.textContent).toContain('done')
+    expect(container.querySelector('[data-slot="aui_thinking-disclosure"]')?.getAttribute('data-state')).toBe('settled')
+  })
+})
+
 describe('message timeline timestamps', () => {
   it('always renders precise user and assistant lifecycle times', async () => {
     const { container } = render(<Harness />)

@@ -1,0 +1,170 @@
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] body {
+  background:
+    radial-gradient(62% 54% at 86% -4%, color-mix(in srgb, var(--lg-blue-mist) 72%, transparent), transparent 72%),
+    radial-gradient(46% 64% at -8% 18%, color-mix(in srgb, var(--lg-white) 72%, transparent), transparent 70%),
+    radial-gradient(56% 62% at 8% 104%, color-mix(in srgb, var(--lg-blue-soft) 58%, transparent), transparent 72%),
+    linear-gradient(138deg, var(--lg-environment-deep), var(--lg-environment) 52%, var(--lg-silver-100)) !important;
+}
+
+/* Preserve Hermes' single full-window painter under native vibrancy. */
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-contrib-shell],
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='sidebar-wrapper'] {
+  background-color: transparent !important;
+}
+
+/* The work plane carries a visible but quiet optical field for glass to refract. */
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-chat-surface] {
+  background:
+    radial-gradient(64% 54% at 88% -4%, color-mix(in srgb, var(--lg-ice-mist) 94%, transparent), transparent 68%),
+    radial-gradient(56% 42% at 102% 76%, color-mix(in srgb, var(--lg-blue-mist) 48%, transparent), transparent 68%),
+    radial-gradient(46% 34% at 54% 47%, color-mix(in srgb, var(--lg-white) 88%, transparent), transparent 74%),
+    radial-gradient(54% 42% at 12% 104%, color-mix(in srgb, var(--lg-blue-soft) 52%, transparent), transparent 72%),
+    linear-gradient(180deg, var(--lg-content-raised) 0%, var(--lg-content) 44%, var(--lg-pearl-200) 126%),
+    var(--ui-chat-surface-background);
+  box-shadow: var(--lg-shadow-chat-surface);
+}
+
+/* Titlebar chrome is thin and continuous with the native frame. */
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-contrib-shell] > :first-child,
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-chat-surface] > header {
+  border-block-end: var(--lg-stroke-hairline) solid var(--lg-seam-outer);
+  background:
+    radial-gradient(44% 180% at 16% -46%, color-mix(in srgb, var(--lg-white) 96%, transparent), transparent 70%),
+    radial-gradient(48% 180% at 86% -36%, color-mix(in srgb, var(--lg-blue-mist) 34%, transparent), transparent 76%),
+    linear-gradient(108deg, color-mix(in srgb, var(--lg-white) 70%, transparent), transparent 46%),
+    linear-gradient(180deg, color-mix(in srgb, var(--lg-white) 20%, transparent), transparent 64%),
+    var(--lg-glass-chrome);
+  box-shadow: var(--lg-shadow-titlebar);
+  backdrop-filter: var(--lg-backdrop-titlebar);
+  -webkit-backdrop-filter: var(--lg-backdrop-titlebar);
+}
+
+/* One continuous navigation rail; descendants do not repaint the tint. */
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='sidebar'] {
+  border-inline-end: var(--lg-stroke-hairline) solid var(--lg-seam-outer);
+  background:
+    radial-gradient(88% 36% at 8% 0%, color-mix(in srgb, var(--lg-white) 92%, transparent), transparent 72%),
+    radial-gradient(110% 54% at 12% 104%, color-mix(in srgb, var(--lg-blue-mist) 52%, transparent), transparent 76%),
+    linear-gradient(112deg, color-mix(in srgb, var(--lg-white) 62%, transparent), transparent 50%),
+    var(--lg-glass-chrome);
+  box-shadow: var(--lg-shadow-sidebar);
+  backdrop-filter: var(--lg-backdrop-sidebar);
+  -webkit-backdrop-filter: var(--lg-backdrop-sidebar);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  :is([data-slot='sidebar-inner'], [data-slot='sidebar-container'], [data-slot='sidebar-content']) {
+  background: transparent;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-sidebar='menu-button'] {
+  border-color: transparent;
+  border-radius: var(--lg-radius-control);
+  color: var(--lg-ink-secondary);
+  transition:
+    color var(--lg-duration-fast) var(--lg-ease-out),
+    background-color var(--lg-duration-fast) var(--lg-ease-out),
+    border-color var(--lg-duration-fast) var(--lg-ease-out),
+    box-shadow var(--lg-duration-state) var(--lg-ease-out),
+    transform var(--lg-duration-state) var(--lg-ease-out);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-sidebar='menu-button']:not([data-active='true']):hover {
+  border-color: color-mix(in srgb, var(--lg-rim-outer) 42%, transparent);
+  background: color-mix(in srgb, var(--lg-hover-wash) 72%, var(--lg-glass-raised));
+  color: var(--lg-ink);
+  box-shadow: var(--lg-shadow-navigation-hover);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-sidebar='menu-button'][data-active='true'] {
+  border-color: color-mix(in srgb, var(--lg-blue) 12%, var(--lg-rim-outer));
+  background: var(--lg-selected-wash);
+  color: var(--lg-ink);
+  box-shadow: var(--lg-shadow-contact);
+}
+
+/* SESSIONS / BOTS and sibling pane tabs use a quiet lens, never an underline. */
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-zone-tabstrip] {
+  gap: var(--lg-space-nano);
+  padding: var(--lg-space-3xs);
+  background: color-mix(in srgb, var(--lg-glass-chrome) 78%, transparent);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-zone-tabstrip] [data-tree-tab] {
+  --tab-bg: transparent;
+
+  height: calc(100% - var(--lg-offset-hairline));
+  border-color: transparent !important;
+  border-radius: var(--lg-radius-tab);
+  color: var(--lg-ink-tertiary);
+  box-shadow: none;
+  transition:
+    color var(--lg-duration-fast) var(--lg-ease-out),
+    background-color var(--lg-duration-fast) var(--lg-ease-out),
+    box-shadow var(--lg-duration-state) var(--lg-ease-out);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-zone-tabstrip]
+  [data-tree-tab]:not([data-active='true']):hover {
+  --tab-bg: var(--lg-hover-wash);
+
+  color: var(--lg-ink-secondary);
+  box-shadow: none;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-zone-tabstrip]
+  [data-tree-tab][data-active='true'] {
+  --tab-bg: var(--lg-glass-raised);
+
+  color: var(--lg-ink);
+  box-shadow: var(--lg-shadow-contact);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-zone-tabstrip]
+  [data-tree-tab][data-active='true']
+  span:last-child {
+  font-weight: 600;
+  letter-spacing: 0.055em;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='statusbar'] {
+  min-height: var(--lg-size-statusbar-compact);
+  border-block-start: var(--lg-stroke-hairline) solid var(--lg-seam-outer);
+  background:
+    radial-gradient(34% 160% at 88% 0%, color-mix(in srgb, var(--lg-blue-mist) 42%, transparent), transparent 78%),
+    linear-gradient(180deg, color-mix(in srgb, var(--lg-white) 58%, transparent), transparent 68%),
+    var(--lg-glass-chrome);
+  color: var(--lg-ink-tertiary);
+  box-shadow: var(--lg-shadow-statusbar);
+  backdrop-filter: var(--lg-backdrop-statusbar);
+  -webkit-backdrop-filter: var(--lg-backdrop-statusbar);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] .titlebar-icon-button {
+  border: var(--lg-stroke-hairline) solid transparent;
+  border-radius: var(--lg-radius-micro);
+  color: var(--lg-ink-tertiary);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] .titlebar-icon-button:hover {
+  border-color: transparent;
+  background: var(--lg-glass-raised);
+  color: var(--lg-ink);
+  box-shadow: var(--lg-shadow-contact);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] .titlebar-icon-button[aria-pressed='true'] {
+  border-color: transparent;
+  background: var(--lg-selected-wash-strong);
+  color: var(--lg-blue-hover);
+  box-shadow: var(--lg-shadow-contact);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] .titlebar-icon-button:active:not(:disabled) {
+  background: var(--lg-selected-wash);
+  box-shadow: var(--lg-shadow-ghost-active);
+}

@@ -19,6 +19,7 @@ import {
   resolvePersistedRemoteToken,
   resolveReadableFileForIpc,
   resolveRequestedPathForIpc,
+  resolveSecureTokenStorageAvailability,
   resolveTimeoutMs,
   SAFE_STORAGE_ENCODING,
   SECRET_FILE_MODE,
@@ -279,6 +280,45 @@ test('enableBasicPasswordStoreEncryption swallows a throwing setUsePlainTextEncr
     enableBasicPasswordStoreEncryption({ platform: 'linux', passwordStoreSwitch: 'basic', safeStorageApi }),
     false
   )
+})
+
+test('secure token storage availability does not touch the keychain probe on macOS or Windows', () => {
+  // Given: a probe that would expose any eager OS credential-store access.
+  let calls = 0
+
+  const safeStorageApi = {
+    isEncryptionAvailable: () => {
+      calls += 1
+
+      return false
+    }
+  }
+
+  // When: renderer-facing status is resolved on platforms with a native store.
+  const macAvailable = resolveSecureTokenStorageAvailability('darwin', safeStorageApi)
+  const windowsAvailable = resolveSecureTokenStorageAvailability('win32', safeStorageApi)
+
+  // Then: status is available without synchronously opening Keychain or DPAPI.
+  assert.equal(macAvailable, true)
+  assert.equal(windowsAvailable, true)
+  assert.equal(calls, 0)
+})
+
+test('secure token storage availability probes Linux and converts probe failures to unavailable', () => {
+  // Given: Linux is the only platform where keyring availability varies by session.
+  const availableApi = { isEncryptionAvailable: () => true }
+  const unavailableApi = { isEncryptionAvailable: () => false }
+
+  const throwingApi = {
+    isEncryptionAvailable: () => {
+      throw new Error('keyring unavailable')
+    }
+  }
+
+  // When / Then: the renderer receives the real Linux result without an exception.
+  assert.equal(resolveSecureTokenStorageAvailability('linux', availableApi), true)
+  assert.equal(resolveSecureTokenStorageAvailability('linux', unavailableApi), false)
+  assert.equal(resolveSecureTokenStorageAvailability('linux', throwingApi), false)
 })
 
 test('resolvePersistedRemoteToken stores plain text end-to-end only with the explicit opt-in', () => {

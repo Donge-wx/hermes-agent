@@ -254,19 +254,27 @@ export function ConnectorCard({
   // offers shares the one text column, so the buttons sit on the copy's grid
   // line instead of hanging off the card's edge under the mark.
   return (
-    <div className={cn(SHELL_CLASS, 'flex items-start gap-3')} data-slot="connector-card">
+    <div className={cn(SHELL_CLASS, 'flex items-start gap-3')} data-slot="connector-card" data-state="offer">
       <ConnectorLogo connector={connector} />
 
-      <div className="grid min-w-0 flex-1 gap-0.5">
+      <div className="grid min-w-0 flex-1 gap-0.5" data-slot="connector-card-body">
         <div className="flex flex-wrap items-baseline gap-x-1.5">
-          <span className="font-medium">{connector.title}</span>
+          <span className="font-medium" data-slot="connector-card-title">
+            {connector.title}
+          </span>
           {/* While the card is working its phase replaces the resting state —
               "Signing in…" is the one the user needs, because the browser tab
               that just took focus is otherwise unexplained. */}
           {working ? (
-            <span className="text-[0.6875rem] text-(--ui-text-tertiary)">{phase}</span>
+            <span className="text-[0.6875rem] text-(--ui-text-tertiary)" data-slot="connector-card-meta">
+              {phase}
+            </span>
           ) : (
-            stateLabel && <span className="text-[0.6875rem] text-(--ui-text-tertiary)">{stateLabel}</span>
+            stateLabel && (
+              <span className="text-[0.6875rem] text-(--ui-text-tertiary)" data-slot="connector-card-meta">
+                {stateLabel}
+              </span>
+            )
           )}
           <TrustBadge connector={connector} copy={copy} />
         </div>
@@ -311,10 +319,14 @@ export function ConnectorCard({
         {/* Same strip as the tool approval bar (tool/approval.tsx), down to its
             `mt-2` stand-off: a bordered primary-tinted action plus a quiet
             ghost decline. One consent vocabulary across the transcript. */}
-        <div className="mt-2 flex items-center gap-2.5">
-          <div className="inline-flex h-6 items-stretch overflow-hidden rounded-md border border-primary/25 bg-primary/10 text-primary">
+        <div className="mt-2 flex items-center gap-2.5" data-slot="connector-card-actions">
+          <div
+            className="inline-flex h-6 items-stretch overflow-hidden rounded-md border border-primary/25 bg-primary/10 text-primary"
+            data-slot="connector-card-primary-shell"
+          >
             <Button
               className="h-full gap-1 rounded-none px-2 text-xs font-medium text-primary hover:bg-primary/15 hover:text-primary"
+              data-connector-action="primary"
               disabled={working || otherBusy}
               onClick={onConnect}
               size="xs"
@@ -335,6 +347,7 @@ export function ConnectorCard({
               of a stuck sign-in tab or a hung install. */}
           <Button
             className="h-6 gap-1.5 rounded-md px-1.5 text-xs font-normal text-(--ui-text-tertiary) hover:text-foreground"
+            data-connector-action="decline"
             onClick={onDismiss}
             size="xs"
             variant="ghost"

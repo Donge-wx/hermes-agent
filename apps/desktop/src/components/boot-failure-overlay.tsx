@@ -7,6 +7,7 @@ import { Loader } from '@/components/ui/loader'
 import { LogView } from '@/components/ui/log-view'
 import type { DesktopConnectionConfig } from '@/global'
 import { useI18n } from '@/i18n'
+import { publicBrandText } from '@/lib/brand'
 import { openExternalLink } from '@/lib/external-link'
 import { ChevronLeft, ExternalLink, FileText, Loader2, LogIn, RefreshCw, SlidersHorizontal, Wrench } from '@/lib/icons'
 import { $desktopBoot } from '@/store/boot'
@@ -320,19 +321,26 @@ export function BootFailureOverlay() {
         // Masks the whole app on boot failure — must stay filled under window
         // glass. Contract: `[data-glass-opaque]` in styles.css.
         data-glass-opaque=""
+        data-slot="boot-failure-overlay"
+        data-view="connect"
       >
-        <div className="flex max-h-[86vh] w-full max-w-[46rem] flex-col overflow-hidden rounded-xl border border-(--stroke-nous) bg-(--ui-chat-bubble-background) shadow-nous">
+        <div
+          className="flex max-h-[86vh] w-full max-w-[46rem] flex-col overflow-hidden rounded-xl border border-(--stroke-nous) bg-(--ui-chat-bubble-background) shadow-nous"
+          data-glass-raised=""
+          data-slot="boot-failure-surface"
+        >
           {/* Subtle back affordance (projects/overlay idiom): muted → foreground
               on hover, no divider. */}
           <button
             className="flex w-full items-center gap-1.5 px-4 pt-4 text-left text-xs text-muted-foreground transition-colors hover:text-foreground"
+            data-slot="boot-failure-back"
             onClick={() => setView('recovery')}
             type="button"
           >
             <ChevronLeft className="size-3.5" />
             {copy.back}
           </button>
-          <div className="min-h-0 flex-1 pt-4">
+          <div className="min-h-0 flex-1 pt-4" data-slot="boot-failure-settings">
             <Suspense fallback={<Loader className="mx-auto my-16 size-6 text-(--ui-text-tertiary)" />}>
               <GatewaySettings embedded />
             </Suspense>
@@ -348,27 +356,40 @@ export function BootFailureOverlay() {
       // Masks the whole app on boot failure — must stay filled under window
       // glass. Contract: `[data-glass-opaque]` in styles.css.
       data-glass-opaque=""
+      data-kind={cloudDown ? 'cloud' : remoteFailure ? 'remote' : 'local'}
+      data-slot="boot-failure-overlay"
+      data-view="recovery"
     >
-      <div className="w-full max-w-[40rem] overflow-hidden rounded-xl border border-(--stroke-nous) bg-(--ui-chat-bubble-background) shadow-nous">
-        <div className="flex items-start gap-3 px-5 py-4">
+      <div
+        className="w-full max-w-[40rem] overflow-hidden rounded-xl border border-(--stroke-nous) bg-(--ui-chat-bubble-background) shadow-nous"
+        data-glass-raised=""
+        data-slot="boot-failure-surface"
+      >
+        <div className="flex items-start gap-3 px-5 py-4" data-slot="boot-failure-header">
           <ErrorIcon className="mt-0.5" size="1.25rem" />
           <div>
-            <h2 className="text-[0.9375rem] font-semibold tracking-tight">
+            <h2 className="text-[0.9375rem] font-semibold tracking-tight" data-slot="boot-failure-title">
               {remoteReauth ? copy.remoteTitle : cloudDown ? copy.cloudDownTitle : copy.title}
             </h2>
-            <p className="mt-1 text-[0.8125rem] leading-5 text-(--ui-text-tertiary)">
+            <p
+              className="mt-1 text-[0.8125rem] leading-5 text-(--ui-text-tertiary)"
+              data-slot="boot-failure-description"
+            >
               {remoteReauth ? copy.remoteDescription : cloudDown ? copy.cloudDownDescription : copy.description}
             </p>
           </div>
         </div>
 
-        <div className="grid gap-4 p-5 pt-0">
-          <div className="rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-xs text-destructive">
-            {sshFailureMessage(connectionConfig, boot.error, t.settings.gateway)}
+        <div className="grid gap-4 p-5 pt-0" data-slot="boot-failure-content">
+          <div
+            className="rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-xs text-destructive"
+            data-slot="boot-failure-error"
+          >
+            {publicBrandText(sshFailureMessage(connectionConfig, boot.error, t.settings.gateway))}
           </div>
 
-          <div className="grid gap-2">
-            <div className="flex flex-wrap gap-2">
+          <div className="grid gap-2" data-slot="boot-failure-recovery">
+            <div className="flex flex-wrap gap-2" data-slot="boot-failure-actions">
               {actions.map(action => (
                 <Button disabled={Boolean(busy)} key={action.key} onClick={action.onClick} variant={action.variant}>
                   {action.busy && busy === action.busy ? <Loader2 className="animate-spin" /> : action.icon}
@@ -380,11 +401,13 @@ export function BootFailureOverlay() {
                 {copy.openLogs}
               </Button>
             </div>
-            <p className="text-xs text-muted-foreground">{hint}</p>
+            <p className="text-xs text-muted-foreground" data-slot="boot-failure-hint">
+              {hint}
+            </p>
           </div>
 
           {logs.length > 0 ? (
-            <div className="grid gap-2">
+            <div className="grid gap-2" data-slot="boot-failure-logs">
               <Button
                 className="-ml-2 self-start font-medium"
                 onClick={() => setShowLogs(v => !v)}

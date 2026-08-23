@@ -7,6 +7,7 @@ import type { CommandCenterSection } from '@/app/command-center'
 import { useApprovalModeStatusbarItem } from '@/app/shell/approval-mode-menu'
 import { ContextUsagePanel } from '@/app/shell/context-usage-panel'
 import { GatewayMenuPanel } from '@/app/shell/gateway-menu-panel'
+import { gatewayHealthDetail } from '@/app/shell/gateway-health'
 import { useContextBreakdown } from '@/app/shell/hooks/use-context-breakdown'
 import { $paneVisible, togglePaneVisible } from '@/components/pane-shell/tree/store'
 import { Codicon } from '@/components/ui/codicon'
@@ -287,15 +288,13 @@ export function useStatusbarItems({
   const inferenceReady = gatewayOpen && inferenceStatus?.ready === true
   const gatewayDegraded = gatewayOpen || gatewayConnecting
 
-  const gatewayDetail = gatewayOpen
-    ? inferenceStatus?.ready
-      ? copy.gatewayReady
-      : inferenceStatus
-        ? copy.gatewayNeedsSetup
-        : copy.gatewayChecking
-    : gatewayConnecting
-      ? copy.gatewayConnecting
-      : copy.gatewayOffline
+  const gatewayDetail = gatewayHealthDetail(gatewayState, inferenceStatus?.ready ?? null, {
+    connected: copy.gatewayConnected,
+    connecting: copy.gatewayConnecting,
+    needsSetup: copy.gatewayNeedsSetup,
+    offline: copy.gatewayOffline,
+    ready: copy.gatewayReady
+  })
 
   const gatewayClassName = inferenceReady
     ? undefined

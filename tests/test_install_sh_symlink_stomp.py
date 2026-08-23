@@ -30,7 +30,7 @@ def _extract_setup_path_shim_block() -> str:
     """Return the install.sh shim-write block used by setup_path()."""
     text = INSTALL_SH.read_text()
     match = re.search(
-        r"(?P<block>mkdir -p \"\$command_link_dir\".*?chmod \+x \"\$command_link_dir/hermes\")",
+        r"(?P<block>mkdir -p \"\$command_link_dir\".*?chmod \+x \"\$command_link_dir/\$command_name\")",
         text,
         re.DOTALL,
     )
@@ -43,8 +43,8 @@ def _extract_setup_path_shim_block() -> str:
 def test_setup_path_shim_block_removes_old_link_before_writing() -> None:
     """Static guard: the rm must precede the cat heredoc, not follow it."""
     block = _extract_setup_path_shim_block()
-    rm_idx = block.find('rm -f "$command_link_dir/hermes"')
-    cat_idx = block.find('cat > "$command_link_dir/hermes" <<EOF')
+    rm_idx = block.find('rm -f "$command_link_dir/$command_name"')
+    cat_idx = block.find('cat > "$command_link_dir/$command_name" <<EOF')
     assert rm_idx != -1, (
         "setup_path() must `rm -f` $command_link_dir/hermes before the "
         "`cat >` heredoc, otherwise an existing symlink (left by older "
@@ -90,7 +90,10 @@ def test_re_running_setup_path_block_preserves_pip_entry_point(tmp_path: Path) -
 
     block = _extract_setup_path_shim_block()
     # Drive the block with the real env vars setup_path() sets.
-    script = f'set -e\nHERMES_BIN={pip_entry!s}\ncommand_link_dir={command_link_dir!s}\n{block}\n'
+    script = (
+        f"set -e\nHERMES_BIN={pip_entry!s}\n"
+        f"command_link_dir={command_link_dir!s}\ncommand_name=hermes\n{block}\n"
+    )
     result = subprocess.run(
         ["bash", "-c", script],
         capture_output=True,

@@ -224,6 +224,33 @@ describe('SidebarSessionRow running arc', () => {
 })
 
 describe('SidebarSessionRow', () => {
+  it('removes compatibility branding at the session-title display boundary', () => {
+    renderRow(makeSession({ title: 'Hermes 与 Codex Claude 对比' }))
+
+    expect(screen.getByText('My King 与 Codex Claude 对比')).toBeTruthy()
+    expect(screen.queryByText(/Hermes/)).toBeNull()
+  })
+
+  it('exposes selected and unread states as inert theme hooks', () => {
+    const { container } = render(
+      <SidebarSessionRow
+        isPinned={false}
+        isSelected
+        onArchive={noop}
+        onDelete={noop}
+        onPin={noop}
+        onResume={noop}
+        onToggleUnread={noop}
+        session={makeSession({ title: 'Selected unread session' })}
+        unread
+      />
+    )
+    const row = container.querySelector('[data-slot="session-row"]')
+
+    expect(row?.getAttribute('data-selected')).toBe('true')
+    expect(row?.getAttribute('data-unread')).toBe('true')
+  })
+
   it('keeps an aria-label on the kebab without wrapping it in a Tip', () => {
     render(
       <SidebarSessionRow

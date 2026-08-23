@@ -244,11 +244,11 @@ test('default rows use source identity without borrowing another source title', 
 
   // The ACTIVE gateway's own default is the user's main agent — annotation
   // (sourceScoped + connection fields) must NOT rename it to a connection
-  // label. Titled: the title wins. Untitled: it stays "Hermes". Regression:
+  // label. Titled: the title wins. Untitled: it stays "My King". Regression:
   // remote-gateway desktops showed the main agent as an IP-derived label
   // with no shortname (Aug 17 2026 report).
   assert.equal(name(active, metadata.default), 'Active workspace')
-  assert.equal(name(active, undefined), 'Hermes')
+  assert.equal(name(active, undefined), 'My King')
 })
 
 test('botHandle: precomputed multi-source handle wins; default stays hermes', () => {
@@ -473,7 +473,7 @@ test('merge: previous remotes from a removed connection do not resurrect', () =>
   assert.equal(out.profiles.find(p => p.connectionId === 'gone'), undefined)
 })
 
-test('displayName: local default stays Hermes; remote default uses the device label', () => {
+test('displayName: local compatibility identities use My King; remote default uses the device label', () => {
   const { __displayName: name } = runtime()
 
   assert.equal(
@@ -486,8 +486,9 @@ test('displayName: local default stays Hermes; remote default uses the device la
       },
       null
     ),
-    'Hermes'
+    'My King'
   )
+  assert.equal(name({ name: 'hermes' }, null), 'My King')
   assert.equal(
     name(
       {

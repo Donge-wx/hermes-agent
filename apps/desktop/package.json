@@ -1,10 +1,10 @@
 {
   "name": "hermes",
-  "productName": "Hermes",
+  "productName": "My King",
   "private": true,
   "version": "0.17.0",
-  "description": "Native desktop shell for Hermes Agent.",
-  "author": "Nous Research",
+  "description": "Native desktop shell for My King.",
+  "author": "My King",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/NousResearch/hermes-agent.git"
@@ -37,6 +37,7 @@
     "dist:mac": "npm run build && npm run builder -- --mac",
     "dist:mac:dmg": "npm run build && npm run builder -- --mac dmg",
     "dist:mac:zip": "npm run build && npm run builder -- --mac zip",
+    "sign:mac:local": "node scripts/sign-macos-adhoc.mjs",
     "dist:win": "npm run build && npm run builder -- --win",
     "dist:win:msi": "npm run build && npm run builder -- --win msi",
     "dist:win:nsis": "npm run build && npm run builder -- --win nsis",
@@ -157,6 +158,7 @@
   },
   "devDependencies": {
     "@babel/core": "8.0.1",
+    "@electron/osx-sign": "^1.3.3",
     "@electron/rebuild": "4.2.0",
     "@playwright/test": "1.58.2",
     "@rolldown/plugin-babel": "0.2.3",
@@ -187,18 +189,17 @@
   },
   "build": {
     "electronVersion": "40.10.2",
-    "appId": "com.nousresearch.hermes",
-    "productName": "Hermes",
-    "executableName": "Hermes",
+    "appId": "com.myking.workos.desktop",
+    "productName": "My King",
     "protocols": [
       {
-        "name": "Hermes Protocol",
+        "name": "My King Protocol",
         "schemes": [
-          "hermes"
+          "myking"
         ]
       }
     ],
-    "artifactName": "Hermes-${version}-${os}-${arch}.${ext}",
+    "artifactName": "My-King-${version}-${os}-${arch}.${ext}",
     "icon": "assets/icon",
     "directories": {
       "output": "release"
@@ -234,12 +235,13 @@
       "entitlements": "electron/entitlements.mac.plist",
       "entitlementsInherit": "electron/entitlements.mac.inherit.plist",
       "extendInfo": {
-        "CFBundleDisplayName": "Hermes",
+        "CFBundleDisplayName": "My King",
         "CFBundleExecutable": "Hermes",
-        "CFBundleName": "Hermes",
-        "NSAudioCaptureUsageDescription": "Hermes uses audio capture for voice conversations.",
-        "NSCameraUsageDescription": "Hermes uses the camera when a plugin or feature you enable requests it.",
-        "NSMicrophoneUsageDescription": "Hermes uses the microphone for voice input and voice conversations."
+        "CFBundleName": "My King",
+        "NSHumanReadableCopyright": "Copyright © 2026 My King",
+        "NSAudioCaptureUsageDescription": "My King uses audio capture for voice conversations.",
+        "NSCameraUsageDescription": "My King uses the camera when a plugin or feature you enable requests it.",
+        "NSMicrophoneUsageDescription": "My King uses the microphone for voice input and voice conversations."
       },
       "gatekeeperAssess": false,
       "hardenedRuntime": true,
@@ -249,8 +251,8 @@
       ]
     },
     "dmg": {
-      "title": "Install Hermes",
-      "backgroundColor": "#f5f5f7",
+      "title": "Install My King",
+      "background": "assets/brand/dmg-background.png",
       "iconSize": 96,
       "window": {
         "width": 560,
@@ -271,7 +273,8 @@
       ]
     },
     "win": {
-      "legalTrademarks": "Hermes",
+      "executableName": "Hermes",
+      "legalTrademarks": "My King",
       "target": [
         "nsis",
         "msi"
@@ -280,8 +283,9 @@
     },
     "linux": {
       "category": "Development",
-      "maintainer": "Nous Research <support@nousresearch.com>",
-      "synopsis": "Native desktop shell for Hermes Agent.",
+      "executableName": "Hermes",
+      "maintainer": "My King",
+      "synopsis": "Native desktop shell for My King.",
       "target": [
         "AppImage",
         "deb",
@@ -292,8 +296,8 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "perMachine": false,
-      "shortcutName": "Hermes",
-      "uninstallDisplayName": "Hermes",
+      "shortcutName": "My King",
+      "uninstallDisplayName": "My King",
       "warningsAsErrors": false
     }
   }

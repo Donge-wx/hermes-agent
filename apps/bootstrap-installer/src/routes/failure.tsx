@@ -1,16 +1,10 @@
 import { useStore } from '@nanostores/react'
 import { FileText, RefreshCw } from 'lucide-react'
-import { type CSSProperties } from 'react'
 
+import { BrandMark } from '../components/brand-mark'
 import { Button } from '../components/button'
-import {
-  $logPath,
-  $mode,
-  type BootstrapStateModel,
-  openLogDir,
-  startInstall,
-  startUpdate
-} from '../store'
+import { copy } from '../i18n'
+import { $logPath, $mode, type BootstrapStateModel, openLogDir, startInstall, startUpdate } from '../store'
 
 interface FailureProps {
   bootstrap: BootstrapStateModel
@@ -30,45 +24,31 @@ export default function Failure({ bootstrap }: FailureProps) {
 
   return (
     <div className="hermes-fade-in flex h-full flex-col items-center justify-center gap-6 px-12 py-10">
-      <div className="w-full max-w-2xl min-w-0 text-center">
-        <p
-          className="fit-text mx-auto mb-4 w-full font-['Collapse'] font-bold uppercase leading-[0.9] tracking-[0.08em] text-destructive mix-blend-plus-lighter dark:text-destructive/90"
-          style={
-            {
-              '--fit-text-line-height': '0.9',
-              '--fit-text-max': '5rem',
-              '--fit-text-min': '2.25rem'
-            } as CSSProperties
-          }
-        >
-          <span>
-            <span>{isUpdate ? 'Update didn\u2019t finish' : 'Install didn\u2019t finish'}</span>
-          </span>
-          <span aria-hidden="true">{isUpdate ? 'Update didn\u2019t finish' : 'Install didn\u2019t finish'}</span>
-        </p>
+      <div className="w-full max-w-xl min-w-0 text-center">
+        <BrandMark className="mx-auto mb-5 size-16" />
+        <h1 className="mb-3 text-3xl font-semibold tracking-tight text-foreground">
+          {isUpdate ? copy.failure.updateTitle : copy.failure.installTitle}
+        </h1>
 
-        <p className="m-0 mx-auto max-w-xl text-center text-sm leading-normal tracking-tight text-muted-foreground">
-          {bootstrap.error ??
-            (isUpdate
-              ? 'Something went wrong during the update.'
-              : 'Something went wrong during installation.')}
+        <p className="m-0 mx-auto rounded-2xl border border-destructive/20 bg-destructive/[0.045] px-4 py-3 text-center text-sm leading-normal tracking-tight text-muted-foreground">
+          {bootstrap.error ?? (isUpdate ? copy.failure.updateFallback : copy.failure.installFallback)}
         </p>
       </div>
 
       <div className="flex items-center gap-3">
         <Button className="gap-1.5" onClick={() => void (isUpdate ? startUpdate() : startInstall())}>
           <RefreshCw />
-          {isUpdate ? 'Retry update' : 'Retry install'}
+          {isUpdate ? copy.failure.retryUpdate : copy.failure.retryInstall}
         </Button>
         <Button className="gap-1.5" onClick={() => void openLogDir()} variant="text">
           <FileText />
-          Open logs
+          {copy.failure.openLogs}
         </Button>
       </div>
 
       {logPath && (
         <p className="max-w-lg text-center text-xs text-muted-foreground/70">
-          Log: <code className="font-mono">{logPath}</code>
+          {copy.failure.log}：<code className="font-mono">{logPath}</code>
         </p>
       )}
     </div>

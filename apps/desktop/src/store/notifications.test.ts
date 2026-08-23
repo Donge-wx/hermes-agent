@@ -55,3 +55,14 @@ test('session storage write failure is treated as disk-full class', () => {
 
   expect(lastMessage()).toMatch(/Disk full/i)
 })
+
+test('public notifications hide compatibility identifiers without mutating the source error', () => {
+  // Given a backend error carrying both the public compatibility name and an internal protocol.
+  const backendError = new Error('Failed to connect to Hermes backend via hermes:connection')
+  notifyError(backendError, 'Desktop boot failed')
+
+  // Then the notification transforms public copy only at the display boundary.
+  expect(backendError.message).toContain('hermes:connection')
+  expect(lastMessage()).toBe('Failed to connect to My King backend via My King connection')
+  expect(lastMessage()).not.toContain('hermes:connection')
+})

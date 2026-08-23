@@ -1,0 +1,538 @@
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-overlay-surface] {
+  background: var(--lg-scrim);
+  backdrop-filter: var(--lg-backdrop-overlay-scrim);
+  -webkit-backdrop-filter: var(--lg-backdrop-overlay-scrim);
+}
+
+/* Onboarding owns the pre-gateway fallback too. That state can be the only
+   renderer surface visible when the backend fails, so it must carry the same
+   branded material as the connecting and hard-recovery stages instead of
+   exposing the neutral upstream card. */
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='onboarding-overlay'] {
+  background:
+    radial-gradient(72% 64% at 12% 4%, color-mix(in srgb, var(--lg-ice-mist) 72%, transparent), transparent 70%),
+    radial-gradient(62% 72% at 90% 98%, color-mix(in srgb, var(--lg-blue-mist) 38%, transparent), transparent 76%),
+    linear-gradient(145deg, var(--lg-content-raised), var(--lg-content));
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='onboarding-surface'][data-view='card'] {
+  border-color: var(--lg-rim-strong);
+  border-radius: var(--lg-radius-overlay);
+  background:
+    radial-gradient(62% 42% at 14% 0%, color-mix(in srgb, var(--lg-white) 82%, transparent), transparent 72%),
+    linear-gradient(120deg, color-mix(in srgb, var(--lg-white) 44%, transparent), transparent 48%),
+    var(--lg-glass-overlay);
+  color: var(--lg-ink);
+  box-shadow: var(--lg-shadow-overlay);
+  backdrop-filter: var(--lg-backdrop-overlay);
+  -webkit-backdrop-filter: var(--lg-backdrop-overlay);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='onboarding-header'] {
+  gap: var(--lg-space-xl);
+  padding: var(--lg-space-3xl) var(--lg-space-3xl) var(--lg-space-lg);
+  background: transparent;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='onboarding-header'] > span {
+  filter: drop-shadow(0 0.5rem 1.25rem color-mix(in srgb, var(--lg-blue-mist) 52%, transparent));
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='onboarding-title'] {
+  color: var(--lg-ink);
+  font-size: var(--lg-type-section-heading);
+  line-height: var(--lg-line-control);
+  letter-spacing: var(--lg-tracking-section-heading);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='onboarding-description'] {
+  color: var(--lg-ink-secondary);
+  font-size: var(--lg-type-caption);
+  line-height: var(--lg-line-body);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='onboarding-content'] {
+  gap: var(--lg-space-xl);
+  padding: var(--lg-space-xl) var(--lg-space-3xl) var(--lg-space-3xl);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='onboarding-preparing'] {
+  gap: var(--lg-space-lg);
+  color: var(--lg-ink-secondary);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='onboarding-preparing-progress'] {
+  overflow: hidden;
+  border-radius: var(--lg-radius-pill);
+  box-shadow: var(--lg-shadow-progress);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='onboarding-preparing-error'] > div {
+  border-color: color-mix(in srgb, var(--lg-red) 24%, var(--lg-rim-outer));
+  border-radius: var(--lg-radius-panel);
+  background:
+    linear-gradient(122deg, color-mix(in srgb, var(--lg-white) 48%, transparent), transparent 48%),
+    color-mix(in srgb, var(--lg-red) 8%, var(--lg-glass-raised));
+  color: color-mix(in srgb, var(--lg-red) 82%, var(--lg-ink));
+  box-shadow: var(--lg-shadow-boot-error);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='onboarding-notice'],
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='onboarding-provider-option'],
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='onboarding-provider-featured'] {
+  border-color: var(--lg-rim-outer);
+  background:
+    linear-gradient(122deg, color-mix(in srgb, var(--lg-white) 52%, transparent), transparent 48%),
+    var(--lg-glass-raised);
+  box-shadow: var(--lg-shadow-contact);
+  backdrop-filter: var(--lg-backdrop-input);
+  -webkit-backdrop-filter: var(--lg-backdrop-input);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='onboarding-provider-row'] {
+  min-height: var(--lg-size-nav-row);
+  border: var(--lg-stroke-hairline) solid transparent;
+  border-radius: var(--lg-radius-control);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='onboarding-provider-row']:hover {
+  border-color: var(--lg-rim-outer);
+  background: var(--lg-hover-wash);
+  box-shadow: var(--lg-shadow-contact);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='onboarding-provider-option'] {
+  min-height: var(--lg-size-nav-row);
+  border-radius: var(--lg-radius-control);
+  transition:
+    background var(--lg-duration-fast) var(--lg-ease-out),
+    border-color var(--lg-duration-fast) var(--lg-ease-out),
+    box-shadow var(--lg-duration-fast) var(--lg-ease-out),
+    transform var(--lg-duration-fast) var(--lg-ease-out);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='onboarding-provider-option']:hover {
+  border-color: var(--lg-rim-strong);
+  background: var(--lg-hover-wash);
+  transform: translateY(-1px);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='onboarding-provider-option'][data-selected='true'] {
+  border-color: color-mix(in srgb, var(--lg-blue) 46%, var(--lg-rim-strong));
+  background: var(--lg-selected-wash);
+  box-shadow: var(--lg-shadow-theme-card-selected);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='onboarding-provider-featured'] {
+  min-height: var(--lg-size-control);
+  border: var(--lg-stroke-hairline) solid var(--lg-rim-outer);
+  border-radius: var(--lg-radius-control);
+}
+
+@media (max-width: 640px) {
+  :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='onboarding-header'] {
+    padding: var(--lg-space-2xl) var(--lg-space-xl) var(--lg-space-md);
+  }
+
+  :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='onboarding-content'] {
+    padding: var(--lg-space-lg) var(--lg-space-xl) var(--lg-space-2xl);
+  }
+}
+
+/* Hard boot recovery is not part of the normal overlay router, so it carries
+   its own stable slots. Keep its runtime actions untouched while giving the
+   newly expanded cloud/remote recovery states the same optical hierarchy as
+   settings and dialogs. */
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='boot-failure-overlay'] {
+  background:
+    radial-gradient(72% 64% at 12% 4%, color-mix(in srgb, var(--lg-ice-mist) 72%, transparent), transparent 70%),
+    radial-gradient(62% 72% at 90% 98%, color-mix(in srgb, var(--lg-blue-mist) 38%, transparent), transparent 76%),
+    linear-gradient(145deg, var(--lg-content-raised), var(--lg-content));
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='boot-failure-surface'] {
+  border-color: var(--lg-rim-strong);
+  border-radius: var(--lg-radius-overlay);
+  background:
+    radial-gradient(62% 42% at 14% 0%, color-mix(in srgb, var(--lg-white) 82%, transparent), transparent 72%),
+    linear-gradient(120deg, color-mix(in srgb, var(--lg-white) 44%, transparent), transparent 48%),
+    var(--lg-glass-overlay);
+  color: var(--lg-ink);
+  box-shadow: var(--lg-shadow-overlay);
+  backdrop-filter: var(--lg-backdrop-overlay);
+  -webkit-backdrop-filter: var(--lg-backdrop-overlay);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='boot-failure-header'] {
+  gap: var(--lg-space-xl);
+  padding: var(--lg-space-3xl) var(--lg-space-3xl) var(--lg-space-2xl);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='boot-failure-header'] > svg {
+  color: var(--lg-red);
+  filter: var(--lg-filter-boot-error-icon);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='boot-failure-title'] {
+  color: var(--lg-ink);
+  font-size: var(--lg-type-section-heading);
+  line-height: var(--lg-line-control);
+  letter-spacing: var(--lg-tracking-section-heading);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='boot-failure-description'] {
+  max-width: var(--lg-measure-boot-description);
+  color: var(--lg-ink-secondary);
+  font-size: var(--lg-type-caption);
+  line-height: var(--lg-line-body);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='boot-failure-content'] {
+  gap: var(--lg-space-2xl);
+  padding: 0 var(--lg-space-3xl) var(--lg-space-3xl);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='boot-failure-error'] {
+  border-color: color-mix(in srgb, var(--lg-red) 24%, var(--lg-rim-outer));
+  border-radius: var(--lg-radius-panel);
+  background:
+    linear-gradient(122deg, color-mix(in srgb, var(--lg-white) 48%, transparent), transparent 48%),
+    color-mix(in srgb, var(--lg-red) 8%, var(--lg-glass-raised));
+  color: color-mix(in srgb, var(--lg-red) 82%, var(--lg-ink));
+  box-shadow: var(--lg-shadow-boot-error);
+  font-size: var(--lg-type-caption);
+  line-height: var(--lg-line-body);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='boot-failure-actions'] {
+  gap: var(--lg-space-sm);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='boot-failure-actions']
+  > button:not([data-size^='icon']) {
+  min-height: var(--lg-size-control);
+  padding-inline: var(--lg-space-2xl);
+  font-size: var(--lg-type-control);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='boot-failure-hint'] {
+  max-width: var(--lg-measure-boot-hint);
+  color: var(--lg-ink-tertiary);
+  font-size: var(--lg-type-caption);
+  line-height: var(--lg-line-body);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='boot-failure-back'] {
+  min-height: var(--lg-size-control-compact);
+  padding: var(--lg-space-lg) var(--lg-space-3xl) 0;
+  color: var(--lg-ink-tertiary);
+  font-size: var(--lg-type-caption);
+  transition: color var(--lg-duration-fast) var(--lg-ease-out);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='boot-failure-back']:hover {
+  color: var(--lg-ink);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='boot-failure-settings'] {
+  border-top: var(--lg-stroke-hairline) solid color-mix(in srgb, var(--lg-rim-outer) 72%, transparent);
+  background: color-mix(in srgb, var(--lg-content-raised) 72%, transparent);
+}
+
+/* Media conditions cannot consume CSS custom properties, so responsive
+   thresholds remain the only measurement literals in this module. */
+@media (max-width: 40rem) {
+  :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='boot-failure-overlay'] {
+    align-items: stretch;
+    padding: var(--lg-space-lg);
+  }
+
+  :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='boot-failure-surface'] {
+    align-self: center;
+    max-height: calc(100vh - (2 * var(--lg-space-lg)));
+    border-radius: var(--lg-radius-panel);
+  }
+
+  :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='boot-failure-content'] {
+    min-height: 0;
+    overflow-y: auto;
+  }
+
+  :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='boot-failure-actions'] {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='boot-failure-actions'] > button {
+    width: 100%;
+  }
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-overlay-surface] [data-glass-raised] {
+  overflow: hidden;
+  border-color: var(--lg-rim-strong);
+  border-radius: var(--lg-radius-overlay);
+  background:
+    radial-gradient(48% 34% at 18% 0%, color-mix(in srgb, var(--lg-white) 74%, transparent), transparent 72%),
+    linear-gradient(118deg, color-mix(in srgb, var(--lg-white) 38%, transparent), transparent 48%),
+    var(--lg-glass-overlay);
+  box-shadow: var(--lg-shadow-overlay);
+  backdrop-filter: var(--lg-backdrop-overlay);
+  -webkit-backdrop-filter: var(--lg-backdrop-overlay);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='overlay-split-layout'] {
+  background: var(--lg-content-raised);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='overlay-sidebar'] {
+  border-inline-end: var(--lg-stroke-hairline) solid var(--lg-seam-outer);
+  background:
+    radial-gradient(82% 28% at 10% 0%, color-mix(in srgb, var(--lg-white) 86%, transparent), transparent 74%),
+    radial-gradient(88% 44% at 20% 100%, color-mix(in srgb, var(--lg-blue-mist) 32%, transparent), transparent 78%),
+    linear-gradient(112deg, color-mix(in srgb, var(--lg-white) 54%, transparent), transparent 52%),
+    color-mix(in srgb, var(--lg-glass-chrome) 74%, var(--lg-silver-100));
+  box-shadow: var(--lg-shadow-overlay-sidebar);
+  backdrop-filter: var(--lg-backdrop-overlay-sidebar);
+  -webkit-backdrop-filter: var(--lg-backdrop-overlay-sidebar);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='overlay-main'] {
+  min-width: 0;
+  max-width: 100%;
+  background:
+    radial-gradient(58% 36% at 76% -2%, color-mix(in srgb, var(--lg-ice-mist) 78%, transparent), transparent 70%),
+    radial-gradient(50% 34% at 34% 106%, color-mix(in srgb, var(--lg-blue-mist) 28%, transparent), transparent 76%),
+    linear-gradient(180deg, color-mix(in srgb, var(--lg-content-raised) 94%, transparent), var(--lg-content));
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  :is([data-slot='settings-content'], [data-slot='settings-content'] > div) {
+  min-width: 0;
+  max-width: 100%;
+}
+
+@media (max-width: 47.5rem) {
+  :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+    [data-overlay-surface]
+    > div
+    > div:has(> [data-slot='settings-search-pill']) {
+    right: var(--lg-measure-settings-search-offset);
+    left: auto;
+    max-width: calc(100% - var(--lg-measure-settings-search-gutters));
+    transform: translateY(-50%);
+  }
+
+  :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='settings-search-pill'] {
+    width: var(--lg-size-icon-control);
+    min-width: var(--lg-size-icon-control);
+    justify-content: center;
+    overflow: hidden;
+    padding-inline: 0;
+  }
+
+  :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='settings-search-pill'] > :not(svg) {
+    display: none;
+  }
+}
+
+@media (min-width: 47.51rem) {
+  :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='overlay-split-layout'] {
+    grid-template-columns: var(--lg-measure-overlay-nav-column) minmax(0, 1fr);
+  }
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='overlay-nav-item'] {
+  min-height: var(--lg-size-icon-control);
+  border-color: transparent;
+  border-radius: var(--lg-radius-control);
+  color: var(--lg-ink-secondary);
+  transition:
+    color var(--lg-duration-fast) var(--lg-ease-out),
+    background-color var(--lg-duration-fast) var(--lg-ease-out),
+    border-color var(--lg-duration-fast) var(--lg-ease-out),
+    box-shadow var(--lg-duration-state) var(--lg-ease-out),
+    transform var(--lg-duration-state) var(--lg-ease-out);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='overlay-nav-item']:not([aria-current='page']):hover {
+  background: var(--lg-hover-wash);
+  color: var(--lg-ink);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='overlay-nav-item'][aria-current='page'] {
+  border-color: transparent;
+  background: var(--lg-glass-raised);
+  color: var(--lg-ink);
+  box-shadow: var(--lg-shadow-contact);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  :is(
+    [data-slot='dialog-content'],
+    [data-slot='dropdown-menu-content'],
+    [data-slot='dropdown-menu-sub-content'],
+    [data-slot='context-menu-content'],
+    [data-slot='context-menu-sub-content'],
+    [data-slot='select-content'],
+    [data-slot='popover-content'],
+    [data-slot='thread-timeline-popover'],
+    [data-slot='composer-completion-drawer'],
+    [data-slot='sheet-content']
+  ) {
+  --popover-surface: var(--lg-glass-overlay);
+  border-color: var(--lg-seam-soft);
+  border-radius: var(--lg-radius-panel);
+  background:
+    radial-gradient(78% 82% at 8% -18%, color-mix(in srgb, var(--lg-white) 84%, transparent), transparent 70%),
+    linear-gradient(124deg, color-mix(in srgb, var(--lg-white) 54%, transparent), transparent 44%),
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--lg-white) 10%, transparent),
+      color-mix(in srgb, var(--lg-blue-mist) 14%, transparent)
+    ),
+    var(--lg-glass-overlay);
+  color: var(--lg-ink);
+  box-shadow: var(--lg-shadow-overlay);
+  backdrop-filter: var(--lg-backdrop-popover);
+  -webkit-backdrop-filter: var(--lg-backdrop-popover);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='popover-content'] > span {
+  border-color: var(--lg-seam-soft);
+  background: var(--lg-glass-overlay);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  :is(
+    [data-slot='dropdown-menu-item'],
+    [data-slot='dropdown-menu-checkbox-item'],
+    [data-slot='dropdown-menu-radio-item'],
+    [data-slot='dropdown-menu-sub-trigger'],
+    [data-slot='context-menu-item'],
+    [data-slot='context-menu-checkbox-item'],
+    [data-slot='context-menu-sub-trigger'],
+    [data-slot='select-item']
+  ) {
+  min-height: var(--lg-size-menu-row-compact);
+  border-radius: var(--lg-radius-micro);
+  color: var(--lg-ink-secondary);
+  transition:
+    color var(--lg-duration-fast) var(--lg-ease-out),
+    background-color var(--lg-duration-fast) var(--lg-ease-out);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  :is(
+    [data-slot='dropdown-menu-item'],
+    [data-slot='dropdown-menu-checkbox-item'],
+    [data-slot='dropdown-menu-radio-item'],
+    [data-slot='dropdown-menu-sub-trigger'],
+    [data-slot='context-menu-item'],
+    [data-slot='context-menu-checkbox-item'],
+    [data-slot='context-menu-sub-trigger'],
+    [data-slot='select-item']
+  ):is(:focus, [data-highlighted], [data-state='checked']) {
+  background: var(--lg-selected-wash-strong);
+  color: var(--lg-ink);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  :is([data-slot='dropdown-menu-label'], [data-slot='context-menu-label'], [data-slot='select-label']) {
+  color: var(--lg-ink-tertiary);
+  font-weight: 600;
+  letter-spacing: 0.025em;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  :is([data-slot='dropdown-menu-separator'], [data-slot='context-menu-separator']) {
+  background: color-mix(in srgb, var(--lg-rim-outer) 76%, transparent);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='dropdown-menu-search'] {
+  border-bottom: var(--lg-stroke-hairline) solid color-mix(in srgb, var(--lg-rim-outer) 78%, transparent);
+  background: color-mix(in srgb, var(--lg-white) 24%, transparent);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='dialog-overlay'] {
+  background: var(--lg-scrim);
+  backdrop-filter: var(--lg-backdrop-dialog-scrim);
+  -webkit-backdrop-filter: var(--lg-backdrop-dialog-scrim);
+}
+
+/* Media expansion uses the shared dialog but needs two small material islands:
+   the discoverable inline affordance and the full-view control rail. */
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  :is([data-slot='zoomable-expand-indicator'], [data-slot='zoom-toolbar']) {
+  border-color: var(--lg-seam-soft);
+  background:
+    radial-gradient(82% 120% at 12% -18%, color-mix(in srgb, var(--lg-white) 88%, transparent), transparent 70%),
+    linear-gradient(124deg, color-mix(in srgb, var(--lg-white) 46%, transparent), transparent 54%),
+    var(--lg-glass-raised);
+  color: var(--lg-ink-secondary);
+  box-shadow: var(--lg-shadow-island);
+  backdrop-filter: var(--lg-backdrop-popover);
+  -webkit-backdrop-filter: var(--lg-backdrop-popover);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='zoom-stage'] {
+  background:
+    radial-gradient(62% 58% at 18% 12%, color-mix(in srgb, var(--lg-ice-mist) 38%, transparent), transparent 72%),
+    radial-gradient(54% 62% at 86% 92%, color-mix(in srgb, var(--lg-blue-mist) 24%, transparent), transparent 76%);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='send-diagnostics-result'] {
+  border-color: var(--lg-seam-soft);
+  background: color-mix(in srgb, var(--lg-glass-raised) 78%, transparent);
+  box-shadow: var(--lg-shadow-contact);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='sheet-overlay'] {
+  background: var(--lg-scrim);
+  backdrop-filter: var(--lg-backdrop-dialog-scrim);
+  -webkit-backdrop-filter: var(--lg-backdrop-dialog-scrim);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='sheet-content'] {
+  border-color: var(--lg-seam-soft);
+  background:
+    linear-gradient(112deg, color-mix(in srgb, var(--lg-white) 34%, transparent), transparent 42%),
+    var(--lg-glass-overlay);
+  color: var(--lg-ink);
+  box-shadow: var(--lg-shadow-overlay);
+  backdrop-filter: var(--lg-backdrop-sheet);
+  -webkit-backdrop-filter: var(--lg-backdrop-sheet);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='tooltip-content'] > span {
+  border: var(--lg-stroke-hairline) solid color-mix(in srgb, var(--lg-white) 22%, transparent);
+  border-radius: var(--lg-radius-micro);
+  background: color-mix(in srgb, var(--lg-tooltip) 92%, transparent);
+  color: var(--lg-white);
+  box-shadow: var(--lg-shadow-tooltip);
+  font-family: var(--dt-font-sans);
+  font-weight: 500;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='alert'] {
+  border-color: var(--lg-seam-soft);
+  border-radius: var(--lg-radius-panel);
+  background:
+    linear-gradient(116deg, color-mix(in srgb, var(--lg-white) 40%, transparent), transparent 46%),
+    var(--lg-glass-overlay);
+  box-shadow: var(--lg-shadow-overlay);
+  backdrop-filter: var(--lg-backdrop-sheet);
+  -webkit-backdrop-filter: var(--lg-backdrop-sheet);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='alert-title'] {
+  color: var(--lg-ink);
+  font-weight: 600;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='alert-description'] {
+  color: var(--lg-ink-secondary);
+}

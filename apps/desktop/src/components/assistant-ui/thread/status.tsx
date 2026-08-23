@@ -153,9 +153,10 @@ export const ResponseLoadingIndicator: FC = () => {
       <StatusPulse
         aria-hidden="true"
         className="dither inline-block size-3 rounded-[2px] text-midground/80"
+        data-slot="aui_cognition-pulse"
         kind="opacity"
       />
-      {hint && <HintText>{hint}</HintText>}
+      <HintText>{hint || t.assistant.thread.loadingResponse}</HintText>
       <ActivityTimerText seconds={elapsed} />
     </StatusRow>
   )
@@ -207,6 +208,7 @@ export const BackgroundResumeNotice: FC = () => {
 // so that per-token updates re-render only this leaf, not the whole
 // AssistantMessage subtree.
 export const TurnActivityIndicator: FC = () => {
+  const { t } = useI18n()
   const activity = useAuiState(s => activitySignature(s.message.content))
 
   // Timestamp of the last visible progress, held from the moment the quiet
@@ -257,13 +259,14 @@ export const TurnActivityIndicator: FC = () => {
   }
 
   return (
-    <StatusRow data-slot="aui_turn-activity" label={hint || 'Hermes is working'}>
+    <StatusRow data-slot="aui_turn-activity" label={hint || 'My King is working'}>
       <StatusPulse
         aria-hidden="true"
         className="dither inline-block size-3 rounded-[2px] text-midground/80"
+        data-slot="aui_cognition-pulse"
         kind="opacity"
       />
-      {hint && <HintText>{hint}</HintText>}
+      <HintText>{hint || t.assistant.thread.thinking}</HintText>
       <ActivityTimerText seconds={elapsed} />
     </StatusRow>
   )

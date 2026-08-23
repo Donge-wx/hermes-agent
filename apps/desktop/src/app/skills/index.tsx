@@ -720,7 +720,7 @@ export function SkillsView({
 
     return (profilesData?.profiles ?? []).map(p => ({
       key: p.name,
-      label: p.is_default ? 'Hermes (default)' : p.name,
+      label: p.is_default ? 'My King (default)' : p.name,
       value: p.name
     }))
   }, [multiConnection, profilesData, rosterData])

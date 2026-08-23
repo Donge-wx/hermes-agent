@@ -1,16 +1,15 @@
 //! Filesystem paths + logging setup.
 //!
-//! Mirrors `hermes_constants.get_hermes_home()` from the Python CLI:
-//!   Windows: %LOCALAPPDATA%\hermes
-//!   macOS:   ~/.hermes
-//!   Linux:   ~/.hermes  (override via $HERMES_HOME)
+//! My King keeps a dedicated home and passes it to the compatible backend via
+//! `HERMES_HOME`:
+//!   Windows: %LOCALAPPDATA%\myking
+//!   macOS:   ~/.myking
+//!   Linux:   ~/.myking  (override via $HERMES_HOME)
 //!
-//! NOTE (macOS): Python's get_hermes_home(), scripts/install.sh, and the
-//! Electron desktop's resolveHermesHome() ALL use ~/.hermes on macOS — there
-//! is no ~/Library/Application Support branch anywhere else. An earlier
-//! version of this file used Application Support, which drifted from every
-//! other component: the installer wrote the install to one dir and the
-//! desktop looked for it in another, so first launch never found the backend.
+//! The Python runtime and install scripts still consume the `HERMES_HOME`
+//! compatibility variable. Keeping the My King default here aligned with the
+//! Electron launcher prevents a standalone installer from falling back to the
+//! upstream Hermes directory.
 //!
 //! IMPORTANT: this must match exactly. Drift here means install.ps1
 //! writes to one place and the installer reads from another, breaking
@@ -31,21 +30,20 @@ pub fn hermes_home() -> PathBuf {
 
     #[cfg(target_os = "windows")]
     {
-        // %LOCALAPPDATA%\hermes — matches scripts/install.ps1's $HermesHome.
+        // Dedicated My King root; the child installer receives it as HERMES_HOME.
         if let Some(local_app_data) = dirs::data_local_dir() {
-            return local_app_data.join("hermes");
+            return local_app_data.join("myking");
         }
     }
 
-    // macOS + Linux + fallback: ~/.hermes (matches Python get_hermes_home(),
-    // install.sh, and the Electron desktop's resolveHermesHome()).
+    // macOS + Linux + fallback: dedicated My King root.
     if let Some(home) = dirs::home_dir() {
-        return home.join(".hermes");
+        return home.join(".myking");
     }
 
     // Last resort — current dir, almost certainly wrong but at least
     // doesn't panic.
-    PathBuf::from(".hermes")
+    PathBuf::from(".myking")
 }
 
 pub fn log_dir() -> PathBuf {

@@ -1,0 +1,78 @@
+/* macOS 26-scale geometry for settings, the chat intro, and the Composer. */
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='settings-section-heading'] {
+  min-height: var(--lg-size-control-compact);
+  margin-block-end: var(--lg-space-lg);
+  gap: var(--lg-space-md);
+  font-size: var(--lg-type-section-heading);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='settings-row'] > div {
+  min-height: var(--lg-size-settings-row);
+  gap: var(--lg-space-2xl);
+  padding-block: var(--lg-space-2xl);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='settings-row-title'] {
+  font-size: var(--lg-type-body);
+  line-height: var(--lg-line-control);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='settings-row-description'] {
+  margin-block-start: var(--lg-space-xs);
+  font-size: var(--lg-type-caption);
+  line-height: var(--lg-line-control);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='model-reasoning-label'] {
+  flex: none;
+  white-space: nowrap;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='theme-card'] {
+  min-height: var(--lg-size-theme-card);
+  padding: var(--lg-space-lg);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='theme-preview'] {
+  height: var(--lg-size-theme-preview);
+  border-radius: var(--lg-radius-control);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='composer-backdrop'] {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='composer-surface']
+  button[data-size='icon'] {
+  width: var(--lg-size-composer-action);
+  height: var(--lg-size-composer-action);
+  min-height: var(--lg-size-composer-action);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='composer-surface']
+  button[data-variant='default']:is([data-size='icon'], [type='submit']) {
+  width: var(--lg-size-composer-primary);
+  height: var(--lg-size-composer-primary);
+  min-height: var(--lg-size-composer-primary);
+  padding: 0;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-profile-rail-action] {
+  width: var(--lg-size-icon-control);
+  height: var(--lg-size-icon-control);
+  border-radius: var(--lg-radius-micro);
+}
+
+/* Media conditions cannot consume CSS custom properties. */
+@media (max-width: 47.5rem) {
+  :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='settings-row'] > div {
+    min-height: 0;
+  }
+
+  :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='theme-card'] {
+    min-height: var(--lg-size-theme-card-narrow);
+  }
+}

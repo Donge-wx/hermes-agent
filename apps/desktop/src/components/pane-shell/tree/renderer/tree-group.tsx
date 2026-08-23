@@ -28,6 +28,7 @@ import {
 import { ContribBoundary, ContribRender } from '@/contrib/react/boundary'
 import { useContributions } from '@/contrib/react/use-contributions'
 import { useI18n } from '@/i18n'
+import { BRAND } from '@/lib/brand'
 import { useKeybindHint } from '@/lib/keybinds/use-keybind-hint'
 import { cn } from '@/lib/utils'
 
@@ -449,6 +450,7 @@ export function TreeGroup({
                   <button
                     aria-label={node.minimized ? t.zones.restore : t.zones.minimize}
                     className="mx-1 grid size-5 shrink-0 place-items-center self-center rounded-md text-(--ui-text-tertiary) opacity-0 transition-opacity hover:bg-(--ui-control-hover-background) hover:text-foreground focus-visible:opacity-100 group-hover/pane-header:opacity-100"
+                    data-slot="pane-strip-minimize"
                     onClick={toggleCollapse}
                     onPointerDown={e => e.stopPropagation()}
                     type="button"
@@ -606,7 +608,7 @@ export function TreeGroup({
           {isEmpty ? (
             <div className="grid h-full place-items-center">
               {/* Same decode primitive as the CONNECTING boot overlay. */}
-              <DecodeText className="text-(--ui-text-quaternary)" cursor prefix={1} text="HERMES" />
+              <DecodeText className="text-(--ui-text-quaternary)" cursor prefix={1} text={BRAND.name.toUpperCase()} />
             </div>
           ) : (
             keptPanes.map(paneId => {
