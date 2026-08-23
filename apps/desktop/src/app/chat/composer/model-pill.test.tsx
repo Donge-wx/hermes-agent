@@ -81,6 +81,16 @@ describe('ModelPill pinned-override badge', () => {
 })
 
 describe('ModelPill per-surface model label', () => {
+  it('keeps the Latin model label left-to-right inside an RTL locale', () => {
+    render(
+      <div dir="rtl">
+        <ModelPill disabled={false} model={modelState({ model: 'openai/gpt-6-black-model' })} />
+      </div>
+    )
+
+    expect(screen.getByTestId('composer-model-label').getAttribute('dir')).toBe('ltr')
+  })
+
   it('shows the chat-bar model even when the primary global differs', () => {
     setCurrentModel('primary/model')
     $activeSessionId.set('primary-runtime')

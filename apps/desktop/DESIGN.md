@@ -187,6 +187,10 @@ Conversation primitives:
   between punctuation-delimited phrases. This prevents orphan punctuation and
   split predicates at 640/768 widths without changing the localized copy,
   document reading order, or any application state.
+- **RTL technical labels.** Latin model/provider identifiers inside Arabic UI
+  are isolated with explicit left-to-right direction. When a narrow composer
+  truncates a model label, the meaningful model-name prefix remains visible;
+  surrounding Arabic chrome retains its native right-to-left order.
 
 ## Information architecture
 

@@ -97,7 +97,7 @@ export function ModelPill({
   ) : (
     <>
       {currentModel.trim() ? (
-        <span className="truncate">
+        <span className="truncate text-left [unicode-bidi:isolate]" data-testid="composer-model-label" dir="ltr">
           {formatModelStatusLabel(currentModel, { defaultEffort, fastMode, reasoningEffort })}
         </span>
       ) : (

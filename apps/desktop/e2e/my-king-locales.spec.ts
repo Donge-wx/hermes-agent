@@ -55,11 +55,14 @@ test.describe('My King narrow locale layouts', () => {
 
       const page = fixture.page
       const composer = page.locator('[data-slot="composer-rich-input"]')
+      const modelLabel = page.getByTestId('composer-model-label')
       const gateway = page.locator('[data-slot="statusbar"] button').filter({ hasText: 'البوابة' })
 
       await expect(page.locator('html')).toHaveAttribute('dir', 'rtl')
       await expect(composer).toHaveAttribute('data-placeholder', /[\u0600-\u06ff]/u)
       await expect(composer).not.toHaveAttribute('data-placeholder', /What are we building/u)
+      await expect(modelLabel).toHaveAttribute('dir', 'ltr')
+      await expect(modelLabel).toHaveCSS('direction', 'ltr')
       await expect(gateway).toHaveCount(1)
 
       const gatewayText = await gateway.textContent()
