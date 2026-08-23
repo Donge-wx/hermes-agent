@@ -177,7 +177,7 @@ export interface NativeNotificationInput {
   icon?: string
   /**
    * Resolved hash-router path to open on body click when there is no
-   * `sessionId` (plugins). Same vocabulary as `hermes://index-network/intent/1`.
+   * `sessionId` (plugins). Same vocabulary as `myking://index-network/intent/1`.
    */
   activate?: string
   /** Renderer-side handle so click/action can invoke registered callbacks. */
@@ -227,7 +227,7 @@ export function dispatchNativeNotification(input: NativeNotificationInput): bool
 export interface PluginNotificationAction {
   id: string
   label: string
-  /** Navigate here on button press (path or `hermes://index-network/intent/1`). */
+  /** Navigate here on button press (path or `myking://index-network/intent/1`). */
   activate?: HermesOpenTarget
   /** Renderer callback — only `id` crosses IPC; this stays in-process. */
   onAction?: () => void
@@ -241,7 +241,7 @@ export interface PluginNativeNotificationInput {
   icon?: string
   /**
    * Where body-click should land. Accepts a plugin deep link
-   * (`hermes://index-network/intent/1`), a hash path (`/index-network/intent/1`),
+   * (`myking://index-network/intent/1`), a hash path (`/index-network/intent/1`),
    * or `{ path, params }` — all resolve through the same helper as OS deep links.
    */
   activate?: HermesOpenTarget

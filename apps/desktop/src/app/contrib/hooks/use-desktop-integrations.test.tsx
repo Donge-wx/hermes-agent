@@ -476,7 +476,7 @@ describe('useDesktopIntegrations', () => {
       expect(navigate).toHaveBeenCalledWith('/index-network/intent/1')
     })
 
-    it('navigates hermes://index-network/intent/1 deep links through the same path vocabulary', () => {
+    it('navigates myking://index-network/intent/1 deep links through the same path vocabulary', () => {
       let deepLink: ((payload: { kind: string; name: string; params: Record<string, string> }) => void) | undefined
       desktopWindow.hermesDesktop = {
         ...desktopWindow.hermesDesktop,
@@ -493,7 +493,7 @@ describe('useDesktopIntegrations', () => {
       expect(navigate).toHaveBeenCalledWith('/index-network/intent/1')
     })
 
-    it('routes hermes://mcp/install to the pending-install dialog, not navigation', () => {
+    it('routes myking://mcp/install to the pending-install dialog, not navigation', () => {
       let deepLink: ((payload: { kind: string; name: string; params: Record<string, string> }) => void) | undefined
       desktopWindow.hermesDesktop = {
         ...desktopWindow.hermesDesktop,

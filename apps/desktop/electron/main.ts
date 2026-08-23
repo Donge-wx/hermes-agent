@@ -70,6 +70,11 @@ import { runBootstrap } from './bootstrap-runner'
 import { detectBundleSkew } from './bundle-skew'
 import { applyConnectionChange } from './connection-apply'
 import {
+  acceptedMyKingDeepLinkSchemes,
+  extractMyKingDeepLink,
+  MY_KING_DEV_PROTOCOL
+} from './deep-link-protocols'
+import {
   apiRequestRegistryConnectionId,
   authModeFromStatus,
   buildGatewayWsUrl,
@@ -13880,7 +13885,7 @@ ipcMain.handle('hermes:notify', (_event, payload) => {
     }
 
     // Plugin / session-less activation — serializable path (+ optional notifyId
-    // for renderer callbacks). Same vocabulary as hermes://index-network/….
+    // for renderer callbacks). Same vocabulary as myking://index-network/….
     if (payload?.activate || payload?.notifyId) {
       mainWindow.webContents.send('hermes:notification-activate', {
         activate: payload?.activate,
@@ -14950,20 +14955,19 @@ ipcMain.handle('hermes:vscode-theme:fetch', async (_event, id) => fetchMarketpla
 ipcMain.handle('hermes:vscode-theme:search', async (_event, query) => searchMarketplaceThemes(String(query || ''), 20))
 
 // ---------------------------------------------------------------------------
-// hermes:// deep links (e.g. hermes://blueprint/morning-brief?time=08:00,
-// hermes://mcp/install?name=NAME&config=B64 — the vendor "Add to My King"
-// button, or hermes://plugin/install?repo=owner/repo). Dev
-// (`HERMES_DESKTOP_DEV_SERVER`) registers hermes-dev:// instead — bare
-// Electron or a stale OS handler often owns hermes:// on dev machines.
+// myking:// deep links (e.g. myking://blueprint/morning-brief?time=08:00,
+// myking://mcp/install?name=NAME&config=B64 — the vendor "Add to My King"
+// button, or myking://plugin/install?repo=owner/repo). Dev
+// (`HERMES_DESKTOP_DEV_SERVER`) registers myking-dev:// instead.
 // Parsing is generic ({kind, name, params}); the renderer routes per kind
 // and anything install-shaped requires explicit user confirmation there.
 // A docs/dashboard "Send to App" button opens this URL; we route it into the
 // running app. Three delivery paths: macOS 'open-url',
 // Win/Linux running-app 'second-instance' (argv), Win/Linux cold-start argv.
 // ---------------------------------------------------------------------------
-const HERMES_PROTOCOL = DEV_SERVER ? 'myking-dev' : MY_KING_PROTOCOL
-/** Schemes accepted when parsing inbound URLs (dev accepts both). */
-const DEEPLINK_SCHEMES = DEV_SERVER ? ['myking-dev', MY_KING_PROTOCOL, 'hermes'] : [MY_KING_PROTOCOL, 'hermes']
+const MY_KING_DEEP_LINK_PROTOCOL = DEV_SERVER ? MY_KING_DEV_PROTOCOL : MY_KING_PROTOCOL
+/** Schemes accepted when parsing inbound URLs (dev also accepts the public scheme). */
+const DEEPLINK_SCHEMES = acceptedMyKingDeepLinkSchemes(Boolean(DEV_SERVER))
 let _pendingDeepLink = null
 let _rendererReadyForDeepLink = false
 
@@ -14972,7 +14976,7 @@ function _extractDeepLink(argv) {
     return null
   }
 
-  return argv.find(a => typeof a === 'string' && DEEPLINK_SCHEMES.some(s => a.startsWith(`${s}://`))) || null
+  return extractMyKingDeepLink(argv, DEEPLINK_SCHEMES)
 }
 
 function handleDeepLink(url) {
@@ -14998,7 +15002,7 @@ function handleDeepLink(url) {
     return
   }
 
-  // hermes://blueprint/<key>?slot=val  -> host="blueprint", path="/<key>"
+  // myking://blueprint/<key>?slot=val  -> host="blueprint", path="/<key>"
   const kind = parsed.hostname || ''
   const name = decodeURIComponent((parsed.pathname || '').replace(/^\//, ''))
   const params = {}
@@ -15035,7 +15039,7 @@ ipcMain.handle('hermes:deep-link-ready', () => {
     const queued = _pendingDeepLink
     _pendingDeepLink = null
     handleDeepLink(
-      `${HERMES_PROTOCOL}://${queued.kind}/${encodeURIComponent(queued.name)}` +
+      `${MY_KING_DEEP_LINK_PROTOCOL}://${queued.kind}/${encodeURIComponent(queued.name)}` +
         (Object.keys(queued.params).length ? '?' + new URLSearchParams(queued.params).toString() : '')
     )
   }
@@ -15050,19 +15054,19 @@ function registerDeepLinkProtocol() {
       // relaunch us with the URL. argv[1] is usually "." when launched via
       // `electron .` from apps/desktop — resolve against cwd.
       const entry = path.resolve(process.argv[1])
-      app.setAsDefaultProtocolClient(HERMES_PROTOCOL, process.execPath, [entry])
+      app.setAsDefaultProtocolClient(MY_KING_DEEP_LINK_PROTOCOL, process.execPath, [entry])
     } else {
-      app.setAsDefaultProtocolClient(HERMES_PROTOCOL)
+      app.setAsDefaultProtocolClient(MY_KING_DEEP_LINK_PROTOCOL)
     }
 
-    rememberLog(`[deeplink] registered ${HERMES_PROTOCOL}:// handler`)
+    rememberLog(`[deeplink] registered ${MY_KING_DEEP_LINK_PROTOCOL}:// handler`)
   } catch (err) {
     rememberLog(`[deeplink] protocol registration failed: ${err.message}`)
   }
 }
 
 // Single-instance lock: deep links on a running app (Win/Linux) arrive as a
-// second-instance argv. Without the lock a second `hermes://` launch spawns a
+// second-instance argv. Without the lock a second `myking://` launch spawns a
 // whole new app instead of routing into the running one.
 const _gotSingleInstanceLock = app.requestSingleInstanceLock()
 const isPrimaryInstance = _gotSingleInstanceLock
@@ -15166,7 +15170,7 @@ app.whenReady().then(() => {
 
   createWindow()
 
-  // Win/Linux cold start: the launching hermes:// URL is in our own argv.
+  // Win/Linux cold start: the launching myking:// URL is in our own argv.
   const _coldStartLink = _extractDeepLink(process.argv)
 
   if (_coldStartLink) {
