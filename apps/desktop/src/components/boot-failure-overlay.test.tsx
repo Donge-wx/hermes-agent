@@ -98,6 +98,24 @@ describe('BootFailureOverlay', () => {
     expect(screen.queryByRole('button', { name: /repair/i })).toBeNull()
   })
 
+  it('shows terminal recovery when onboarding is still starting', () => {
+    // Given: onboarding has not completed its provider lookup when the backend
+    // reaches a terminal failure.
+    $desktopOnboarding.set({
+      ...$desktopOnboarding.get(),
+      configured: false,
+      flow: { status: 'starting', provider: makeOAuthProvider('nous', 'Nous Portal') }
+    })
+
+    // When: the terminal recovery overlay renders.
+    render(<BootFailureOverlay />)
+
+    // Then: the actionable recovery surface takes ownership from the stalled
+    // onboarding progress layer.
+    expect(screen.getByRole('button', { name: /retry/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /repair/i })).toBeTruthy()
+  })
+
   it('swaps to the in-place gateway settings view (no route nav) and back', async () => {
     render(<BootFailureOverlay />)
 

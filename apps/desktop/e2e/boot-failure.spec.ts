@@ -58,12 +58,8 @@ test.describe('boot failure with dead backend', () => {
         // When: the terminal recovery surface is inspected.
         await expect(overlay).toBeVisible({ timeout: 90_000 })
 
-        await fixture.page.screenshot({
-          animations: 'disabled',
-          caret: 'hide',
-          path: test.info().outputPath(`boot-failure-${viewport.name}.png`)
-        })
-
+        // Capture the live error copy and geometry before screenshot animation
+        // settling can advance unrelated onboarding transitions.
         const snapshot = await overlay.evaluate(element => {
           const surface = element.querySelector<HTMLElement>('[data-slot="boot-failure-surface"]')
           const error = element.querySelector<HTMLElement>('[data-slot="boot-failure-error"]')
@@ -75,6 +71,12 @@ test.describe('boot failure with dead backend', () => {
               ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height }
               : null
           }
+        })
+
+        await fixture.page.screenshot({
+          animations: 'disabled',
+          caret: 'hide',
+          path: test.info().outputPath(`boot-failure-${viewport.name}.png`)
         })
 
         if (!snapshot.surface) {

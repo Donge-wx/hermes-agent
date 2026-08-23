@@ -816,29 +816,5 @@ export async function waitForOnboarding(page: Page, timeoutMs = 60_000): Promise
  * Wait for the boot failure overlay to appear.
  */
 export async function waitForBootFailure(page: Page, timeoutMs = 60_000): Promise<void> {
-  await page.waitForFunction(
-    () => {
-      // Boot failure is terminal: the backend gave up. The renderer shows
-      // either BootFailureOverlay (z-1400, with Retry/Repair buttons) or
-      // falls back to the onboarding picker (z-1300) as a recovery path.
-      // We wait for the failure dialog itself — the Preparing component may
-      // still paint its progress bar (recolored red) underneath the overlay,
-      // which is harmless.
-      const text = document.body.textContent ?? ''
-
-      // BootFailureOverlay buttons.
-      const hasFailureUI =
-        text.includes('Retry') ||
-        text.includes('Repair') ||
-        text.includes('Use local gateway') ||
-        text.includes('Connection settings')
-
-      // The error toast / notification that fires on failDesktopBoot().
-      const hasErrorToast = text.includes('Desktop boot failed')
-
-      return hasFailureUI || hasErrorToast
-    },
-    undefined,
-    { timeout: timeoutMs },
-  )
+  await page.locator('[data-slot="boot-failure-overlay"]').waitFor({ state: 'visible', timeout: timeoutMs })
 }
