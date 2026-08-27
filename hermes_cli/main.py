@@ -1992,7 +1992,7 @@ def _print_tui_exit_summary(
         print(f"Title:          {title}")
     print(f"Messages:       {message_count}")
     print(
-        "Tokens:         "
+        "token:          "
         f"{total_tokens} (in {input_tokens}, out {output_tokens}, "
         f"cache {cache_read_tokens + cache_write_tokens}, reasoning {reasoning_tokens})"
     )
@@ -2860,6 +2860,13 @@ def _launch_tui(
     # preserve_inherited=False ensures --tui and other flags are NOT carried
     # into the update subcommand.
     if code == 42:
+        from hermes_cli.managed_update_policy import managed_updates_disabled
+
+        if managed_updates_disabled():
+            print()
+            print("Updates are disabled for this managed My King deployment. Only version information is available.")
+            sys.exit(0)
+
         from hermes_cli.relaunch import relaunch
 
         print()
@@ -10211,6 +10218,15 @@ def cmd_update(args):
     runs the update, then restores stdio on the way out (even on
     ``sys.exit`` or unhandled exceptions).
     """
+    from hermes_cli.managed_update_policy import (
+        UPDATES_DISABLED_MESSAGE,
+        managed_updates_disabled,
+    )
+
+    if managed_updates_disabled():
+        print(f"  ✗ {UPDATES_DISABLED_MESSAGE}")
+        return
+
     from hermes_cli.config import (
         detect_install_method,
         format_docker_update_message,
@@ -12613,9 +12629,13 @@ def main():
     if _try_fast_chat_launch():
         return
 
+    from hermes_cli.managed_update_policy import managed_updates_disabled
     from hermes_cli._parser import build_top_level_parser
 
-    parser, subparsers, chat_parser = build_top_level_parser()
+    hide_update_help = managed_updates_disabled()
+    parser, subparsers, chat_parser = build_top_level_parser(
+        hide_update_help=hide_update_help,
+    )
     chat_parser.set_defaults(func=cmd_chat)
 
     # =========================================================================
@@ -13523,11 +13543,11 @@ def main():
         )
         p.add_argument(
             "--min-tokens", type=int,
-            help="Only match sessions with >= N total tokens (input+output)",
+            help="Only match sessions with >= N total token (input+output)",
         )
         p.add_argument(
             "--max-tokens", type=int,
-            help="Only match sessions with <= N total tokens (input+output)",
+            help="Only match sessions with <= N total token (input+output)",
         )
         p.add_argument(
             "--min-cost", type=float,
@@ -13666,7 +13686,7 @@ def main():
         action="store_true",
         help=(
             "Instead of ended sessions, delete keyed gateway rows that were "
-            "opened and never used (no messages, tokens, tool calls or title) "
+            "opened and never used (no messages, token, tool calls or title) "
             "and are older than AGE (default 30 days). Ordinary prune can "
             "never reach these — it only ever selects ended sessions"
         ),
@@ -13967,7 +13987,11 @@ def main():
     # =========================================================================
     # update command  (parser built in hermes_cli/subcommands/update.py)
     # =========================================================================
-    build_update_parser(subparsers, cmd_update=cmd_update)
+    build_update_parser(
+        subparsers,
+        cmd_update=cmd_update,
+        hide_help=hide_update_help,
+    )
 
     # =========================================================================
     # uninstall command  (parser built in hermes_cli/subcommands/uninstall.py)
@@ -14044,6 +14068,10 @@ def main():
     # the managed container.  This MUST run before parse_args() so that
     # --help, unrecognised flags, and every subcommand are forwarded
     # transparently instead of being intercepted by argparse on the host.
+    if hide_update_help:
+        visible_commands = [name for name in subparsers.choices if name != "update"]
+        subparsers.metavar = "{" + ",".join(visible_commands) + "}"
+
     from hermes_cli.config import get_container_exec_info
 
     container_info = get_container_exec_info()

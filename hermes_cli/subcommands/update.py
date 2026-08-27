@@ -6,19 +6,33 @@ Handler injected to avoid importing ``main``.
 
 from __future__ import annotations
 
+import argparse
 from typing import Callable
 
 
-def build_update_parser(subparsers, *, cmd_update: Callable) -> None:
+def build_update_parser(
+    subparsers,
+    *,
+    cmd_update: Callable,
+    hide_help: bool = False,
+) -> None:
     """Attach the ``update`` subcommand to ``subparsers``."""
     # =========================================================================
     # update command
     # =========================================================================
-    update_parser = subparsers.add_parser(
-        "update",
-        help="Update Hermes Agent to the latest version",
-        description="Pull the latest changes from git and reinstall dependencies",
-    )
+    parser_kwargs = {
+        "description": "Pull the latest changes from git and reinstall dependencies",
+    }
+    if not hide_help:
+        parser_kwargs["help"] = "Update Hermes Agent to the latest version"
+    else:
+        parser_kwargs["description"] = (
+            "Updates are disabled for this managed My King deployment. "
+            "Only version information is available."
+        )
+        parser_kwargs["usage"] = "hermes update"
+
+    update_parser = subparsers.add_parser("update", **parser_kwargs)
     update_parser.add_argument(
         "--gateway",
         action="store_true",
@@ -111,4 +125,7 @@ def build_update_parser(subparsers, *, cmd_update: Callable) -> None:
         default=False,
         help="Windows: mutate the venv even while other processes are running from its interpreter (desktop backend, gateway, terminals). Those processes keep native .pyd files locked, so the dependency sync will likely fail partway and strand the install half-updated. Use only if you know the detected holders are false positives.",
     )
+    if hide_help:
+        for action in update_parser._actions:
+            action.help = argparse.SUPPRESS
     update_parser.set_defaults(func=cmd_update)

@@ -27,6 +27,7 @@ export interface MyKingEmployeeBinding {
   readonly deviceId: string
   readonly employeeId: string
   readonly employeeName: string
+  readonly enrollmentId: string
   readonly enrolledAt: string
   readonly lastCheckAt: null | string
   readonly remoteGatewayUrl: string

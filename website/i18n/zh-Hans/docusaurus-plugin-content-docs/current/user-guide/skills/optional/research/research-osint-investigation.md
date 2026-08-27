@@ -173,8 +173,8 @@ python3 SKILL_DIR/scripts/entity_resolution.py \
 | 层级 | 方法 | 置信度 |
 |------|--------|------------|
 | `exact` | 去除后缀/标点后规范化字符串相等 | 高 |
-| `fuzzy` | 排序词元相等（词袋匹配） | 中 |
-| `token_overlap` | ≥60% 词元重叠，≥2 个共享词元，词元 ≥4 个字符 | 低 |
+| `fuzzy` | 排序 token 相等（词袋匹配） | 中 |
+| `token_overlap` | ≥60% token 重叠，≥2 个共享 token，token ≥4 个字符 | 低 |
 
 输出 `cross_links.csv` 列：`match_type, confidence, left_name, right_name, left_normalized, right_normalized, left_row, right_row`。
 

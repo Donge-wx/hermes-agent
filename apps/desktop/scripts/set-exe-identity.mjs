@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// set-exe-identity.mjs — stamp the Hermes icon + version metadata onto the
-// built Hermes.exe using rcedit, completely decoupled from electron-builder's
+// set-exe-identity.mjs — stamp the My King icon + version metadata onto the
+// built My-King.exe using resedit, completely decoupled from electron-builder's
 // signing path.
 //
 // WHY THIS EXISTS
@@ -13,10 +13,10 @@
 // try to extract winCodeSign.
 //
 // The cost of disabling signAndEditExecutable is that electron-builder also
-// skips rcedit, so the unpacked Hermes.exe keeps the stock Electron icon and
-// "Electron" taskbar name. This script restores the icon + identity by calling
-// rcedit DIRECTLY. rcedit is a pure PE resource editor: no signing, no certs,
-// no winCodeSign, no symlinks.
+// skips resource editing, so the unpacked My-King.exe keeps the stock Electron
+// icon and "Electron" taskbar name. This script restores the icon + identity
+// with the pure-JavaScript resedit library: no Wine, signing, certs,
+// winCodeSign, or symlinks.
 //
 // HOW IT RUNS
 // -----------
@@ -28,21 +28,22 @@
 // shipped a stock "Electron" exe. Keeping it in afterPack closes that gap.
 //
 // Also runnable standalone for ad-hoc re-stamping:
-//   node scripts/set-exe-identity.mjs <path-to-Hermes.exe>
+//   node scripts/set-exe-identity.mjs <path-to-My-King.exe>
 //
 // Exits 0 on success, non-zero on failure when run as a CLI. As a hook,
 // stampExeIdentity() resolves on success and rejects on failure; the caller
 // (after-pack.mjs) swallows the rejection so a stamp failure never fails an
 // otherwise-good build (worst case: stock icon, not a broken app).
 
-import { resolve, join } from 'node:path'
+import fs from 'node:fs/promises'
 import { existsSync } from 'node:fs'
+import { basename, dirname, join, resolve } from 'node:path'
 
-import { rcedit } from 'rcedit'
+import { Data, NtExecutable, NtExecutableResource, Resource } from 'resedit'
 
 import { isMain } from './utils.mjs'
 
-// Stamp the Hermes icon + identity onto `exe`. Resolves on success, throws on
+// Stamp the My King icon + identity onto `exe`. Resolves on success, throws on
 // failure. `desktopRoot` defaults to this script's package root so the icon and
 // the rcedit dependency resolve regardless of cwd.
 async function stampExeIdentity(exe, desktopRoot = resolve(import.meta.dirname, '..')) {
@@ -59,15 +60,48 @@ async function stampExeIdentity(exe, desktopRoot = resolve(import.meta.dirname, 
   console.log(`[set-exe-identity] stamping ${exe}`)
   console.log(`[set-exe-identity] icon: ${icon}`)
 
-  await rcedit(exe, {
-    icon,
-    'version-string': {
-      ProductName: 'My King',
-      FileDescription: 'My King',
-      CompanyName: 'My King',
-      LegalCopyright: 'Copyright (c) 2026 My King'
+  const executable = NtExecutable.from(await fs.readFile(exe), { ignoreCert: true })
+  const resources = NtExecutableResource.from(executable)
+  const icons = Data.IconFile.from(await fs.readFile(icon)).icons.map(item => item.data)
+  const iconGroups = Resource.IconGroupEntry.fromEntries(resources.entries)
+  const targets = iconGroups.length > 0 ? iconGroups : [{ id: 101, lang: 1033 }]
+
+  for (const target of targets) {
+    Resource.IconGroupEntry.replaceIconsForResource(resources.entries, target.id, target.lang, icons)
+  }
+
+  const versions = Resource.VersionInfo.fromEntries(resources.entries)
+  const versionTargets = versions.length > 0 ? versions : [Resource.VersionInfo.createEmpty()]
+
+  for (const version of versionTargets) {
+    const languages = version.getAllLanguagesForStringValues()
+    const translations = languages.length > 0 ? languages : [{ lang: 1033, codepage: 1200 }]
+
+    for (const translation of translations) {
+      version.setStringValues(translation, {
+        ProductName: 'My King',
+        FileDescription: 'My King',
+        CompanyName: 'My King',
+        InternalName: 'My-King.exe',
+        OriginalFilename: 'My-King.exe',
+        LegalCopyright: 'Copyright (c) 2026 My King',
+        LegalTrademarks: 'My King'
+      })
     }
-  })
+
+    version.outputToResourceEntries(resources.entries)
+  }
+
+  resources.outputResource(executable)
+  const output = Buffer.from(executable.generate())
+  const temporary = join(dirname(exe), `.${basename(exe)}.my-king-stamp-${process.pid}`)
+
+  try {
+    await fs.writeFile(temporary, output)
+    await fs.rename(temporary, exe)
+  } finally {
+    await fs.rm(temporary, { force: true })
+  }
 
   console.log('[set-exe-identity] done — My King icon + identity stamped')
 }

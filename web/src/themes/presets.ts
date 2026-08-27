@@ -1,240 +1,117 @@
-import type { DashboardTheme, ThemeTypography, ThemeLayout } from "./types";
+import type { DashboardTheme } from "./types";
 
-/**
- * Built-in dashboard themes.
- *
- * Each theme defines its own palette, typography, and layout so switching
- * themes produces visible changes beyond just color — fonts, density, and
- * corner-radius all shift to match the theme's personality.
- *
- * Theme names must stay in sync with the backend's
- * `_BUILTIN_DASHBOARD_THEMES` list in `hermes_cli/web_server.py`.
- */
 
-// ---------------------------------------------------------------------------
-// Shared typography / layout presets
-// ---------------------------------------------------------------------------
-
-/** Default system stack — neutral, safe fallback for every platform. */
 const SYSTEM_SANS =
-  'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+  '-apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif';
 const SYSTEM_MONO =
   'ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace';
 
-const DEFAULT_TYPOGRAPHY: ThemeTypography = {
-  fontSans: SYSTEM_SANS,
-  fontMono: SYSTEM_MONO,
-  baseSize: "15px",
-  lineHeight: "1.55",
-  letterSpacing: "0",
-};
 
-const DEFAULT_LAYOUT: ThemeLayout = {
-  radius: "0.5rem",
-  density: "comfortable",
-};
-
-// ---------------------------------------------------------------------------
-// Themes
-// ---------------------------------------------------------------------------
-
+/** The only visual skin exposed by the managed My King dashboard. */
 export const defaultTheme: DashboardTheme = {
   name: "default",
-  label: "Hermes Teal",
-  description: "Classic dark teal — the canonical Hermes look",
+  label: "My King 玻璃主题",
+  description: "My King 浅色 Liquid Glass 管理界面",
   palette: {
-    background: { hex: "#041c1c", alpha: 1 },
-    midground: { hex: "#ffe6cb", alpha: 1 },
-    foreground: { hex: "#ffffff", alpha: 0 },
-    warmGlow: "rgba(255, 189, 56, 0.35)",
-    noiseOpacity: 1,
-  },
-  typography: DEFAULT_TYPOGRAPHY,
-  layout: DEFAULT_LAYOUT,
-  terminalBackground: "#000000",
-};
-
-export const midnightTheme: DashboardTheme = {
-  name: "midnight",
-  label: "Midnight",
-  description: "Deep blue-violet with cool accents",
-  palette: {
-    background: { hex: "#0a0a1f", alpha: 1 },
-    midground: { hex: "#d4c8ff", alpha: 1 },
-    foreground: { hex: "#ffffff", alpha: 0 },
-    warmGlow: "rgba(167, 139, 250, 0.32)",
-    noiseOpacity: 0.8,
+    background: { hex: "#F4F7FC", alpha: 1 },
+    midground: { hex: "#1D1D1F", alpha: 1 },
+    foreground: { hex: "#2457E6", alpha: 1 },
+    warmGlow: "rgba(118, 88, 222, 0.18)",
+    noiseOpacity: 0,
   },
   typography: {
-    ...DEFAULT_TYPOGRAPHY,
-    fontSans: `"Inter", ${SYSTEM_SANS}`,
-    fontMono: `"JetBrains Mono", ${SYSTEM_MONO}`,
-    fontUrl:
-      "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap",
+    fontSans: SYSTEM_SANS,
+    fontMono: SYSTEM_MONO,
+    fontDisplay: SYSTEM_SANS,
+    baseSize: "16px",
+    lineHeight: "1.55",
     letterSpacing: "-0.005em",
   },
   layout: {
-    ...DEFAULT_LAYOUT,
-    radius: "0.75rem",
-  },
-};
-
-export const emberTheme: DashboardTheme = {
-  name: "ember",
-  label: "Ember",
-  description: "Warm crimson and bronze — forge vibes",
-  palette: {
-    background: { hex: "#1a0a06", alpha: 1 },
-    midground: { hex: "#ffd8b0", alpha: 1 },
-    foreground: { hex: "#ffffff", alpha: 0 },
-    warmGlow: "rgba(249, 115, 22, 0.38)",
-    noiseOpacity: 1,
-  },
-  typography: {
-    ...DEFAULT_TYPOGRAPHY,
-    fontSans: `"Spectral", Georgia, "Times New Roman", serif`,
-    fontMono: `"IBM Plex Mono", ${SYSTEM_MONO}`,
-    fontUrl:
-      "https://fonts.googleapis.com/css2?family=Spectral:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;700&display=swap",
-  },
-  layout: {
-    ...DEFAULT_LAYOUT,
-    radius: "0.25rem",
-  },
-  colorOverrides: {
-    destructive: "#c92d0f",
-    warning: "#f97316",
-  },
-};
-
-export const monoTheme: DashboardTheme = {
-  name: "mono",
-  label: "Mono",
-  description: "Clean grayscale — minimal and focused",
-  palette: {
-    background: { hex: "#0e0e0e", alpha: 1 },
-    midground: { hex: "#eaeaea", alpha: 1 },
-    foreground: { hex: "#ffffff", alpha: 0 },
-    warmGlow: "rgba(255, 255, 255, 0.1)",
-    noiseOpacity: 0.6,
-  },
-  typography: {
-    ...DEFAULT_TYPOGRAPHY,
-    fontSans: `"IBM Plex Sans", ${SYSTEM_SANS}`,
-    fontMono: `"IBM Plex Mono", ${SYSTEM_MONO}`,
-    fontUrl:
-      "https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap",
-  },
-  layout: {
-    ...DEFAULT_LAYOUT,
-    radius: "0",
-  },
-};
-
-export const cyberpunkTheme: DashboardTheme = {
-  name: "cyberpunk",
-  label: "Cyberpunk",
-  description: "Neon green on black — matrix terminal",
-  palette: {
-    background: { hex: "#040608", alpha: 1 },
-    midground: { hex: "#9bffcf", alpha: 1 },
-    foreground: { hex: "#ffffff", alpha: 0 },
-    warmGlow: "rgba(0, 255, 136, 0.22)",
-    noiseOpacity: 1.2,
-  },
-  typography: {
-    ...DEFAULT_TYPOGRAPHY,
-    fontSans: `"Share Tech Mono", "JetBrains Mono", ${SYSTEM_MONO}`,
-    fontMono: `"Share Tech Mono", "JetBrains Mono", ${SYSTEM_MONO}`,
-    fontUrl:
-      "https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=JetBrains+Mono:wght@400;700&display=swap",
-  },
-  layout: {
-    ...DEFAULT_LAYOUT,
-    radius: "0",
-  },
-  colorOverrides: {
-    success: "#00ff88",
-    warning: "#ffd700",
-    destructive: "#ff0055",
-  },
-};
-
-export const roseTheme: DashboardTheme = {
-  name: "rose",
-  label: "Rosé",
-  description: "Soft pink and warm ivory — easy on the eyes",
-  palette: {
-    background: { hex: "#1a0f15", alpha: 1 },
-    midground: { hex: "#ffd4e1", alpha: 1 },
-    foreground: { hex: "#ffffff", alpha: 0 },
-    warmGlow: "rgba(249, 168, 212, 0.3)",
-    noiseOpacity: 0.9,
-  },
-  typography: {
-    ...DEFAULT_TYPOGRAPHY,
-    fontSans: `"Fraunces", Georgia, serif`,
-    fontMono: `"DM Mono", ${SYSTEM_MONO}`,
-    fontUrl:
-      "https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=DM+Mono:wght@400;500&display=swap",
-  },
-  layout: {
-    ...DEFAULT_LAYOUT,
     radius: "1rem",
+    density: "comfortable",
   },
-};
-
-/** Light mode — vivid Nous-blue accents on a cream canvas. */
-export const nousBlueTheme: DashboardTheme = {
-  name: "nous-blue",
-  label: "Nous Blue",
-  description: "Light mode — vivid Nous-blue accents on cream canvas",
-  palette: {
-    background: { hex: "#E8F2FD", alpha: 1 },
-    midground: { hex: "#0053FD", alpha: 1 },
-    foreground: { hex: "#170d02", alpha: 0 },
-    warmGlow: "rgba(0, 83, 253, 0.12)",
-    noiseOpacity: 0,
+  terminalBackground: "#F8FAFF",
+  terminalForeground: "#1D1D1F",
+  colorOverrides: {
+    card: "rgba(255, 255, 255, 0.66)",
+    cardForeground: "#1D1D1F",
+    popover: "rgba(255, 255, 255, 0.92)",
+    popoverForeground: "#1D1D1F",
+    primary: "#2457E6",
+    primaryForeground: "#FFFFFF",
+    secondary: "rgba(231, 237, 249, 0.86)",
+    secondaryForeground: "#283044",
+    muted: "rgba(229, 235, 247, 0.72)",
+    mutedForeground: "#606979",
+    accent: "rgba(220, 230, 255, 0.78)",
+    accentForeground: "#173E9D",
+    destructive: "#C93545",
+    destructiveForeground: "#FFFFFF",
+    success: "#168A68",
+    warning: "#A86413",
+    border: "rgba(81, 105, 153, 0.20)",
+    input: "rgba(81, 105, 153, 0.25)",
+    ring: "#2457E6",
   },
-  typography: DEFAULT_TYPOGRAPHY,
-  layout: DEFAULT_LAYOUT,
-  terminalBackground: "#f5f8fc",
-  terminalForeground: "#170d02",
+  componentStyles: {
+    sidebar: {
+      background:
+        "linear-gradient(145deg, rgba(255,255,255,0.86), rgba(244,248,255,0.72))",
+      borderImage: "linear-gradient(rgba(255,255,255,0.9), rgba(92,117,166,0.18)) 1",
+    },
+    header: {
+      background:
+        "linear-gradient(145deg, rgba(255,255,255,0.9), rgba(241,246,255,0.76))",
+      borderImage: "linear-gradient(90deg, rgba(255,255,255,0.92), rgba(92,117,166,0.2)) 1",
+    },
+    footer: {
+      background: "rgba(255,255,255,0.68)",
+    },
+    card: {
+      background:
+        "linear-gradient(145deg, rgba(255,255,255,0.82), rgba(245,248,255,0.62))",
+    },
+  },
   seriesColors: {
-    inputTokenAccent: "#001934",
-    outputTokenAccent: "#0053fd",
+    inputTokenAccent: "#7658DE",
+    outputTokenAccent: "#20AEB9",
   },
-  swatchColors: ["#170d02", "#0053FD", "#E8F2FD"],
+  swatchColors: ["#F4F7FC", "#2457E6", "#7658DE"],
+  customCSS: `
+    body {
+      background:
+        radial-gradient(circle at 10% 8%, rgba(151, 119, 255, 0.18), transparent 32rem),
+        radial-gradient(circle at 92% 84%, rgba(49, 209, 207, 0.14), transparent 38rem),
+        radial-gradient(circle at 82% 10%, rgba(69, 144, 255, 0.14), transparent 30rem),
+        linear-gradient(145deg, #fbfdff 0%, #f4f7fc 52%, #eaf0fb 100%);
+    }
+    #root > [data-layout-variant] {
+      background: transparent;
+    }
+    aside, header {
+      -webkit-backdrop-filter: blur(28px) saturate(145%);
+      backdrop-filter: blur(28px) saturate(145%);
+      box-shadow: inset -1px 0 0 rgba(255,255,255,0.78), 12px 0 34px rgba(67,88,132,0.08);
+    }
+    [role="dialog"], [role="listbox"], [data-radix-popper-content-wrapper] > * {
+      -webkit-backdrop-filter: blur(30px) saturate(145%);
+      backdrop-filter: blur(30px) saturate(145%);
+    }
+    :focus-visible {
+      outline-color: #2457e6;
+    }
+    @media (prefers-reduced-transparency: reduce) {
+      aside, header, [role="dialog"], [role="listbox"] {
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+        background: #f8faff;
+      }
+    }
+  `,
 };
 
-/**
- * Same look as ``defaultTheme`` but with a larger root font size, looser
- * line-height, and ``spacious`` density so every rem-based size in the
- * dashboard scales up. For users who find the default 15px UI too dense.
- */
-export const defaultLargeTheme: DashboardTheme = {
-  name: "default-large",
-  label: "Hermes Teal (Large)",
-  description: "Hermes Teal with bigger fonts and roomier spacing",
-  palette: defaultTheme.palette,
-  typography: {
-    ...DEFAULT_TYPOGRAPHY,
-    baseSize: "18px",
-    lineHeight: "1.65",
-  },
-  layout: {
-    ...DEFAULT_LAYOUT,
-    density: "spacious",
-  },
-};
 
 export const BUILTIN_THEMES: Record<string, DashboardTheme> = {
   default: defaultTheme,
-  "default-large": defaultLargeTheme,
-  "nous-blue": nousBlueTheme,
-  midnight: midnightTheme,
-  ember: emberTheme,
-  mono: monoTheme,
-  cyberpunk: cyberpunkTheme,
-  rose: roseTheme,
 };

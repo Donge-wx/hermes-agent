@@ -2973,8 +2973,8 @@ def _prompt_toolset_checklist(
                 all_tools.update(resolve_toolset(ts_keys[idx]))
             total = sum(tool_tokens.get(name, 0) for name in all_tools)
             if total >= 1000:
-                return f"Est. tool context: ~{total / 1000:.1f}k tokens"
-            return f"Est. tool context: ~{total} tokens"
+                return f"Est. tool context: ~{total / 1000:.1f}k token"
+            return f"Est. tool context: ~{total} token"
 
     chosen = curses_checklist(
         f"Tools for {platform_label}",

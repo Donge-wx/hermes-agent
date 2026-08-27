@@ -20,6 +20,7 @@ import { PANE_TOGGLE_REVEAL_EVENT } from '../..'
 import { allPaneIds, findGroupOfPane } from '../model'
 import { $hiddenTreePanes, $layoutTree, $narrowViewport } from '../store'
 
+import { LocalizedPaneTitle } from './localized-pane-title'
 import { paneChrome } from './track-model'
 
 export function NarrowOverlays() {
@@ -178,7 +179,9 @@ export function NarrowOverlays() {
                     }
                   }}
                 >
-                  <PaneTabLabel>{pane.title ?? pane.id}</PaneTabLabel>
+                  <PaneTabLabel>
+                    <LocalizedPaneTitle fallback={pane.title ?? pane.id} paneId={pane.id} />
+                  </PaneTabLabel>
                 </PaneTab>
               ))}
             </PaneTabStrip>

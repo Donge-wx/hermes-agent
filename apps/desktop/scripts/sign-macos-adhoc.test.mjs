@@ -10,7 +10,7 @@ describe('local macOS signing', () => {
     const options = createLocalSignOptions(app, desktopRoot)
 
     expect(options.identity).toBe('Hermes Local Code Signing')
-    expect(options.identityValidation).toBe(true)
+    expect(options.identityValidation).toBe(false)
     expect(options.preAutoEntitlements).toBe(false)
     expect(options.preEmbedProvisioningProfile).toBe(false)
     expect(options.optionsForFile(app)).toEqual({
@@ -22,6 +22,19 @@ describe('local macOS signing', () => {
       entitlements: path.join(desktopRoot, 'electron/entitlements.mac.inherit.plist'),
       hardenedRuntime: true,
       timestamp: 'none'
+    })
+  })
+
+  it('allows an ad-hoc identity without keychain validation', () => {
+    const desktopRoot = path.resolve('/repo/apps/desktop')
+    const app = path.join(desktopRoot, 'release/mac-arm64/My King.app')
+    const options = createLocalSignOptions(app, desktopRoot, '-')
+
+    expect(options.identity).toBe('-')
+    expect(options.identityValidation).toBe(false)
+    expect(options.optionsForFile(app)).toMatchObject({
+      entitlements: path.join(desktopRoot, 'electron/entitlements.mac.plist'),
+      hardenedRuntime: true
     })
   })
 })

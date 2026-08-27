@@ -100,6 +100,14 @@ test('listRemoteHermesProfiles inventories Mini-style profile dirs without spawn
   )
 })
 
+test('listRemoteHermesProfiles lists managed My King profiles without probing the Hermes home', async () => {
+  const ssh = fakeSsh([[/ls -1/, 'writer\nresearch\n']])
+
+  assert.deepEqual(await listRemoteHermesProfiles(ssh, '~/.myking'), ['default', 'research', 'writer'])
+  assert.match(ssh.calls.join('\n'), /\.myking\/profiles/)
+  assert.equal(ssh.calls.some(cmd => cmd.includes('HERMES_HOME') || cmd.includes('.hermes')), false)
+})
+
 test('listRemoteHermesProfiles rejects a hostile HERMES_HOME', async () => {
   const ssh = fakeSsh([[/HERMES_HOME/, '/tmp/x; echo pwned\n']])
 
@@ -645,6 +653,92 @@ test('connect() spawns fresh when there is no lockfile, adopts the served token'
   assert.equal(result.token, 'the-served-token')
   assert.equal(result.baseUrl, 'http://127.0.0.1:50001')
   assert.equal(result.tokenFingerprint, fingerprintToken('the-served-token'))
+})
+
+test('connect() keeps a managed My King SSH dashboard and ownership records out of the remote Hermes home', async () => {
+  const ssh = fakeSsh([
+    [/uname/, 'Linux\nx86_64'],
+    [/\[ -x/, 'OK'],
+    [/cat .*backend\.lock\.json/, ''],
+    [/grep -q ssh-session-token-file/, 'YES\n'],
+    [/python3 -c/, ''],
+    [/printf '%s\\n'/, ''],
+    [/setsid/, '777\n'],
+    [/kill -0 777/, 'ALIVE'],
+    [/cat .*\.log/, 'HERMES_DASHBOARD_READY port=51999\n']
+  ])
+
+  await connect(
+    connectDeps(ssh, {
+      remoteHermesHome: '~/.myking',
+      adoptServedToken: async () => 'the-served-token'
+    })
+  )
+
+  const commands = ssh.calls.join('\n')
+  const spawn = ssh.calls.find(command => /setsid|nohup/.test(command)) || ''
+
+  assert.match(commands, /\.myking\/desktop-ssh\/[0-9a-f]{32}\/backend\.lock\.json/)
+  assert.doesNotMatch(commands, /\.hermes\/desktop-ssh\//)
+  assert.match(spawn, /HERMES_HOME=.*\.myking/)
+  assert.doesNotMatch(spawn, /HERMES_HOME=.*\.hermes/)
+})
+
+test('connect() discovers and starts a managed My King profile without probing upstream Hermes paths', async () => {
+  const ssh = fakeSsh([
+    [/uname/, 'Linux\nx86_64'],
+    [/\[ -x .*\.myking\/hermes-agent\/venv\/bin\/hermes/, 'OK'],
+    [/cat .*backend\.lock\.json/, ''],
+    [/grep -q ssh-session-token-file/, 'YES\n'],
+    [/python3 -c/, ''],
+    [/printf '%s\\n'/, ''],
+    [/setsid/, '779\n'],
+    [/kill -0 779/, 'ALIVE'],
+    [/cat .*\.log/, 'HERMES_DASHBOARD_READY port=52001\n']
+  ])
+
+  await connect(
+    connectDeps(ssh, {
+      profile: 'writer',
+      remoteHermesHome: '~/.myking',
+      adoptServedToken: async () => 'the-served-token'
+    })
+  )
+
+  const commands = ssh.calls.join('\n')
+  const spawn = ssh.calls.find(command => /setsid|nohup/.test(command)) || ''
+
+  assert.match(commands, /\.myking\/hermes-agent\/venv\/bin\/hermes/)
+  assert.doesNotMatch(commands, /command -v hermes|\.hermes/)
+  assert.match(spawn, /HERMES_HOME=.*\.myking/)
+  assert.match(spawn, /--profile .*writer/)
+})
+
+test('connect() leaves an explicit remote Hermes path on its existing remote home', async () => {
+  const ssh = fakeSsh([
+    [/uname/, 'Linux\nx86_64'],
+    [/\[ -x .*\/opt\/upstream-hermes/, 'OK'],
+    [/cat .*backend\.lock\.json/, ''],
+    [/HERMES_HOME/, '/home/alice/.hermes\n'],
+    [/grep -q ssh-session-token-file/, 'YES\n'],
+    [/python3 -c/, ''],
+    [/printf '%s\\n'/, ''],
+    [/setsid/, '778\n'],
+    [/kill -0 778/, 'ALIVE'],
+    [/cat .*\.log/, 'HERMES_DASHBOARD_READY port=52000\n']
+  ])
+
+  await connect(
+    connectDeps(ssh, {
+      remoteHermesPath: '/opt/upstream-hermes',
+      adoptServedToken: async () => 'the-served-token'
+    })
+  )
+
+  const spawn = ssh.calls.find(command => /setsid|nohup/.test(command)) || ''
+
+  assert.match(spawn, /\.hermes\/desktop-ssh\//)
+  assert.doesNotMatch(spawn, /HERMES_HOME=/)
 })
 
 test('managed SSH maps a local scope to a different non-default remote profile', async () => {

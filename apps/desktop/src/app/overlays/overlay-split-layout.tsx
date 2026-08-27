@@ -30,6 +30,7 @@ interface OverlayMainProps {
 
 interface OverlayNavItemProps {
   active: boolean
+  expanded?: boolean
   icon: IconComponent
   /** Stable identity for the row, used as its `data-tour` handle. */
   id?: string
@@ -105,6 +106,7 @@ export function OverlayMain({ children, className }: OverlayMainProps) {
 
 export const OverlayNavItem = memo(function OverlayNavItem({
   active,
+  expanded,
   icon: Icon,
   id,
   label,
@@ -124,7 +126,9 @@ export const OverlayNavItem = memo(function OverlayNavItem({
           : active
             ? 'border-(--ui-stroke-tertiary) bg-(--ui-bg-tertiary) text-foreground'
             : 'border-transparent bg-transparent text-(--ui-text-secondary) hover:bg-(--chrome-action-hover) hover:text-foreground'
-        )}
+      )}
+      data-expanded={expanded ? 'true' : undefined}
+      data-nested={nested ? 'true' : undefined}
       data-slot="overlay-nav-item"
       // Names the row by its own id, so a tour can address one link
       // (`[data-tour="nav-models"]`) instead of guessing at nth-child.
@@ -176,6 +180,7 @@ export function OverlayNav({ footer, groups }: { footer?: ReactNode; groups: Ove
             {group.gapBefore && <div aria-hidden className="h-2" />}
             <OverlayNavItem
               active={group.active}
+              expanded={Boolean(group.children && group.active)}
               icon={group.icon}
               id={group.id}
               label={group.label}

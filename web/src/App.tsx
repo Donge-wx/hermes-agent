@@ -3,6 +3,7 @@ import {
   Suspense,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -59,14 +60,14 @@ import {
 import { Button } from "@nous-research/ui/ui/components/button";
 import { SelectionSwitcher } from "@nous-research/ui/ui/components/selection-switcher";
 import { Spinner } from "@nous-research/ui/ui/components/spinner";
-import { Typography } from "@nous-research/ui/ui/components/typography/index";
-import { ConfirmDialog } from "@nous-research/ui/ui/components/confirm-dialog";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { cn } from "@/lib/utils";
 import { SidebarFooter } from "@/components/SidebarFooter";
 import { SidebarStatusStrip, gatewayLine } from "@/components/SidebarStatusStrip";
 import { useBelowBreakpoint } from "@nous-research/ui/hooks/use-below-breakpoint";
 import { useSidebarStatus } from "@/hooks/useSidebarStatus";
 import { AuthWidget } from "@/components/AuthWidget";
+import { DashboardBrand } from "@/components/DashboardBrand";
 import { PageHeaderProvider } from "@/contexts/PageHeaderProvider";
 import { ProfileProvider } from "@/contexts/ProfileProvider";
 import { useProfileScope } from "@/contexts/useProfileScope";
@@ -97,7 +98,6 @@ const WebhooksPage = lazy(() => import("@/pages/WebhooksPage"));
 const SystemPage = lazy(() => import("@/pages/SystemPage"));
 const ChatPage = lazy(() => import("@/pages/ChatPage"));
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
-import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 import { useI18n } from "@/i18n";
 import type { Translations } from "@/i18n/types";
 import { PluginPage, PluginSlot, usePlugins } from "@/plugins";
@@ -107,8 +107,10 @@ import { isDashboardEmbeddedChatEnabled } from "@/lib/dashboard-flags";
 import { latchChatActivation } from "@/lib/chat-activation";
 import { api } from "@/lib/api";
 import type { StatusResponse, UpdateCheckResponse } from "@/lib/api";
+import { visibleManagedDashboardPlugins } from "@/lib/managed-dashboard-policy";
 
-function RouteFallback({ label = "Loading…" }: { label?: string }) {
+function RouteFallback() {
+  const { t } = useI18n();
   return (
     <div
       className="flex min-h-[12rem] flex-1 items-center justify-center"
@@ -117,7 +119,7 @@ function RouteFallback({ label = "Loading…" }: { label?: string }) {
     >
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <Spinner />
-        <span>{label}</span>
+        <span>{t.common.loading}</span>
       </div>
     </div>
   );
@@ -190,7 +192,7 @@ const BUILTIN_NAV_REST: NavItem[] = [
     label: "Sessions",
     icon: MessageSquare,
   },
-  { path: "/files", label: "Files", icon: FolderOpen },
+  { path: "/files", labelKey: "files", label: "Files", icon: FolderOpen },
   {
     path: "/analytics",
     labelKey: "analytics",
@@ -207,14 +209,14 @@ const BUILTIN_NAV_REST: NavItem[] = [
   { path: "/cron", labelKey: "cron", label: "Cron", icon: Clock },
   { path: "/skills", labelKey: "skills", label: "Skills", icon: Package },
   { path: "/plugins", labelKey: "plugins", label: "Plugins", icon: Puzzle },
-  { path: "/mcp", label: "MCP", icon: Plug },
-  { path: "/channels", label: "Channels", icon: Radio },
-  { path: "/webhooks", label: "Webhooks", icon: Webhook },
-  { path: "/pairing", label: "Pairing", icon: ShieldCheck },
+  { path: "/mcp", labelKey: "mcp", label: "MCP", icon: Plug },
+  { path: "/channels", labelKey: "channels", label: "Channels", icon: Radio },
+  { path: "/webhooks", labelKey: "webhooks", label: "Webhooks", icon: Webhook },
+  { path: "/pairing", labelKey: "pairing", label: "Pairing", icon: ShieldCheck },
   { path: "/profiles", labelKey: "profiles", label: "Profiles", icon: Users },
   { path: "/config", labelKey: "config", label: "Config", icon: Settings },
   { path: "/env", labelKey: "keys", label: "Keys", icon: KeyRound },
-  { path: "/system", label: "System", icon: Wrench },
+  { path: "/system", labelKey: "system", label: "System", icon: Wrench },
   {
     path: "/docs",
     labelKey: "documentation",
@@ -372,7 +374,11 @@ const SIDEBAR_COLLAPSED_KEY = "hermes-sidebar-collapsed";
 export default function App() {
   const { t } = useI18n();
   const { pathname } = useLocation();
-  const { manifests, loading: pluginsLoading } = usePlugins();
+  const { manifests: discoveredManifests, loading: pluginsLoading } = usePlugins();
+  const manifests = useMemo(
+    () => visibleManagedDashboardPlugins(discoveredManifests),
+    [discoveredManifests],
+  );
   const { theme } = useTheme();
   const [mobileOpen, setMobileOpen] = useState(false);
   const closeMobile = useCallback(() => setMobileOpen(false), []);
@@ -512,6 +518,7 @@ export default function App() {
   return (
     <ProfileProvider>
     <div
+      data-myking-dashboard="liquid-glass"
       data-layout-variant={layoutVariant}
       className="flex h-dvh max-h-dvh min-h-0 flex-col overflow-hidden bg-background-base text-text-primary antialiased"
     >
@@ -549,9 +556,7 @@ export default function App() {
           <Menu />
         </Button>
 
-        <Typography className="font-bold text-[0.95rem] leading-[0.95] tracking-[0.05em] text-midground">
-          {t.app.brand}
-        </Typography>
+        <DashboardBrand className="h-7" />
       </header>
 
       {mobileOpen && (
@@ -611,11 +616,7 @@ export default function App() {
               >
                 <PluginSlot name="header-left" />
 
-                <Typography className="font-bold text-[1.125rem] leading-[0.95] tracking-[0.0525rem] text-midground uppercase">
-                  Hermes
-                  <br />
-                  Agent
-                </Typography>
+                <DashboardBrand />
               </div>
 
               <Button
@@ -724,14 +725,6 @@ export default function App() {
 
                 <SidebarIconWithTooltip
                   collapsed={isDesktopCollapsed}
-                  label={t.theme?.switchTheme ?? "Switch theme"}
-                  tooltipWarmRef={tooltipWarmRef}
-                >
-                  <ThemeSwitcher collapsed={isDesktopCollapsed} dropUp />
-                </SidebarIconWithTooltip>
-
-                <SidebarIconWithTooltip
-                  collapsed={isDesktopCollapsed}
                   label={t.language.switchTo}
                   tooltipWarmRef={tooltipWarmRef}
                 >
@@ -792,7 +785,7 @@ export default function App() {
                   !chatOverriddenByPlugin &&
                   (pluginsLoading ? (
                     isChatRoute ? (
-                      <RouteFallback label="Loading chat…" />
+                      <RouteFallback />
                     ) : null
                   ) : chatHostMounted ? (
                     <div
@@ -806,7 +799,7 @@ export default function App() {
                       <Suspense
                         fallback={
                           isChatRoute ? (
-                            <RouteFallback label="Loading chat…" />
+                            <RouteFallback />
                           ) : null
                         }
                       >
@@ -814,7 +807,7 @@ export default function App() {
                       </Suspense>
                     </div>
                   ) : isChatRoute ? (
-                    <RouteFallback label="Loading chat…" />
+                    <RouteFallback />
                   ) : null)}
               </div>
               <PluginSlot name="post-main" />
@@ -930,7 +923,7 @@ function SidebarNavLink({
   );
 }
 
-function SidebarSystemActions({
+export function SidebarSystemActions({
   collapsed,
   onNavigate,
   status,
@@ -941,19 +934,27 @@ function SidebarSystemActions({
   const { activeAction, isBusy, isRunning, pendingAction, runAction } =
     useSystemActions();
   const canUpdateHermes = status?.can_update_hermes === true;
+  const canUpdateHermesRef = useRef(canUpdateHermes);
   const [restartConfirmOpen, setRestartConfirmOpen] = useState(false);
   const [updateConfirmOpen, setUpdateConfirmOpen] = useState(false);
   const [updateConfirmInfo, setUpdateConfirmInfo] =
     useState<UpdateCheckResponse | null>(null);
   const [updateConfirmChecking, setUpdateConfirmChecking] = useState(false);
 
+  // Update the guard during commit so a callback retained by a dialog from a
+  // previous render cannot apply an update after policy revocation.
+  useLayoutEffect(() => {
+    canUpdateHermesRef.current = canUpdateHermes;
+  }, [canUpdateHermes]);
+
   useEffect(() => {
+    if (!canUpdateHermes) {
+      return;
+    }
     if (!updateConfirmOpen) {
-      setUpdateConfirmInfo(null);
       return;
     }
     let cancelled = false;
-    setUpdateConfirmChecking(true);
     api
       .checkHermesUpdate(false)
       .then((info) => {
@@ -968,7 +969,7 @@ function SidebarSystemActions({
     return () => {
       cancelled = true;
     };
-  }, [updateConfirmOpen]);
+  }, [canUpdateHermes, updateConfirmOpen]);
 
   const updateConfirmDescription = useMemo(() => {
     if (updateConfirmInfo?.behind && updateConfirmInfo.behind > 0) {
@@ -1009,6 +1010,8 @@ function SidebarSystemActions({
       return;
     }
     if (action === "update") {
+      setUpdateConfirmInfo(null);
+      setUpdateConfirmChecking(true);
       setUpdateConfirmOpen(true);
       return;
     }
@@ -1025,6 +1028,7 @@ function SidebarSystemActions({
   };
 
   const confirmUpdate = () => {
+    if (!canUpdateHermesRef.current) return;
     setUpdateConfirmOpen(false);
     void runAction("update");
     navigate("/sessions");
@@ -1077,7 +1081,7 @@ function SidebarSystemActions({
       confirmLabel={t.status.restartGateway}
       description={
         t.status.restartGatewayConfirmMessage ??
-        "This restarts the Hermes gateway process. Connected channels and active sessions will reconnect afterward."
+        "This restarts the My King gateway process. Connected channels and active sessions will reconnect afterward."
       }
       loading={pendingAction === "restart"}
       onCancel={() => setRestartConfirmOpen(false)}
@@ -1088,18 +1092,20 @@ function SidebarSystemActions({
       }
     />
 
-    <ConfirmDialog
-      cancelLabel={t.common.cancel}
-      confirmLabel={t.status.updateHermesConfirmNow ?? "Update now"}
-      description={
-        updateConfirmChecking ? t.common.loading : updateConfirmDescription
-      }
-      loading={pendingAction === "update" || updateConfirmChecking}
-      onCancel={() => setUpdateConfirmOpen(false)}
-      onConfirm={confirmUpdate}
-      open={updateConfirmOpen}
-      title={t.status.updateHermesConfirmTitle ?? `${t.status.updateHermes}?`}
-    />
+    {canUpdateHermes && (
+      <ConfirmDialog
+        cancelLabel={t.common.cancel}
+        confirmLabel={t.status.updateHermesConfirmNow ?? "Update now"}
+        description={
+          updateConfirmChecking ? t.common.loading : updateConfirmDescription
+        }
+        loading={pendingAction === "update" || updateConfirmChecking}
+        onCancel={() => setUpdateConfirmOpen(false)}
+        onConfirm={confirmUpdate}
+        open={updateConfirmOpen}
+        title={t.status.updateHermesConfirmTitle ?? `${t.status.updateHermes}?`}
+      />
+    )}
     </>
   );
 }

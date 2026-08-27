@@ -7,7 +7,7 @@ import { SearchField } from '@/components/ui/search-field'
 import { SegmentedControl } from '@/components/ui/segmented-control'
 import { ResponsiveTabs } from '@/components/ui/tab-dropdown'
 import { Tip } from '@/components/ui/tooltip'
-import { getActionStatus, getLogs, getStatus, getUsageAnalytics, restartGateway, updateHermes } from '@/hermes'
+import { getActionStatus, getLogs, getStatus, getUsageAnalytics, restartGateway } from '@/hermes'
 import type { ActionStatusResponse, AnalyticsResponse, StatusResponse } from '@/hermes'
 import { useI18n } from '@/i18n'
 import { sessionTitle } from '@/lib/chat-runtime'
@@ -23,6 +23,7 @@ import {
   Trash2,
   Wrench
 } from '@/lib/icons'
+import { isEmployeeFeatureAvailable, isEmployeeRouteAvailable } from '@/lib/managed-employee-policy'
 import { exportSession } from '@/lib/session-export'
 import { fmtDateTime } from '@/lib/time'
 import { useStoreSelector } from '@/lib/use-session-slice'
@@ -35,6 +36,7 @@ import { useRefreshHotkey } from '../hooks/use-refresh-hotkey'
 import { useRouteEnumParam } from '../hooks/use-route-enum-param'
 import { OverlayMain, OverlayNav, OverlaySplitLayout } from '../overlays/overlay-split-layout'
 import { OverlayView } from '../overlays/overlay-view'
+import { PanelEmpty } from '../overlays/panel'
 
 import { MaintenancePanel } from './maintenance'
 
@@ -117,19 +119,7 @@ function RowIconButton({
 }
 
 function EmptyPanel({ action, description, title }: { action?: ReactNode; description: string; title?: string }) {
-  return (
-    <div className="grid min-h-48 place-items-center px-6 text-center">
-      <div>
-        {title && (
-          <div className="text-[length:var(--conversation-text-font-size)] font-medium text-foreground">{title}</div>
-        )}
-        <div className="mt-1 text-[length:var(--conversation-caption-font-size)] leading-(--conversation-caption-line-height) text-(--ui-text-tertiary)">
-          {description}
-        </div>
-        {action && <div className="mt-3 flex justify-center">{action}</div>}
-      </div>
-    </div>
-  )
+  return <PanelEmpty action={action} description={description} title={title} />
 }
 
 export function CommandCenterView({ initialSection, onClose, onDeleteSession, onOpenSession }: CommandCenterViewProps) {
@@ -262,11 +252,11 @@ export function CommandCenterView({ initialSection, onClose, onDeleteSession, on
   }, [logQuery, logs])
 
   const runSystemAction = useCallback(
-    async (kind: 'restart' | 'update') => {
+    async () => {
       setSystemError('')
 
       try {
-        const started = kind === 'restart' ? await restartGateway() : await updateHermes()
+        const started = await restartGateway()
         let nextStatus: ActionStatusResponse | null = null
 
         for (let attempt = 0; attempt < 18; attempt += 1) {
@@ -304,7 +294,17 @@ export function CommandCenterView({ initialSection, onClose, onDeleteSession, on
 
   const navGroups = useMemo(
     () =>
-      SECTIONS.map(value => ({
+      SECTIONS.filter(value => {
+        if (value === 'system') {
+          return isEmployeeFeatureAvailable('logs.raw')
+        }
+
+        if (value === 'maintenance') {
+          return isEmployeeRouteAvailable('/command-center', `?section=${value}`)
+        }
+
+        return true
+      }).map(value => ({
         active: section === value,
         icon:
           value === 'sessions'
@@ -359,7 +359,10 @@ export function CommandCenterView({ initialSection, onClose, onDeleteSession, on
           {section === 'sessions' ? (
             <div className="min-h-0 flex-1 overflow-y-auto">
               {!sessionListHasResults ? (
-                <EmptyPanel description={debouncedQuery ? cc.noResults : cc.noSessions} />
+                <EmptyPanel
+                  description={debouncedQuery ? '' : cc.noSessions}
+                  title={debouncedQuery ? cc.noResults : cc.noSessionsTitle}
+                />
               ) : (
                 <ul>
                   {filteredSessions.map(session => {
@@ -440,11 +443,8 @@ export function CommandCenterView({ initialSection, onClose, onDeleteSession, on
                         </div>
                       </div>
                       <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 whitespace-nowrap max-[47.5rem]:whitespace-normal">
-                        <Button onClick={() => void runSystemAction('restart')} size="xs" variant="text">
+                        <Button onClick={() => void runSystemAction()} size="xs" variant="text">
                           {cc.restartGateway}
-                        </Button>
-                        <Button onClick={() => void runSystemAction('update')} size="xs" variant="textStrong">
-                          {cc.updateHermes}
                         </Button>
                       </div>
                     </div>

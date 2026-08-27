@@ -79,6 +79,49 @@ def test_linux_discovery_includes_launcher_entry(tmp_path, monkeypatch):
     assert lde.desktop_entry_path() in gu.packaged_gui_app_paths()
 
 
+@pytest.mark.macos_only
+def test_managed_myking_gui_discovery_rejects_hermes_app_even_for_profile_override(
+    tmp_path,
+    monkeypatch,
+):
+    """A managed process must not discover Hermes GUI artifacts."""
+    from hermes_constants import reset_hermes_home_override, set_hermes_home_override
+
+    fake_home = tmp_path / "home"
+    monkeypatch.setattr(Path, "home", classmethod(lambda _cls: fake_home))
+    monkeypatch.setenv("HERMES_HOME", str(fake_home / ".myking"))
+
+    token = set_hermes_home_override(fake_home / ".hermes")
+    try:
+        paths = gu.packaged_gui_app_paths()
+    finally:
+        reset_hermes_home_override(token)
+
+    assert paths == [
+        Path("/Applications/My King.app"),
+        fake_home / "Applications" / "My King.app",
+    ]
+    assert gu.desktop_userdata_dir() == (
+        fake_home / "Library" / "Application Support" / "My King"
+    )
+
+
+@pytest.mark.macos_only
+def test_standard_hermes_gui_discovery_keeps_hermes_app_paths(tmp_path, monkeypatch):
+    """An upstream Hermes process retains the established app locations."""
+    fake_home = tmp_path / "home"
+    monkeypatch.setattr(Path, "home", classmethod(lambda _cls: fake_home))
+    monkeypatch.setenv("HERMES_HOME", str(fake_home / ".hermes"))
+
+    assert gu.packaged_gui_app_paths() == [
+        Path("/Applications/Hermes.app"),
+        fake_home / "Applications" / "Hermes.app",
+    ]
+    assert gu.desktop_userdata_dir() == (
+        fake_home / "Library" / "Application Support" / "Hermes"
+    )
+
+
 def test_uninstall_removes_launcher_entry_and_refreshes_cache(tmp_path, monkeypatch):
     monkeypatch.setattr(gu.sys, "platform", "linux")
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "xdg"))
@@ -166,4 +209,3 @@ def test_uninstall_args_namespace_mode_mapping():
 
     full = uninstall._UninstallArgs(mode="full")
     assert full.gui is False and full.full is True and full.yes is True
-

@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 
+import { zh } from '@/i18n/zh'
 import type { DesktopBootState } from '@/store/boot'
 import { $desktopOnboarding, type DesktopOnboardingState, type OnboardingContext } from '@/store/onboarding'
 import { makeOAuthProvider } from '@/test/oauth-provider'
@@ -52,17 +53,17 @@ describe('onboarding Picker', () => {
     render(<Picker ctx={ctx} />)
 
     expect(screen.getByText('My King Portal')).toBeTruthy()
-    expect(screen.getByText('Recommended')).toBeTruthy()
+    expect(screen.getByText(zh.onboarding.recommended)).toBeTruthy()
     // Fireworks stays behind the disclosure with the other alternatives; only
     // Nous Portal is visible before the user expands the list.
     expect(screen.queryByText('Fireworks AI')).toBeNull()
     expect(screen.queryByText('Anthropic API Key')).toBeNull()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Other providers' }))
+    fireEvent.click(screen.getByRole('button', { name: zh.onboarding.otherProviders }))
 
     expect(screen.getByText('Fireworks AI')).toBeTruthy()
     expect(screen.getByText('Anthropic API Key')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Collapse' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: zh.onboarding.collapse })).toBeTruthy()
   })
 
   it('shows Fireworks first in the expanded list, ahead of other OAuth providers', () => {
@@ -72,7 +73,7 @@ describe('onboarding Picker', () => {
       makeOAuthProvider('nous', 'Nous Portal')
     ])
     render(<Picker ctx={ctx} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Other providers' }))
+    fireEvent.click(screen.getByRole('button', { name: zh.onboarding.otherProviders }))
 
     const labels = screen
       .getAllByRole('button')
@@ -97,14 +98,14 @@ describe('onboarding Picker', () => {
     expect(screen.getByText('Anthropic API Key')).toBeTruthy()
     expect(screen.getByText('ChatGPT or Codex Subscription')).toBeTruthy()
     expect(screen.queryByText('Other sign-in options')).toBeNull()
-    expect(screen.queryByText('Recommended')).toBeNull()
+    expect(screen.queryByText(zh.onboarding.recommended)).toBeNull()
   })
 
   it('offers "choose later" on first run and persists the skip', () => {
     setProviders([makeOAuthProvider('nous', 'Nous Portal')])
     render(<Picker ctx={ctx} />)
 
-    const skip = screen.getByRole('button', { name: "I'll choose a provider later" })
+    const skip = screen.getByRole('button', { name: zh.onboarding.chooseLater })
 
     fireEvent.click(skip)
 
@@ -117,7 +118,7 @@ describe('onboarding Picker', () => {
     $desktopOnboarding.set({ ...$desktopOnboarding.get(), manual: true })
     render(<Picker ctx={ctx} />)
 
-    expect(screen.queryByRole('button', { name: "I'll choose a provider later" })).toBeNull()
+    expect(screen.queryByRole('button', { name: zh.onboarding.chooseLater })).toBeNull()
   })
 })
 

@@ -45,7 +45,7 @@ import { Button } from "@nous-research/ui/ui/components/button";
 import { ListItem } from "@nous-research/ui/ui/components/list-item";
 import { Spinner } from "@nous-research/ui/ui/components/spinner";
 import { Card, CardContent, CardHeader, CardTitle } from "@nous-research/ui/ui/components/card";
-import { ConfirmDialog } from "@nous-research/ui/ui/components/confirm-dialog";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Input } from "@nous-research/ui/ui/components/input";
 import { Badge } from "@nous-research/ui/ui/components/badge";
 import { useI18n } from "@/i18n";

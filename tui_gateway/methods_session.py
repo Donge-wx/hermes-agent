@@ -2627,7 +2627,7 @@ def _(rid, params: dict) -> dict:
             f"Model: {model} ({provider})",
             f"Created: {created.strftime('%Y-%m-%d %H:%M')}",
             f"Last Activity: {updated.strftime('%Y-%m-%d %H:%M')}",
-            f"Tokens: {int(usage.get('total') or 0):,}",
+            f"token: {int(usage.get('total') or 0):,}",
             f"Agent Running: {'Yes' if session.get('running') else 'No'}",
         ]
     )
@@ -2790,7 +2790,7 @@ def _(rid, params: dict) -> dict:
                 sid,
                 "compressing",
                 f"⠋ compressing {before_count} messages "
-                f"(~{before_tokens:,} tok){focus_suffix}…",
+                f"(~{before_tokens:,} token){focus_suffix}…",
             )
 
         try:

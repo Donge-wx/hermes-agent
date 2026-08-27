@@ -31,6 +31,7 @@ import {
   type FloatingViewport,
   reflowRect
 } from './floating-rect'
+import { LocalizedPaneTitle } from './localized-pane-title'
 import { paneChrome } from './track-model'
 
 const POSITIONS_KEY = 'hermes.desktop.floatingPanes.v1'
@@ -165,7 +166,9 @@ function FloatingPane({ pane }: { pane: Contribution }) {
         onPointerUp={onPointerUp}
         style={{ touchAction: 'none' }}
       >
-        <span className="truncate font-medium">{pane.title ?? pane.id}</span>
+        <span className="truncate font-medium">
+          <LocalizedPaneTitle fallback={pane.title ?? pane.id} paneId={pane.id} />
+        </span>
         <button
           className="rounded p-0.5 text-(--ui-text-quaternary) transition-colors hover:text-(--ui-text-primary)"
           data-floating-no-drag=""

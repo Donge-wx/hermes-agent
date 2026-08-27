@@ -94,12 +94,12 @@ test('resolveEmployeeDistributionFields keeps the existing stamp shape when no e
 test('resolveEmployeeDistributionFields reads My King employee build URLs', () => {
   assert.deepEqual(
     resolveEmployeeDistributionFields({
-      MYKING_EMPLOYEE_ENROLLMENT_BASE_URL: 'https://enroll.myking.test/',
-      MYKING_MANAGED_EMPLOYEE_GATEWAY_URL: 'https://gateway.myking.test/'
+      MYKING_EMPLOYEE_ENROLLMENT_BASE_URL: 'https://enroll.myking.com/',
+      MYKING_MANAGED_EMPLOYEE_GATEWAY_URL: 'https://gateway.myking.com/'
     }),
     {
-      employeeEnrollmentBaseUrl: 'https://enroll.myking.test',
-      managedEmployeeGatewayUrl: 'https://gateway.myking.test'
+      employeeEnrollmentBaseUrl: 'https://enroll.myking.com',
+      managedEmployeeGatewayUrl: 'https://gateway.myking.com'
     }
   )
 })
@@ -110,7 +110,15 @@ test.each([
   'https://127.0.0.1',
   'https://127.99.1.2',
   'https://0.0.0.0',
+  'https://10.0.0.1',
+  'https://172.31.255.255',
+  'https://192.168.2.56',
+  'https://169.254.1.1',
   'https://[::1]',
+  'https://[fc00::1]',
+  'https://[fe80::1]',
+  'https://enroll.myking.test',
+  'https://enroll.example',
   'file:///tmp/enroll',
   'javascript:alert(1)',
   'data:text/plain,hello'
@@ -120,7 +128,7 @@ test.each([
 
 test('parseBuildHttpsUrl accepts a public HTTPS URL and removes trailing slashes', () => {
   assert.equal(
-    parseBuildHttpsUrl('https://employee.myking.test/path///', 'MYKING_EMPLOYEE_ENROLLMENT_BASE_URL'),
-    'https://employee.myking.test/path'
+    parseBuildHttpsUrl('https://employee.myking.com/path///', 'MYKING_EMPLOYEE_ENROLLMENT_BASE_URL'),
+    'https://employee.myking.com/path'
   )
 })

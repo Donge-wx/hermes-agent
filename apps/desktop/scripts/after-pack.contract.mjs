@@ -6,7 +6,15 @@ import test from 'node:test'
 
 import afterPack from './after-pack.mjs'
 
-test('macOS keeps the My King bundle while preserving the Hermes executable', async () => {
+test('desktop package executables stay distinct from Hermes on every platform', () => {
+  const packageJson = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
+
+  assert.equal(packageJson.build.mac.extendInfo.CFBundleExecutable, 'My King')
+  assert.equal(packageJson.build.win.executableName, 'My-King')
+  assert.equal(packageJson.build.linux.executableName, 'my-king')
+})
+
+test('macOS keeps the My King bundle and My King executable identity', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'my-king-after-pack-'))
   const appPath = path.join(root, 'My King.app')
   const macosPath = path.join(appPath, 'Contents', 'MacOS')
@@ -31,9 +39,9 @@ test('macOS keeps the My King bundle while preserving the Hermes executable', as
       packager: { appInfo: { productFilename: 'My King' } },
     })
 
-    assert.equal(fs.existsSync(path.join(macosPath, 'Hermes')), true)
-    assert.equal(fs.existsSync(path.join(macosPath, 'My King')), false)
-    assert.match(fs.readFileSync(infoPath, 'utf8'), /<string>Hermes<\/string>/)
+    assert.equal(fs.existsSync(path.join(macosPath, 'Hermes')), false)
+    assert.equal(fs.existsSync(path.join(macosPath, 'My King')), true)
+    assert.match(fs.readFileSync(infoPath, 'utf8'), /<string>My King<\/string>/)
     assert.equal(fs.readFileSync(path.join(resourcesPath, 'my-king.icns'), 'utf8'), 'approved-my-king-icon')
     assert.match(fs.readFileSync(infoPath, 'utf8'), /<string>my-king\.icns<\/string>/)
     assert.match(fs.readFileSync(infoPath, 'utf8'), /Copyright © 2026 My King/)
@@ -42,7 +50,7 @@ test('macOS keeps the My King bundle while preserving the Hermes executable', as
   }
 })
 
-test('macOS accepts a My King bundle whose executable is already Hermes', async () => {
+test('macOS fails closed when electron-builder did not emit the My King executable', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'my-king-after-pack-'))
   const appPath = path.join(root, 'My King.app')
   const macosPath = path.join(appPath, 'Contents', 'MacOS')
@@ -61,17 +69,17 @@ test('macOS accepts a My King bundle whose executable is already Hermes', async 
         '<plist version="1.0"><dict><key>CFBundleExecutable</key><string>Hermes</string><key>CFBundleIconFile</key><string>icon.icns</string></dict></plist>\n',
     )
 
-    await afterPack({
-      appOutDir: root,
-      electronPlatformName: 'darwin',
-      packager: { appInfo: { productFilename: 'My King' } },
-    })
+    await assert.rejects(
+      afterPack({
+        appOutDir: root,
+        electronPlatformName: 'darwin',
+        packager: { appInfo: { productFilename: 'My King' } },
+      }),
+      /Expected macOS executable My King is missing/,
+    )
 
     assert.equal(fs.existsSync(path.join(macosPath, 'Hermes')), true)
     assert.equal(fs.existsSync(path.join(macosPath, 'My King')), false)
-    assert.match(fs.readFileSync(infoPath, 'utf8'), /<string>Hermes<\/string>/)
-    assert.equal(fs.readFileSync(path.join(resourcesPath, 'my-king.icns'), 'utf8'), 'approved-my-king-icon')
-    assert.match(fs.readFileSync(infoPath, 'utf8'), /<string>my-king\.icns<\/string>/)
   } finally {
     fs.rmSync(root, { recursive: true, force: true })
   }

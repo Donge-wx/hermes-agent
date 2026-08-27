@@ -117,9 +117,14 @@ export function MasterDetail({
     <div className="flex h-full min-h-0 flex-col">
       <div
         className={cn(
-          'grid min-h-0 flex-1 grid-cols-1 grid-rows-[minmax(10rem,0.42fr)_minmax(0,1fr)] md:grid-rows-1',
+          // Narrow master rows have 1rem vertical padding, a 1.75rem strip,
+          // and fixed 2.75rem item rows. A 13.75rem floor contains four
+          // complete rows instead of clipping a switch/text at the seam.
+          'grid min-h-0 flex-1 grid-cols-1 grid-rows-[minmax(13.75rem,0.42fr)_minmax(0,1fr)] md:grid-rows-1',
           split === 'wide' ? MASTER_DETAIL_WIDE_COLS : 'md:grid-cols-[14rem_minmax(0,1fr)]'
         )}
+        data-slot="master-detail"
+        data-split={split}
         ref={gridRef}
         style={override !== undefined ? ({ '--md-split': `${override}px` } as CSSProperties) : undefined}
       >
@@ -153,7 +158,7 @@ export function MasterDetail({
 
 export function ListColumn({ children, header }: { children: ReactNode; header?: ReactNode }) {
   return (
-    <aside className="flex min-h-0 flex-col p-2">
+    <aside className="flex min-h-0 flex-col p-2" data-slot="master-list-column">
       {header}
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-gutter:stable]">{children}</div>
     </aside>
@@ -173,17 +178,22 @@ export function DetailColumn({
   footer?: ReactNode
 }) {
   return (
-    <main className="flex min-h-0 flex-col overflow-hidden">
+    <main className="flex min-h-0 flex-col overflow-hidden" data-slot="detail-column">
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-gutter:stable]">
-        <div className="mx-auto max-w-2xl space-y-5 px-5 py-4">{children}</div>
+        <div className="mx-auto max-w-2xl space-y-5 px-5 py-4" data-slot="detail-column-content">
+          {children}
+        </div>
       </div>
       {footer && (
-        <div className="mx-auto w-full max-w-2xl shrink-0 px-5 pb-3 pt-1.5 text-right text-[0.65rem] text-muted-foreground/50">
+        <div
+          className="mx-auto w-full max-w-2xl shrink-0 px-5 pb-3 pt-1.5 text-right text-[0.65rem] text-muted-foreground/50"
+          data-slot="detail-column-footer"
+        >
           {footer}
         </div>
       )}
       {actionBar && (
-        <footer className="shrink-0 bg-(--ui-chat-surface-background) px-5 py-2.5">
+        <footer className="shrink-0 bg-(--ui-chat-surface-background) px-5 py-2.5" data-slot="detail-column-action-bar">
           <div className="mx-auto flex max-w-2xl flex-wrap items-center gap-2">{actionBar}</div>
         </footer>
       )}
@@ -268,7 +278,10 @@ export function DetailPane({
   }
 
   return (
-    <section className="relative flex shrink-0 flex-col border-t border-(--ui-stroke-tertiary) bg-(--ui-chat-surface-background)">
+    <section
+      className="relative flex shrink-0 flex-col border-t border-(--ui-stroke-tertiary) bg-(--ui-chat-surface-background)"
+      data-slot="detail-pane"
+    >
       <div
         className="group/sash absolute inset-x-0 top-0 z-10 h-1 -translate-y-1/2 cursor-row-resize"
         onDoubleClick={() => setPaneHeightOverride(id, undefined)}
@@ -281,9 +294,11 @@ export function DetailPane({
           )}
         />
       </div>
-      <header className="flex h-9 shrink-0 items-center gap-2 px-3">
-        <span className="min-w-0 truncate text-xs font-medium text-foreground">{title}</span>
-        <div className="ml-auto flex shrink-0 items-center gap-1.5">
+      <header className="flex h-9 shrink-0 items-center gap-2 px-3" data-slot="detail-pane-header">
+        <span className="min-w-0 truncate text-xs font-medium text-foreground" data-slot="detail-pane-title">
+          {title}
+        </span>
+        <div className="ml-auto flex shrink-0 items-center gap-1.5" data-slot="detail-pane-actions">
           {actions}
           <Tip label={collapsed ? t.common.expand : t.common.collapse}>
             <Button
@@ -315,7 +330,7 @@ export function DetailPane({
 // left, overflow kebab on the right.
 export function ListStrip({ left, right }: { left?: ReactNode; right?: ReactNode }) {
   return (
-    <div className="mb-1 flex h-6 shrink-0 items-center justify-between gap-2 pl-2 pr-1">
+    <div className="mb-1 flex h-6 shrink-0 items-center justify-between gap-2 pl-2 pr-1" data-slot="master-list-strip">
       <div className="flex min-w-0 items-center gap-1.5">{left}</div>
       <div className="flex shrink-0 items-center gap-1.5">{right}</div>
     </div>
@@ -457,6 +472,10 @@ export function CapRow({
         subtitle ? 'h-11' : 'h-8',
         active ? 'bg-(--ui-row-active-background) text-foreground' : 'text-(--ui-text-secondary)'
       )}
+      data-enabled={enabled ? 'true' : 'false'}
+      data-has-subtitle={subtitle != null ? 'true' : 'false'}
+      data-selected={active ? 'true' : 'false'}
+      data-slot="cap-row"
       id={rowId}
     >
       <RowButton
@@ -469,17 +488,24 @@ export function CapRow({
               'block truncate text-[0.78rem]',
               enabled ? 'font-medium text-foreground/85' : 'font-normal text-muted-foreground/60'
             )}
+            data-slot="cap-row-title"
           >
             {title}
           </span>
           {subtitle != null && (
-            <span className="flex min-w-0 items-center gap-1 text-[0.62rem] text-muted-foreground/50">
+            <span
+              className="flex min-w-0 items-center gap-1 text-[0.62rem] text-muted-foreground/50"
+              data-slot="cap-row-subtitle"
+            >
               {typeof subtitle === 'string' ? <span className="truncate">{subtitle}</span> : subtitle}
             </span>
           )}
         </span>
         {meta != null && (
-          <span className="shrink-0 rounded bg-(--ui-bg-quinary) px-1 py-px text-[0.6rem] tabular-nums leading-3.5 text-(--ui-text-tertiary)">
+          <span
+            className="shrink-0 rounded bg-(--ui-bg-quinary) px-1 py-px text-[0.6rem] tabular-nums leading-3.5 text-(--ui-text-tertiary)"
+            data-slot="cap-row-meta"
+          >
             {meta}
           </span>
         )}
@@ -491,7 +517,6 @@ export function CapRow({
         disabled={busy}
         onCheckedChange={onToggle}
         size="xs"
-        title={toggleLabel}
       />
     </div>
   )

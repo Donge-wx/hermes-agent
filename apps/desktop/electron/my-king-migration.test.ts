@@ -17,6 +17,7 @@ afterEach(() => {
 function sandbox(): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'my-king-migration-'))
   roots.push(root)
+
   return root
 }
 

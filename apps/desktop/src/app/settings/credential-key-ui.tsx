@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { translateNow, useI18n } from '@/i18n'
 import { ChevronDown, ExternalLink, Loader2, Save, Trash2 } from '@/lib/icons'
+import { employeeVisibleBrandText } from '@/lib/managed-employee-policy'
 import { cn } from '@/lib/utils'
 import type { EnvVarInfo } from '@/types/hermes'
 
@@ -32,6 +33,13 @@ export const friendlyFieldLabel = (key: string, info: EnvVarInfo) =>
     .replace(/_/g, ' ')
     .toLowerCase()
     .replace(/\b\w/g, c => c.toUpperCase())
+
+const credentialDisplayName = (key: string): string =>
+  prettyName(key.toLowerCase())
+    .replace(/\bApi\b/g, 'API')
+    .replace(/\bId\b/g, 'ID')
+    .replace(/\bOauth\b/g, 'OAuth')
+    .replace(/\bUrl\b/g, 'URL')
 
 export const credentialPlaceholder = (key: string, info: EnvVarInfo, label: string): string =>
   isKeyVar(key, info)
@@ -205,13 +213,24 @@ export function CredentialKeyCard({
           row/col gaps, everything top-left aligned (items-start), no indents.
           The label row is h-8 to line up with the input row beside it. */}
       <div className="grid grid-cols-1 items-start gap-x-3 gap-y-1.5 @2xl:grid-cols-[minmax(0,1fr)_minmax(15rem,22rem)] @2xl:gap-y-3">
-        <div className="flex h-8 min-w-0 items-center gap-2">
+        <div className="flex min-h-8 min-w-0 items-center gap-2">
           <span
             className={cn('size-2 shrink-0 rounded-full', info.is_set ? 'bg-primary' : 'bg-(--ui-stroke-secondary)')}
           />
 
-          <span className="min-w-0 truncate text-[length:var(--conversation-text-font-size)] font-medium text-foreground">
-            {label}
+          <span className="min-w-0 flex-1">
+            <span
+              className="block min-w-0 truncate text-[length:var(--conversation-text-font-size)] font-medium text-foreground"
+              data-slot="credential-display-name"
+            >
+              {label}
+            </span>
+            <code
+              className="mt-0.5 block min-w-0 truncate font-mono text-[length:var(--conversation-tool-font-size)] font-normal tracking-normal text-(--ui-text-tertiary)"
+              data-slot="credential-technical-id"
+            >
+              {varKey}
+            </code>
           </span>
 
           {expandable && (
@@ -371,10 +390,10 @@ export function ProviderKeyRows({ expanded, group, onExpand, onToggle, rowProps 
 
 export function credentialRowLabel(varKey: string, info: EnvVarInfo): string {
   if (isKeyVar(varKey, info)) {
-    return prettyName(varKey.replace(/(?:_API_KEY|_TOKEN|_KEY)$/i, ''))
+    return employeeVisibleBrandText(credentialDisplayName(varKey.replace(/(?:_API_KEY|_TOKEN|_KEY)$/i, '')))
   }
 
-  return prettyName(varKey)
+  return employeeVisibleBrandText(credentialDisplayName(varKey))
 }
 
 interface CredentialKeyCardProps {

@@ -1,20 +1,18 @@
 /* My King shell islands: one material per functional cluster. Geometry and
    optical recipes come from tokens.css; existing controls keep their handlers. */
 
-/* The primary destinations share one navigation well rather than five cards. */
+/* The sidebar already owns the glass material. Its destinations need layout
+   spacing, not a second rounded and blurred well inside that material. */
 :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
   [data-slot='sidebar-content']
   > [data-slot='sidebar-group']:first-child
   > [data-slot='sidebar-group-content'] {
-  border-radius: var(--lg-radius-panel);
   padding: var(--lg-space-xs);
-  background:
-    radial-gradient(120% 72% at 4% -12%, color-mix(in srgb, var(--lg-white) 78%, transparent), transparent 68%),
-    linear-gradient(112deg, color-mix(in srgb, var(--lg-white) 26%, transparent), transparent 58%),
-    var(--lg-glass-navigation-well);
-  box-shadow: var(--lg-shadow-navigation-well);
-  backdrop-filter: blur(var(--lg-blur-raised)) saturate(1.18);
-  -webkit-backdrop-filter: blur(var(--lg-blur-raised)) saturate(1.18);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
@@ -41,18 +39,18 @@
   border-color: color-mix(in srgb, var(--lg-rim-outer) 36%, transparent);
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--lg-white) 48%, transparent), transparent), var(--lg-hover-wash);
-  box-shadow: var(--lg-shadow-chrome-hover);
+  box-shadow: none;
 }
 
 :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
   [data-slot='sidebar-content']
   > [data-slot='sidebar-group']:first-child
   [data-sidebar='menu-button'][data-active='true'] {
-  border-color: color-mix(in srgb, var(--lg-blue) 16%, var(--lg-rim-outer));
+  border-color: transparent;
   background:
     radial-gradient(110% 160% at 8% -72%, color-mix(in srgb, var(--lg-white) 82%, transparent), transparent 66%),
     var(--lg-selected-wash);
-  box-shadow: var(--lg-shadow-contact);
+  box-shadow: var(--lg-shadow-selection-lens);
 }
 
 /* Sessions/Bots is one segmented lens. Other pane tab strips keep their editor
@@ -209,16 +207,19 @@
   letter-spacing: 0.08em;
 }
 
-/* Empty sidebar state: a compact stage, not an orphaned icon and text. */
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='sidebar-row-label'] {
+  font-size: var(--lg-type-control);
+  line-height: var(--lg-line-control);
+}
+
+/* Empty sidebar state is one composition on the sidebar material. The glyph
+   and action can carry local affordance; the composition itself is not a card. */
 :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='sidebar-empty-stage'] {
   width: min(100%, var(--lg-measure-sidebar-empty));
   padding: var(--lg-space-3xl) var(--lg-space-2xl) calc(var(--lg-space-3xl) + var(--lg-space-2xs));
-  border-radius: var(--lg-radius-panel);
-  background:
-    radial-gradient(92% 78% at 12% 0%, color-mix(in srgb, var(--lg-white) 82%, transparent), transparent 72%),
-    linear-gradient(145deg, color-mix(in srgb, var(--lg-blue-mist) 22%, transparent), transparent 66%),
-    var(--lg-glass-navigation-well);
-  box-shadow: var(--lg-shadow-navigation-well);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='sidebar-empty-glyph'] {

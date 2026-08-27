@@ -27,6 +27,9 @@ import { useEffect, useState } from "react";
 import { api, type AuthMeResponse } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { LogOut } from "lucide-react";
+import { useI18n } from "@/i18n";
+import { DASHBOARD_AUTH_COPY, formatAuthCopy } from "@/i18n/dashboard-auth-copy";
+import { dashboardAuthProviderName } from "@/i18n/provider-display";
 
 interface AuthWidgetProps {
   className?: string;
@@ -41,7 +44,10 @@ function truncateUserId(id: string): string {
 }
 
 export function AuthWidget({ className }: AuthWidgetProps) {
+  const { locale } = useI18n();
+  const copy = DASHBOARD_AUTH_COPY[locale];
   const [me, setMe] = useState<AuthMeResponse | null>(null);
+  const [providerLabel, setProviderLabel] = useState<string | null>(null);
   const [hidden, setHidden] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -54,30 +60,47 @@ export function AuthWidget({ className }: AuthWidgetProps) {
   useEffect(() => {
     if (!gated) return;
     let cancelled = false;
-    api
-      .getAuthMe()
-      .then((data) => {
+    void Promise.allSettled([api.getAuthMe(), api.getAuthProviders()]).then(
+      ([meResult, providersResult]) => {
         if (cancelled) return;
-        setMe(data);
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
+        if (meResult.status === "fulfilled") {
+          const data = meResult.value;
+          const provider =
+            providersResult.status === "fulfilled"
+              ? providersResult.value.providers.find(
+                  (candidate) => candidate.name === data.provider,
+                )
+              : undefined;
+          setMe(data);
+          setProviderLabel(
+            dashboardAuthProviderName(
+              data.provider,
+              provider?.display_name || data.provider,
+              locale,
+            ),
+          );
+          return;
+        }
         // 401 from /api/auth/me means the gate isn't engaged in this
         // process (loopback mode) — render nothing. fetchJSON throws an
         // Error with the status code as a prefix; the global 401
         // handler only redirects on the structured envelope, so a plain
         // 401 from /api/auth/me with no envelope bubbles up here.
-        const msg = err instanceof Error ? err.message : String(err);
+        const msg =
+          meResult.reason instanceof Error
+            ? meResult.reason.message
+            : String(meResult.reason);
         if (msg.startsWith("401:") || msg.startsWith("403:")) {
           setHidden(true);
           return;
         }
-        setError("auth status unavailable");
-      });
+        setError(copy.statusUnavailable);
+      },
+    );
     return () => {
       cancelled = true;
     };
-  }, [gated]);
+  }, [copy.statusUnavailable, gated, locale]);
 
   // Nothing to show in ungated mode — there is no logged-in identity.
   if (!gated) return null;
@@ -132,14 +155,14 @@ export function AuthWidget({ className }: AuthWidgetProps) {
         className,
       )}
       role="status"
-      aria-label={`Logged in as ${label}`}
+      aria-label={formatAuthCopy(copy.loggedInAs, label)}
     >
       <div className="flex min-w-0 flex-col">
         <span className="truncate font-mono text-foreground/90" title={me.user_id}>
           {label}
         </span>
         <span className="truncate text-muted-foreground/70">
-          via {me.provider}
+          {copy.via} {providerLabel ?? me.provider}
         </span>
       </div>
       <button
@@ -150,8 +173,7 @@ export function AuthWidget({ className }: AuthWidgetProps) {
           "transition-colors hover:bg-current/10 hover:text-foreground",
           "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-current/40",
         )}
-        aria-label="Log out"
-        title="Log out"
+        aria-label={copy.logout}
       >
         <LogOut className="h-3.5 w-3.5" />
       </button>

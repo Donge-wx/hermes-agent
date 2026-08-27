@@ -10,6 +10,7 @@ import type { DesktopMarketplaceSearchItem } from '@/global'
 import { useI18n } from '@/i18n'
 import { triggerHaptic } from '@/lib/haptics'
 import { Check, Download, Loader2, Palette, Trash2 } from '@/lib/icons'
+import { isEmployeeFeatureAvailable, MANAGED_EMPLOYEE_MODE } from '@/lib/managed-employee-policy'
 import { selectableCardClass } from '@/lib/selectable-card'
 import { normalize } from '@/lib/text'
 import { cn } from '@/lib/utils'
@@ -342,7 +343,7 @@ function GlassRow({ children, label }: GlassRowProps) {
 }
 
 export function AppearanceSettings() {
-  const { t, isSavingLocale } = useI18n()
+  const { t, isSavingLocale, locale } = useI18n()
   const { themeName, mode, resolvedMode, availableThemes, setTheme, setMode } = useTheme()
   const toolViewMode = useStore($toolViewMode)
   const reasoningCollapsedByDefault = useStore($reasoningCollapsedByDefault)
@@ -450,7 +451,20 @@ export function AppearanceSettings() {
           className="max-w-2xl text-[length:var(--conversation-caption-font-size)] leading-(--conversation-caption-line-height) text-(--ui-text-tertiary)"
           data-slot="settings-intro"
         >
-          {a.intro}
+          {locale === 'zh' || locale === 'zh-hant' || locale === 'ja'
+            ? a.intro
+                .split(/(?<=[。；！？])/u)
+                .filter(Boolean)
+                .map((phrase, index) => (
+                  <span
+                    className="inline-block whitespace-nowrap"
+                    data-settings-intro-phrase=""
+                    key={`${index}-${phrase}`}
+                  >
+                    {phrase}
+                  </span>
+                ))
+            : a.intro}
         </p>
 
         <div className="mt-2">
@@ -464,18 +478,18 @@ export function AppearanceSettings() {
           <ListRow
             below={
               <>
-                {/* One search box: filters your installed themes (the grid)
-                    and live-searches the VS Code Marketplace below. */}
-                <div className="mt-3">
-                  <input
-                    className="w-full rounded-lg border border-(--ui-stroke-tertiary) bg-(--ui-bg-quinary) px-3 py-1.5 text-[length:var(--conversation-caption-font-size)] outline-none placeholder:text-(--ui-text-tertiary) focus:border-(--ui-stroke-secondary)"
-                    data-slot="appearance-theme-search"
-                    onChange={event => setQuery(event.target.value)}
-                    placeholder={a.themeSearchPlaceholder}
-                    spellCheck={false}
-                    value={query}
-                  />
-                </div>
+                {!MANAGED_EMPLOYEE_MODE && (
+                  <div className="mt-3">
+                    <input
+                      className="w-full rounded-lg border border-(--ui-stroke-tertiary) bg-(--ui-bg-quinary) px-3 py-1.5 text-[length:var(--conversation-caption-font-size)] outline-none placeholder:text-(--ui-text-tertiary) focus:border-(--ui-stroke-secondary)"
+                      data-slot="appearance-theme-search"
+                      onChange={event => setQuery(event.target.value)}
+                      placeholder={a.themeSearchPlaceholder}
+                      spellCheck={false}
+                      value={query}
+                    />
+                  </div>
+                )}
 
                 {/* Fixed-height scroll area so the (growing) theme list never
                     runs the page long; the grid scrolls inside it. */}
@@ -508,7 +522,13 @@ export function AppearanceSettings() {
                                 <div className="truncate text-[length:var(--conversation-text-font-size)] font-medium">
                                   {a.themeNames[theme.name] ?? theme.label}
                                 </div>
-                                <div className="mt-0.5 line-clamp-2 text-[length:var(--conversation-caption-font-size)] leading-(--conversation-caption-line-height) text-(--ui-text-tertiary)">
+                                <div
+                                  className={cn(
+                                    'mt-0.5 text-[length:var(--conversation-caption-font-size)] leading-(--conversation-caption-line-height) text-(--ui-text-tertiary)',
+                                    MANAGED_EMPLOYEE_MODE ? 'line-clamp-none' : 'line-clamp-2'
+                                  )}
+                                  data-slot="theme-description"
+                                >
                                   {a.themeDescriptions[theme.name] ?? theme.description}
                                 </div>
                               </div>
@@ -537,7 +557,9 @@ export function AppearanceSettings() {
                       })}
                     </div>
                   )}
-                  <MarketplaceThemeResults installs={installs} onInstalled={name => setTheme(name)} query={query} />
+                  {!MANAGED_EMPLOYEE_MODE && (
+                    <MarketplaceThemeResults installs={installs} onInstalled={name => setTheme(name)} query={query} />
+                  )}
                 </div>
                 {showProfileNote && (
                   <p className="mt-3 text-[length:var(--conversation-caption-font-size)] leading-(--conversation-caption-line-height) text-(--ui-text-tertiary)">
@@ -580,7 +602,7 @@ export function AppearanceSettings() {
             title={a.uiScaleTitle}
           />
 
-          <TerminalFontSetting />
+          {isEmployeeFeatureAvailable('terminal') && <TerminalFontSetting />}
 
           <ListRow
             action={

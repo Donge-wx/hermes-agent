@@ -85,12 +85,18 @@ export function KeysSettings({ view }: KeysSettingsProps) {
     <SettingsContent>
       <SettingsProfileScope className="mb-5" />
       {entries.length > 0 ? (
-        <div className="grid gap-2">
+        <div className="grid gap-0" data-slot="credential-list">
           {entries.map(([key, info]) => {
             const label = credentialRowLabel(key, info)
 
             return (
-              <div className="scroll-mt-6 rounded-[6px]" id={credentialElementId(key)} key={key}>
+              <div
+                className="scroll-mt-6"
+                data-expanded={openKey === key ? 'true' : 'false'}
+                data-slot="credential-row"
+                id={credentialElementId(key)}
+                key={key}
+              >
                 <CredentialKeyCard
                   expanded={openKey === key}
                   info={info}

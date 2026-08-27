@@ -357,7 +357,7 @@ function SubagentAccordion({
   const localTokens = (item.inputTokens ?? 0) + (item.outputTokens ?? 0)
 
   if (localTokens > 0) {
-    rollupBits.push(`${fmtTokens(localTokens)} tok`)
+    rollupBits.push(`${fmtTokens(localTokens)} token`)
   }
 
   const filesLocal = (item.filesWritten?.length ?? 0) + (item.filesRead?.length ?? 0)
@@ -925,9 +925,9 @@ export const ToolTrail = memo(function ToolTrail({
 
   const toolTokenCount = toolTokens ?? 0
   const totalTokenCount = tokenCount + toolTokenCount
-  const thinkingTokensLabel = tokenCount > 0 ? `~${fmtK(tokenCount)} tokens` : null
+  const thinkingTokensLabel = tokenCount > 0 ? `~${fmtK(tokenCount)} token` : null
 
-  const toolTokensLabel = toolTokens !== undefined && toolTokens > 0 ? `~${fmtK(toolTokens)} tokens` : undefined
+  const toolTokensLabel = toolTokens !== undefined && toolTokens > 0 ? `~${fmtK(toolTokens)} token` : undefined
 
   const totalTokensLabel = tokenCount > 0 && toolTokenCount > 0 ? `~${fmtK(totalTokenCount)} total` : null
   const delegateGroups = groups.filter(g => g.label.startsWith('Delegate Task'))

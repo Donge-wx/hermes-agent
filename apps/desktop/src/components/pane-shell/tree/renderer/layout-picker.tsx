@@ -53,7 +53,10 @@ function TreeThumbnail({ node }: { node: LayoutNode }) {
 /** Small-caps section heading — the app's SidebarPanelLabel voice. */
 function PickerSectionLabel({ children }: { children: ReactNode }) {
   return (
-    <span className="text-[0.6rem] font-semibold uppercase tracking-[0.16em] text-(--ui-text-quaternary)">
+    <span
+      className="text-[0.6rem] font-semibold uppercase tracking-[0.16em] text-(--ui-text-quaternary)"
+      data-slot="layout-picker-section-label"
+    >
       {children}
     </span>
   )
@@ -79,6 +82,8 @@ function PresetCard({ preset }: { preset: Contribution }) {
             ? 'border-(--ui-accent) bg-(--ui-row-active-background)'
             : 'border-(--ui-stroke-secondary) hover:border-(--ui-stroke-primary) hover:bg-(--ui-row-hover-background)'
         )}
+        data-selected={active ? 'true' : 'false'}
+        data-slot="layout-preset-card"
         onClick={() => applyLayoutPreset(preset.id, tree)}
         type="button"
       >

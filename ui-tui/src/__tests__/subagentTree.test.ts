@@ -154,7 +154,7 @@ describe('formatSummary with tokens', () => {
         totalDuration: 30,
         totalTools: 14
       })
-    ).toBe('d2 · 3 agents · 14 tools · 30s · 10k tok')
+    ).toBe('d2 · 3 agents · 14 tools · 30s · 10k token')
   })
 })
 

@@ -217,8 +217,7 @@ export const zhHant = defineLocale({
     doneTitle: '診斷資訊已傳送',
     doneDescription: '偵錯套件已私密上傳。在您的支援討論串中分享以下連結，團隊即可檢視您的日誌。',
     failedTitle: '上傳失敗',
-    failedHint:
-      '您也可以在終端機執行 `hermes debug share --nous`，或執行 `hermes debug share --local` 在不上傳的情況下檢視報告。',
+    failedHint: '您也可以從「設定 → 閘道」開啟本機日誌，再將診斷詳情附到支援討論中。',
     handoffLead: '在以下位置繼續討論:',
     links: {
       github: 'GitHub Issues',
@@ -694,7 +693,7 @@ export const zhHant = defineLocale({
     about: {
       heading: 'My King Desktop',
       desktopPackageVersion: value => `桌面介面 ${value}`,
-      backendRuntimeVersion: value => `後端 ${value}`,
+      backendRuntimeVersion: value => `My King backend v${value.replace(/^v/i, '')}`,
       versionUnavailable: '版本不可用',
       bundleOutOfSync: '應用程式建置版本過舊',
       bundleOutOfSyncDesc:
@@ -805,10 +804,10 @@ export const zhHant = defineLocale({
     },
     gateway: {
       employeeEnrollment: {
-        title: '連線公司智能體',
+        title: '連線 AI Work OS',
         description: '請開啟管理員傳送的邀請連結，或輸入一次性綁定碼。',
         codePlaceholder: '一次性綁定碼',
-        connect: '連線公司',
+        connect: '連線',
         check: '檢查連線',
         diagnostics: '檢視診斷資訊',
         connectedTitle: 'My King 已連線',
@@ -824,7 +823,7 @@ export const zhHant = defineLocale({
         unbind: '解除綁定',
         unbindTitle: '解除這台員工電腦的綁定？',
         unbindDescription: 'My King 只會刪除自己建立的連線元件、金鑰與背景工作，不會刪除你的 SSH 設定或其他金鑰。',
-        diagnosticsTitle: 'My King Employee Connector 診斷',
+        diagnosticsTitle: 'My King 員工連接器診斷',
         diagnosticsEmpty: '目前沒有連線元件診斷記錄。',
         close: '關閉',
         stages: {
@@ -865,6 +864,9 @@ export const zhHant = defineLocale({
           'secure-connection-failed': '安全連線啟動失敗，請重新連線。',
           'gateway-unreachable': '無法連線公司閘道，請檢查網路後重試。',
           'gateway-auth-required': '公司閘道尚未提供可用的受管理登入工作階段，請聯絡管理員。',
+          'gateway-ws-unreachable': '公司閘道的即時連線驗證失敗，請檢查網路或聯絡管理員。',
+          'secure-storage-required': '系統安全憑證儲存不可用，無法儲存員工專用憑證。',
+          'revocation-failed': '公司伺服器未確認撤銷權限；本機綁定已保留，請重試解除綁定。',
           'company-unavailable': '公司伺服器暫時無法使用，請稍後重試。',
           'invalid-server-response': '公司伺服器回應異常，請稍後重試或聯絡管理員。',
           'not-ready': '公司尚未確認裝置就緒，請稍後重試。',
@@ -882,14 +884,14 @@ export const zhHant = defineLocale({
       intro:
         'My King Desktop 預設會啟動自己的本機閘道。如果您希望此應用程式控制另一台機器或可信代理後面已執行的 My King 後端，請使用遠端閘道。閘道連線屬於本機層級設定；設定檔是從已連線的閘道中探索出來的。',
       envOverrideTitle: '環境變數正在控制此桌面工作階段。',
-      envOverrideDesc: '取消設定 HERMES_DESKTOP_REMOTE_URL 和 HERMES_DESKTOP_REMOTE_TOKEN 後才會使用下方儲存的設定。',
+      envOverrideDesc: '移除桌面遠端 URL 和權杖的環境覆寫後，才會使用下方儲存的設定。',
       localTitle: '本機閘道',
       localDesc: '在 localhost 啟動私有 My King 後端。這是預設方式，可離線使用。',
       remoteTitle: '遠端閘道',
       remoteDesc:
         '將此桌面殼層連線至遠端 My King 後端。託管閘道使用 OAuth 或帳號密碼；自託管閘道也可使用工作階段 Token。',
       remoteUrlTitle: '遠端 URL',
-      remoteUrlDesc: '遠端儀表板後端的基礎 URL。支援路徑前綴，例如 /hermes。',
+      remoteUrlDesc: '遠端儀表板後端的基礎 URL。支援路徑前綴，例如 /myking。',
       probing: '正在檢查此閘道的驗證方式…',
       probeError: '暫時無法連線此閘道。請檢查 URL；閘道回應後將顯示驗證方式。',
       signedIn: '已登入',
@@ -957,7 +959,7 @@ export const zhHant = defineLocale({
       sshKeyTitle: '金鑰檔案',
       sshKeyDesc: '私密金鑰路徑。留空 = ssh-agent 或 ~/.ssh/config。',
       sshHermesPathTitle: 'My King 路徑（選用）',
-      sshHermesPathDesc: '遠端 hermes 執行檔的完整路徑。留空 = 自動偵測。',
+      sshHermesPathDesc: '遠端 My King 相容智慧體執行檔的完整路徑。留空 = 自動偵測。',
       sshHermesPathPlaceholder: '自動偵測',
       sshTestConnection: '測試 SSH',
       sshConnect: '連線',
@@ -968,8 +970,7 @@ export const zhHant = defineLocale({
       sshErrAuth:
         'SSH 驗證失敗。請將金鑰載入 ssh-agent（ssh-add），或在 ~/.ssh/config 中設定 IdentityFile——My King 以非互動方式執行 ssh。',
       sshErrHostKey: '自上次連線以來主機金鑰已變更。請確認這是預期的，然後執行 ssh-keygen -R <host> 並重新連線。',
-      sshErrNotInstalled:
-        '遠端主機上未安裝 My King。請在遠端安裝（curl -fsSL https://hermes-agent.nousresearch.com/install.sh | sh）或設定 My King 路徑。',
+      sshErrNotInstalled: '遠端主機上未安裝 My King。請使用官方安裝器安裝相容的智慧體執行環境，或設定 My King 路徑。',
       sshErrPlatform: '不支援的遠端平台。My King Desktop 的 SSH 模式支援 Linux、macOS 和 Windows 遠端主機。',
       sshErrTimeout: 'SSH 連線逾時。主機可能無法存取或處於睡眠狀態。',
       sshErrUpdateRequired: '使用 Desktop SSH 連線前，請更新遠端主機上的 My King。',
@@ -1219,6 +1220,16 @@ export const zhHant = defineLocale({
     visionModelHint: '視覺功能使用你的輔助模型設定——支援影像的模型在那裡選擇，而不是在此處按供應商選擇。',
     visionModelLink: '在 設定 → 模型 中選擇視覺模型',
     toolsetsEnabled: (enabled, total) => `已啟用 ${enabled}/${total} 個工具集`,
+    toolsCount: count => `${count} 個工具`,
+    includedTools: '包含的工具',
+    metadataLabels: {
+      name: '名稱',
+      description: '說明',
+      version: '版本',
+      author: '作者',
+      license: '授權條款',
+      platforms: '支援平台'
+    },
     configureToolset: label => `設定 ${label}`,
     toggleToolset: (label, enabled) => `${enabled ? '開啟' : '關閉'} ${label} 工具集`,
     skillsLoadFailed: '技能載入失敗',
@@ -1252,7 +1263,7 @@ export const zhHant = defineLocale({
     edit: '編輯',
     archive: '封存',
     skillArchivedTitle: '技能已封存',
-    skillArchivedMessage: '可透過 hermes curator restore 還原。'
+    skillArchivedMessage: '可從已封存技能檢視中還原。'
   },
 
   starmap: {
@@ -1298,7 +1309,7 @@ export const zhHant = defineLocale({
     ageDays: days => `${days} 天前`,
     durationSeconds: seconds => `${seconds} 秒`,
     durationMinutes: (minutes, seconds) => `${minutes} 分 ${seconds} 秒`,
-    tokens: value => `${value} 詞元`
+    tokens: value => `${value} token`
   },
 
   commandCenter: {
@@ -1378,7 +1389,7 @@ export const zhHant = defineLocale({
     sectionDescriptions: {
       sessions: '搜尋和管理工作階段',
       system: '狀態、記錄和系統動作',
-      usage: '一段時間內的詞元、費用和技能活動'
+      usage: '一段時間內的 token、費用和技能活動'
     },
     nav: {
       newChat: { title: '新工作階段', detail: '開始新的工作階段' },
@@ -1389,8 +1400,8 @@ export const zhHant = defineLocale({
     },
     sectionEntries: {
       sessions: { title: '工作階段面板', detail: '搜尋、釘選和管理工作階段' },
-      system: { title: '系統面板', detail: '閘道狀態、記錄、重新啟動/更新' },
-      usage: { title: '使用量面板', detail: '詞元、費用和技能活動' }
+      system: { title: '系統面板', detail: '閘道狀態、記錄與重新啟動' },
+      usage: { title: '使用量面板', detail: 'token、費用和技能活動' }
     },
     providerNavigate: '導覽',
     providerSessions: '工作階段',
@@ -1401,7 +1412,8 @@ export const zhHant = defineLocale({
     unpinSession: '取消釘選',
     exportSession: '匯出工作階段',
     deleteSession: '刪除工作階段',
-    noSessions: '暫無工作階段。',
+    noSessionsTitle: '還沒有工作階段',
+    noSessions: '開始對話後，工作階段會顯示在這裡。',
     gatewayRunning: '訊息閘道執行中',
     gatewayStopped: '訊息閘道已停止',
     hermesActiveSessions: (version, count) => `My King ${version} · 活躍工作階段 ${count}`,
@@ -1420,13 +1432,13 @@ export const zhHant = defineLocale({
     days: count => `${count} 天`,
     statSessions: '工作階段',
     statApiCalls: 'API 呼叫',
-    statTokens: '輸入/輸出詞元',
+    statTokens: '輸入/輸出 token',
     statCost: '預估費用',
     actualCost: cost => `實際 ${cost}`,
     loadingUsage: '正在載入使用量…',
     noUsage: period => `最近 ${period} 天暫無使用量。`,
     retry: '重試',
-    dailyTokens: '每日詞元',
+    dailyTokens: '每日 token',
     input: '輸入',
     output: '輸出',
     noDailyActivity: '暫無每日活動。',
@@ -1472,6 +1484,7 @@ export const zhHant = defineLocale({
     saveChanges: '儲存變更',
     saved: '已儲存',
     replaceValue: '取代目前值',
+    fieldPlaceholder: label => `請輸入${label}`,
     openDocs: '開啟文件',
     clearField: key => `清除 ${key}`,
     enableAria: name => `啟用 ${name}`,
@@ -1487,6 +1500,33 @@ export const zhHant = defineLocale({
     failedSave: name => `儲存 ${name} 失敗`,
     failedClear: key => `清除 ${key} 失敗`,
     fieldCopy: {
+      DINGTALK_CLIENT_ID: { label: '應用 Client ID', help: '釘釘開發者後台中的 AppKey。' },
+      DINGTALK_CLIENT_SECRET: { label: '應用 Client Secret', help: '釘釘開發者後台中與 AppKey 配對的 AppSecret。' },
+      DINGTALK_WEBHOOK_URL: { label: '機器人 Webhook URL', help: '用於排程任務和跨平台通知的靜態機器人地址。' },
+      DINGTALK_ALLOWED_USERS: { label: '允許的成員 ID', help: '以逗號分隔可與機器人對話的員工或傳送者 ID。' },
+      DINGTALK_HOME_CHANNEL: { label: '預設對話 ID', help: '排程任務和通知預設傳送到的對話。' },
+      DINGTALK_HOME_CHANNEL_NAME: { label: '預設對話名稱', help: '預設對話在記錄和狀態中顯示的名稱。' },
+      FEISHU_APP_ID: { label: '應用 App ID', help: '飛書開放平台中機器人應用的 App ID。' },
+      FEISHU_APP_SECRET: { label: '應用 App Secret', help: '飛書開放平台中與 App ID 配對的應用密鑰。' },
+      FEISHU_ENCRYPT_KEY: { label: '事件加密密鑰', help: '用於解密飛書事件回調內容。' },
+      FEISHU_VERIFICATION_TOKEN: { label: '事件驗證 Token', help: '用於驗證飛書事件回調的來源。' },
+      FEISHU_DOMAIN: { label: '服務區域', help: '中國區填 feishu，國際版 Lark 填 lark。', placeholder: 'feishu' },
+      FEISHU_ALLOWED_USERS: { label: '允許的使用者 ID', help: '以逗號分隔可與機器人對話的飛書使用者 ID。' },
+      FEISHU_ALLOW_ALL_USERS: { label: '允許所有使用者', help: '僅供測試。啟用後任何飛書使用者都可發起對話。' },
+      FEISHU_HOME_CHANNEL: { label: '預設群聊 ID', help: '排程任務和通知預設傳送到的群聊。' },
+      FEISHU_HOME_CHANNEL_NAME: { label: '預設群聊名稱', help: '預設群聊在記錄和狀態中顯示的名稱。' },
+      WECOM_CALLBACK_CORP_ID: { label: '企業 ID', help: '企業微信管理後台中的 Corp ID。' },
+      WECOM_CALLBACK_CORP_SECRET: { label: '應用 Secret', help: '企業微信自建應用的 Secret。' },
+      WECOM_CALLBACK_AGENT_ID: { label: '應用 Agent ID', help: '企業微信自建應用的 Agent ID。' },
+      WECOM_CALLBACK_TOKEN: { label: '回調驗證 Token', help: '企業微信回調設定中的驗證 Token。' },
+      WECOM_CALLBACK_ENCODING_AES_KEY: { label: '回調 EncodingAESKey', help: '企業微信回調訊息的加密密鑰。' },
+      WEIXIN_ACCOUNT_ID: { label: '微信帳號 ID', help: '通過掃碼登入取得的 iLink Bot 帳號 ID。' },
+      WEIXIN_TOKEN: { label: '微信登入 Token', help: '通過掃碼登入取得的 iLink Bot 認證 Token。' },
+      WEIXIN_BASE_URL: {
+        label: 'iLink API 地址',
+        help: '掃碼登入時儲存的 iLink API 基礎地址。',
+        placeholder: 'https://ilinkai.weixin.qq.com'
+      },
       TELEGRAM_BOT_TOKEN: {
         label: 'Bot Token',
         help: '用 @BotFather 建立機器人，然後貼上它給您的 Token。',
@@ -1538,7 +1578,7 @@ export const zhHant = defineLocale({
       MATTERMOST_ALLOWED_USERS: { label: '允許的使用者 ID', help: '建議設定。逗號分隔的 Mattermost 使用者 ID。' },
       MATRIX_HOMESERVER: { label: 'Homeserver URL', placeholder: 'https://matrix.org' },
       MATRIX_ACCESS_TOKEN: { label: '存取 Token' },
-      MATRIX_USER_ID: { label: 'Bot 使用者 ID', placeholder: '@hermes:example.org' },
+      MATRIX_USER_ID: { label: 'Bot 使用者 ID', placeholder: '@myking:example.org' },
       MATRIX_ALLOWED_USERS: {
         label: '允許的 Matrix 使用者 ID',
         help: '建議設定。@user:server 格式的逗號分隔使用者 ID。'
@@ -1861,6 +1901,7 @@ export const zhHant = defineLocale({
     results: '結果',
     pinned: '已釘選',
     sessions: '工作階段',
+    bots: '機器人',
     cronJobs: '排程任務',
     groupAriaGrouped: '以單一清單顯示工作階段',
     groupAriaUngrouped: '依工作區分組工作階段',
@@ -2233,12 +2274,13 @@ export const zhHant = defineLocale({
     maybeLater: '稍後再說',
     moreChanges: count => `另有 ${count} 項變更。`,
     manualTitle: '從終端機更新',
-    manualBody: '您是從命令列安裝的 My King，因此更新也需要在那裡執行。請將此指令貼到終端機：',
+    manualBody: '您是從命令列安裝的 My King，因此更新也需要在那裡執行。請複製後端更新指令並貼到終端機：',
     manualPickedUp: '下次啟動 My King 時會使用新版本。',
     guiSkewTitle: '請更新桌面應用程式',
     guiSkewBody:
       '後端已更新，但此桌面應用程式套件未變更。請更新或重新安裝 My King 桌面應用程式（你的 AppImage / .deb / .rpm）以保持一致。',
     copy: '複製',
+    copyCommand: '複製後端更新指令',
     copied: '已複製',
     done: '完成',
     applyingBody:
@@ -2305,7 +2347,7 @@ export const zhHant = defineLocale({
     remoteSetupDesc: '輸入閘道 URL。My King Desktop 會偵測需要權杖還是瀏覽器登入。',
     remoteUrlTitle: '閘道 URL',
     remoteUrlDesc: '使用 My King 閘道的基礎 URL；遠端位址請包含 https://。',
-    remoteUrlPlaceholder: 'https://gateway.example.com/hermes',
+    remoteUrlPlaceholder: 'https://gateway.example.com/myking',
     probing: '正在偵測閘道驗證方式...',
     probeError: '無法連線到該 My King 閘道。',
     identityProvider: '您的身分提供者',
@@ -2370,6 +2412,7 @@ export const zhHant = defineLocale({
       gemini: { short: 'Gemini 模型', description: '直接存取 Google Gemini 模型。' },
       xai: { short: 'Grok 模型', description: '直接存取 xAI Grok 模型。' },
       local: {
+        title: '本機 / 自訂端點',
         short: '自託管',
         description: '將 My King 指向本機或自託管的 OpenAI 相容端點（vLLM、llama.cpp、Ollama 等）。'
       }
@@ -2410,7 +2453,7 @@ export const zhHant = defineLocale({
     freeTier: '免費層',
     pro: 'Pro',
     free: '免費',
-    price: (input, output) => `${input} 輸入 / ${output} 輸出 每 Mtok`,
+    price: (input, output) => `${input} 輸入 / ${output} 輸出 每百萬 token`,
     change: '變更',
     startChatting: '開始',
     docs: provider => `${provider} 文件`
@@ -2429,7 +2472,7 @@ export const zhHant = defineLocale({
     proNeedsSubscription: 'Pro 模型需要付費 Nous 訂閱。',
     free: '免費',
     freeTier: '免費層',
-    priceTitle: '每百萬 Token 的輸入/輸出價格',
+    priceTitle: '每百萬 token 的輸入/輸出價格',
     wasPrice: '原價'
   },
 
@@ -2500,7 +2543,7 @@ export const zhHant = defineLocale({
       updateInProgress: '更新中',
       commitsBehind: (count, branch) => `落後 ${branch} ${count} 個提交`,
       desktopVersion: version => `My King Desktop v${version}`,
-      backendVersion: version => `後端 v${version}`,
+      backendVersion: version => `My King backend v${version}`,
       clientLabel: version => `用戶端 v${version}`,
       connectionSsh: host => `SSH: ${host}`,
       connectionRemote: host => `遠端: ${host}`,
@@ -2508,7 +2551,7 @@ export const zhHant = defineLocale({
       connectionCloudTooltip: host => `My King Cloud · ${host}`,
       connectionSshTooltip: host => `SSH · ${host}`,
       connectionRemoteTooltip: host => `Remote · ${host}`,
-      backendLabel: version => `後端 v${version}`,
+      backendLabel: version => `My King backend v${version}`,
       commit: sha => `提交 ${sha}`,
       branch: branch => `分支 ${branch}`,
       closeCommandCenter: '關閉命令中心',
@@ -2551,7 +2594,7 @@ export const zhHant = defineLocale({
         loading: '正在載入明細…',
         percentFull: percent => `已用 ${percent}%`,
         title: '上下文使用量',
-        tokenSummary: (used, max) => `${used} / ${max} Tokens`
+        tokenSummary: (used, max) => `${used} / ${max} token`
       },
       session: '工作階段',
       yoloOn: 'YOLO 已開啟 — 自動核准危險指令。Shift+點擊可全域切換。',
@@ -3015,7 +3058,7 @@ export const zhHant = defineLocale({
       success: platform => `已移交到 ${platform}。隨時可在此處恢復。`,
       systemNote: platform => `↻ 已移交到 ${platform} — 隨時可在此處恢復。`,
       failed: error => `移交失敗：${error}`,
-      timedOut: '等待閘道逾時。`hermes gateway` 是否正在執行？'
+      timedOut: '等待閘道逾時。My King 後端是否正在執行？'
     }
   },
 

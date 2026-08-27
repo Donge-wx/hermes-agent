@@ -28,6 +28,7 @@
   --lg-blue-soft: #d8e8f8;
   --lg-blue-mist: #acd5f8;
   --lg-ice-mist: #dff3ff;
+  --lg-violet: #7357e6;
   --lg-red: #d70015;
   --lg-warning-ink: #713f12;
   --lg-warning-surface: #fffbeb;
@@ -47,6 +48,7 @@
   --lg-glass-navigation-well: color-mix(in srgb, var(--lg-pearl-50) 42%, transparent);
   --lg-seam-outer: color-mix(in srgb, var(--lg-steel-600) 49%, transparent);
   --lg-seam-soft: color-mix(in srgb, var(--lg-steel-600) 34%, transparent);
+  --lg-seam-list: color-mix(in srgb, var(--lg-seam-soft) 60%, transparent);
   --lg-rim-outer: color-mix(in srgb, var(--lg-steel-600) 32%, transparent);
   --lg-rim-inner: color-mix(in srgb, var(--lg-white) 82%, transparent);
   --lg-rim-strong: color-mix(in srgb, var(--lg-steel-600) 41%, transparent);
@@ -101,15 +103,16 @@
     inset 0 -1px 0 color-mix(in srgb, var(--lg-steel-600) 11%, transparent),
     0 8px 18px -16px color-mix(in srgb, var(--lg-shadow-ink) 42%, transparent);
   --lg-shadow-session-selected:
-    inset 0 1px 0 color-mix(in srgb, var(--lg-white) 92%, transparent),
-    inset 1px 0 0 color-mix(in srgb, var(--lg-white) 68%, transparent),
-    inset 0 -1px 0 color-mix(in srgb, var(--lg-blue) 18%, transparent),
-    0 8px 22px -17px color-mix(in srgb, var(--lg-blue) 48%, transparent);
+    inset 0 1px 0 color-mix(in srgb, var(--lg-white) 86%, transparent),
+    inset 1px 0 0 color-mix(in srgb, var(--lg-white) 44%, transparent);
   --lg-shadow-human-message:
     inset 0 1px 0 color-mix(in srgb, var(--lg-white) 82%, transparent),
     inset 1px 0 0 color-mix(in srgb, var(--lg-white) 55%, transparent),
-    inset 0 -1px 0 color-mix(in srgb, var(--lg-blue) 18%, transparent),
-    0 10px 26px -19px color-mix(in srgb, var(--lg-blue) 52%, transparent);
+    0 3px 10px -10px color-mix(in srgb, var(--lg-shadow-ink) 24%, transparent);
+  --lg-shadow-message-action:
+    inset 0 1px 0 color-mix(in srgb, var(--lg-white) 94%, transparent),
+    inset 0 -1px 0 color-mix(in srgb, var(--lg-steel-600) 16%, transparent),
+    0 5px 14px -9px color-mix(in srgb, var(--lg-shadow-ink) 42%, transparent);
   --lg-shadow-assistant-sheet:
     inset 0 1px 0 color-mix(in srgb, var(--lg-white) 90%, transparent),
     inset 0 0 0 1px color-mix(in srgb, var(--lg-steel-600) 9%, transparent),
@@ -134,12 +137,14 @@
   --lg-shadow-segmented-well:
     inset 0 1px 2px color-mix(in srgb, var(--lg-steel-600) 12%, transparent),
     inset 0 -1px 0 color-mix(in srgb, var(--lg-white) 54%, transparent);
+  --lg-shadow-selection-lens: inset 0 var(--lg-offset-hairline) 0
+    color-mix(in srgb, var(--lg-white) 76%, transparent);
   --lg-shadow-input:
     inset 0 1px 1px color-mix(in srgb, var(--lg-shadow-ink) 9%, transparent),
     inset 0 -1px 0 color-mix(in srgb, var(--lg-white) 72%, transparent);
   --lg-shadow-input-focus:
-    inset 0 1px 0 color-mix(in srgb, var(--lg-white) 88%, transparent), 0 0 0 2px var(--lg-focus-halo),
-    0 9px 24px -20px color-mix(in srgb, var(--lg-blue) 30%, transparent);
+    inset 0 1px 0 color-mix(in srgb, var(--lg-white) 88%, transparent),
+    inset 0 0 0 var(--lg-stroke-hairline) color-mix(in srgb, var(--lg-blue) 16%, transparent);
   --lg-shadow-switch:
     inset 0 1px 2px color-mix(in srgb, var(--lg-steel-800) 20%, transparent),
     0 1px 0 color-mix(in srgb, var(--lg-white) 54%, transparent);
@@ -199,6 +204,12 @@
   --lg-shadow-system-separator: inset 1px 0 0 color-mix(in srgb, var(--lg-steel-600) 12%, transparent);
   --lg-shadow-link-focus: 0 0 0 1px var(--lg-focus-halo);
   --lg-filter-boot-error-icon: drop-shadow(0 6px 10px color-mix(in srgb, var(--lg-red) 20%, transparent));
+  --lg-filter-onboarding-brand: drop-shadow(
+    0 0.5rem 1.25rem color-mix(in srgb, var(--lg-blue-mist) 52%, transparent)
+  );
+  --lg-filter-about-mark: drop-shadow(
+    0 var(--lg-space-sm) var(--lg-space-2xl) color-mix(in srgb, var(--lg-blue) 20%, transparent)
+  );
   --lg-backdrop-input: blur(1rem) saturate(1.08);
   --lg-backdrop-overlay-scrim: blur(1.125rem) saturate(0.92);
   --lg-backdrop-dialog-scrim: blur(1rem) saturate(0.94);
@@ -215,36 +226,45 @@
   --lg-size-titlebar-control: 2rem;
   --lg-size-icon-control: 2rem;
   --lg-size-icon-control-large: 2.5rem;
-  --lg-size-control: 2.5rem;
-  --lg-size-control-compact: 2.25rem;
-  --lg-size-nav-row: 2.5rem;
-  --lg-size-nav-row-compact: 2.25rem;
-  --lg-size-menu-row: 2.25rem;
+  --lg-size-control: 2.75rem;
+  --lg-size-control-compact: 2.5rem;
+  --lg-size-nav-row: 2.75rem;
+  --lg-size-nav-row-compact: 2.5rem;
+  --lg-size-menu-row: 2.5rem;
   --lg-size-statusbar: 2rem;
-  --lg-size-sidebar-tab: 2.5rem;
+  --lg-size-sidebar-tab: 2.75rem;
   --lg-size-toolbar-island: 2rem;
   --lg-size-status-pill: 1.625rem;
-  --lg-size-session-row: 2.875rem;
+  --lg-size-session-row: 3rem;
   --lg-size-cognition-glyph: 1.5rem;
   --lg-size-cognition-dot: 0.3125rem;
-  --lg-size-composer: 3.5rem;
-  --lg-size-composer-action: 2rem;
-  --lg-size-composer-primary: 2.25rem;
+  --lg-size-composer: 3.75rem;
+  --lg-size-composer-action: 2.25rem;
+  --lg-size-composer-primary: 2.5rem;
   --lg-size-switch-inline: 3rem;
   --lg-size-switch-block: 1.75rem;
   --lg-size-switch-thumb: 1.375rem;
   --lg-size-checkbox: 1.25rem;
   --lg-size-icon-glyph: 1.125rem;
-  --lg-size-menu-row-compact: 1.875rem;
+  --lg-size-state-glyph: 4.5rem;
+  --lg-size-state-glyph-compact: 3.5rem;
+  --lg-size-state-loader: 2.75rem;
+  --lg-size-about-mark: 8rem;
+  --lg-size-about-stage: min(32rem, 68vh);
+  --lg-size-layout-card: 7rem;
+  --lg-size-statusbar-command-glyph: 22px;
+  --lg-size-menu-row-compact: 2.25rem;
   --lg-size-statusbar-compact: 1.375rem;
-  --lg-type-control: 0.875rem;
-  --lg-type-body: 0.875rem;
-  --lg-type-caption: 0.8125rem;
-  --lg-type-micro: 0.75rem;
-  --lg-type-section-heading: 0.9375rem;
+  --lg-type-control: 0.9375rem;
+  --lg-type-body: 0.9375rem;
+  --lg-type-caption: 0.875rem;
+  --lg-type-micro: 0.8125rem;
+  --lg-type-section-heading: 1rem;
+  --lg-type-detail-heading: 1.125rem;
   --lg-type-intro-display: clamp(2rem, 3.2vw, 2.25rem);
-  --lg-line-control: 1.25rem;
-  --lg-line-body: 1.375rem;
+  --lg-line-control: 1.375rem;
+  --lg-line-body: 1.5rem;
+  --lg-line-detail-heading: 1.5rem;
   --lg-line-intro-display: 1.12;
   --lg-line-intro-body: 1.6;
   --lg-tracking-section-heading: -0.012em;
@@ -262,6 +282,7 @@
   --lg-space-xl: 0.875rem;
   --lg-space-2xl: 1rem;
   --lg-space-3xl: 1.125rem;
+  --lg-space-4xl: 2rem;
   --lg-stroke-hairline: 1px;
   --lg-stroke-focus: 2px;
   --lg-offset-hairline: 0.0625rem;
@@ -270,6 +291,7 @@
   --lg-measure-sidebar-collapsed: 3.5rem;
   --lg-measure-sidebar-empty: 13rem;
   --lg-measure-overlay-sidebar: 15rem;
+  --lg-measure-overlay-sidebar-half: 7.5rem;
   --lg-measure-overlay-nav-column: 14rem;
   --lg-measure-settings-search-offset: 3rem;
   --lg-measure-settings-search-gutters: 6rem;
@@ -277,8 +299,30 @@
   --lg-measure-boot-hint: 35rem;
   --lg-measure-user-message: 40rem;
   --lg-measure-assistant-message: 46rem;
+  --lg-measure-detail: 52rem;
+  --lg-measure-command: 42rem;
   --lg-measure-enrollment: 42rem;
+  --lg-measure-model-picker: 36rem;
+  --lg-measure-model-list: 30rem;
+  --lg-measure-skill-body: 36rem;
+  --lg-measure-capability-summary: 44rem;
+  --lg-measure-credential-list: 52rem;
+  --lg-measure-credential-label: 17rem;
+  --lg-measure-provider-list: 52rem;
+  --lg-measure-master-rail-min: 17rem;
+  --lg-measure-master-rail-default: 18rem;
+  --lg-measure-master-wide-min: 18rem;
+  --lg-track-master-wide-default: 0.42fr;
+  --lg-measure-master-stack: 18rem;
+  --lg-measure-mcp-stack: 14rem;
   --lg-size-settings-row: 4.75rem;
+  --lg-size-credential-row: 4.5rem;
+  --lg-size-provider-row: 4.5rem;
+  --lg-size-mcp-empty: 8.25rem;
+  --lg-size-tool-chip: 1.75rem;
+  --lg-lines-capability-summary: 5;
+  --lg-size-gateway-choice: 7.25rem;
+  --lg-size-gateway-choice-narrow: 6.25rem;
   --lg-size-theme-card: 9.75rem;
   --lg-size-theme-card-narrow: 9rem;
   --lg-size-theme-preview: 6rem;

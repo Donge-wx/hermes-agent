@@ -15,7 +15,7 @@ export const ar = defineLocale({
     doneDescription: 'تم رفع الحزمة بشكل خاص. شارك الرابط أدناه في محادثة الدعم لكي يتمكن الفريق من رؤية سجلاتك.',
     failedTitle: 'فشل الرفع',
     failedHint:
-      'يمكنك أيضاً تشغيل `hermes debug share --nous` من الطرفية، أو `hermes debug share --local` لعرض التقرير دون رفعه.',
+      'يمكنك أيضاً فتح السجلات المحلية من الإعدادات ← البوابة، ثم إرفاق تفاصيل التشخيص بمحادثة الدعم.',
     handoffLead: 'تابع النقاش في:',
     links: {
       github: 'GitHub Issues',
@@ -662,7 +662,7 @@ export const ar = defineLocale({
     about: {
       heading: 'حول My King',
       desktopPackageVersion: value => `واجهة سطح المكتب ${value}`,
-      backendRuntimeVersion: value => `الخلفية ${value}`,
+      backendRuntimeVersion: value => `My King backend v${value.replace(/^v/i, '')}`,
       versionUnavailable: 'الإصدار غير متاح',
       bundleOutOfSync: 'إصدار التطبيق قديم',
       bundleOutOfSyncDesc:
@@ -776,14 +776,14 @@ export const ar = defineLocale({
       intro:
         'يشغّل My King Desktop بوابة محلية خاصة افتراضياً. استخدم بوابة بعيدة عندما تريد أن يتحكم هذا التطبيق بخلفية My King تعمل مسبقاً على جهاز آخر أو خلف وكيل موثوق. اتصالات البوابة إعداد على مستوى الجهاز؛ ويتم اكتشاف الملفات الشخصية من البوابات المتصلة.',
       envOverrideTitle: 'متغيرات البيئة تتحكم في جلسة سطح المكتب هذه.',
-      envOverrideDesc: 'أزل HERMES_DESKTOP_REMOTE_URL و HERMES_DESKTOP_REMOTE_TOKEN لاستخدام الإعداد المحفوظ أدناه.',
+      envOverrideDesc: 'أزل تجاوزات متغيرات البيئة لرابط سطح المكتب البعيد ورمزه لاستخدام الإعداد المحفوظ أدناه.',
       localTitle: 'بوابة محلية',
       localDesc: 'تشغيل خلفية My King خاصة على localhost. هذا هو الافتراضي ويعمل دون اتصال.',
       remoteTitle: 'بوابة بعيدة',
       remoteDesc:
         'صل واجهة سطح المكتب هذه بخلفية My King بعيدة. البوابات المستضافة تستخدم OAuth أو اسم مستخدم وكلمة مرور، والبوابات الذاتية قد تستخدم رمز جلسة.',
       remoteUrlTitle: 'رابط البوابة البعيدة',
-      remoteUrlDesc: 'الرابط الأساسي لخلفية لوحة التحكم البعيدة. يمكن استخدام بادئات مسار مثل /hermes.',
+      remoteUrlDesc: 'الرابط الأساسي لخلفية لوحة التحكم البعيدة. يمكن استخدام بادئات مسار مثل /myking.',
       probing: 'جار فحص طريقة مصادقة هذه البوابة...',
       probeError: 'تعذر الوصول إلى هذه البوابة الآن. تحقق من الرابط وستظهر طريقة المصادقة عند الاستجابة.',
       signedIn: 'تم تسجيل الدخول',
@@ -1072,7 +1072,7 @@ export const ar = defineLocale({
     ageHours: hours => `قبل ${hours} س`,
     durationSeconds: seconds => `${seconds} ث`,
     durationMinutes: (minutes, seconds) => `${minutes} د ${seconds} ث`,
-    tokens: value => `${value} رمز`
+    tokens: value => `${value} token`
   },
   commandCenter: {
     close: 'إغلاق',
@@ -1155,7 +1155,7 @@ export const ar = defineLocale({
     sectionDescriptions: {
       sessions: 'البحث في الجلسات وإدارتها',
       system: 'الحالة والسجلات وإجراءات النظام',
-      usage: 'نشاط الرموز والتكلفة والمهارات عبر الزمن'
+      usage: 'نشاط token والتكلفة والمهارات عبر الزمن'
     },
     nav: {
       newChat: {
@@ -1186,11 +1186,11 @@ export const ar = defineLocale({
       },
       system: {
         title: 'لوحة النظام',
-        detail: 'حالة البوابة والسجلات وإعادة التشغيل/التحديث'
+        detail: 'حالة البوابة والسجلات وإعادة التشغيل'
       },
       usage: {
         title: 'لوحة الاستخدام',
-        detail: 'نشاط الرموز والتكلفة والمهارات'
+        detail: 'نشاط token والتكلفة والمهارات'
       }
     },
     providerNavigate: 'فتح المزود',
@@ -1221,13 +1221,13 @@ export const ar = defineLocale({
     days: count => `${count} يوم`,
     statSessions: 'الجلسات',
     statApiCalls: 'نداءات API',
-    statTokens: 'الرموز',
+    statTokens: 'token',
     statCost: 'التكلفة',
     actualCost: cost => `التكلفة الفعلية ${cost}`,
     loadingUsage: 'جار تحميل الاستخدام',
     noUsage: period => `لا يوجد استخدام خلال ${period} يوم`,
     retry: 'إعادة المحاولة',
-    dailyTokens: 'الرموز اليومية',
+    dailyTokens: 'يومي token',
     input: 'إدخال',
     output: 'إخراج',
     noDailyActivity: 'لا يوجد نشاط يومي',
@@ -1379,7 +1379,7 @@ export const ar = defineLocale({
       },
       MATRIX_USER_ID: {
         label: 'معرّف مستخدم البوت',
-        placeholder: '@hermes:example.org'
+        placeholder: '@myking:example.org'
       },
       MATRIX_ALLOWED_USERS: {
         label: 'معرّفات مستخدمي Matrix المسموح بهم',
@@ -2018,12 +2018,14 @@ export const ar = defineLocale({
     maybeLater: 'ربما لاحقا',
     moreChanges: count => `+ ${count} تغيير${count === 1 ? '' : 'ات'} إضافي مُضمَّن.`,
     manualTitle: 'التحديث من الطرفية',
-    manualBody: 'لقد ثبّتت My King من سطر الأوامر، لذا تُجرى التحديثات من هناك أيضا. الصق هذا في طرفيتك:',
+    manualBody:
+      'لقد ثبّتت My King من سطر الأوامر، لذا تُجرى التحديثات من هناك أيضا. انسخ أمر تحديث الواجهة الخلفية والصقه في طرفيتك:',
     manualPickedUp: 'سيلتقط My King الإصدار الجديد في المرة التالية التي تشغّله فيها.',
     guiSkewTitle: 'تحديث تطبيق سطح المكتب',
     guiSkewBody:
       'تم تحديث الواجهة الخلفية، لكن حزمة تطبيق سطح المكتب هذه لم تتغير. حدّث أو أعد تثبيت تطبيق My King لسطح المكتب (ملف AppImage / ‎.deb / ‎.rpm) لمطابقته.',
     copy: 'نسخ',
+    copyCommand: 'نسخ أمر تحديث الواجهة الخلفية',
     copied: 'تم النسخ',
     done: 'تم',
     applyingBody:
@@ -2180,7 +2182,7 @@ export const ar = defineLocale({
     freeTier: 'الطبقة المجانية',
     pro: 'مدفوع',
     free: 'مجاني',
-    price: (input, output) => `${input} إدخال / ${output} إخراج لكل مليون رمز`,
+    price: (input, output) => `${input} إدخال / ${output} إخراج لكل مليون token`,
     change: 'تغيير',
     startChatting: 'ابدأ',
     docs: provider => `وثائق ${provider}`
@@ -2198,7 +2200,7 @@ export const ar = defineLocale({
     proNeedsSubscription: 'يتطلب اشتراكا',
     free: 'مجاني',
     freeTier: 'طبقة مجانية',
-    priceTitle: 'السعر'
+    priceTitle: 'السعر لكل مليون token'
   },
   modelVisibility: {
     title: 'النماذج',
@@ -2254,9 +2256,9 @@ export const ar = defineLocale({
       updateInProgress: 'التحديث جار',
       commitsBehind: (count, branch) => `${count} commits خلف ${branch}`,
       desktopVersion: version => `سطح المكتب ${version}`,
-      backendVersion: version => `الخلفية ${version}`,
+      backendVersion: version => `My King backend v${version}`,
       clientLabel: version => `العميل ${version}`,
-      backendLabel: version => `الخلفية ${version}`,
+      backendLabel: version => `My King backend v${version}`,
       commit: sha => `commit ${sha}`,
       branch: branch => `الفرع ${branch}`,
       closeCommandCenter: 'إغلاق مركز الأوامر',
@@ -2822,7 +2824,7 @@ export const ar = defineLocale({
       success: platform => `تم التسليم إلى ${platform}. استأنف هنا في أي وقت.`,
       systemNote: platform => `↻ تم التسليم إلى ${platform} — استأنف هنا في أي وقت.`,
       failed: error => `فشل التسليم: ${error}`,
-      timedOut: 'انتهت المهلة في انتظار البوابة. هل `hermes gateway` قيد التشغيل؟'
+      timedOut: 'انتهت المهلة في انتظار البوابة. هل خلفية My King قيد التشغيل؟'
     }
   },
   errors: {

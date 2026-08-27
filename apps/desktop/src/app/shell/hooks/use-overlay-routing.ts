@@ -10,6 +10,7 @@ import {
   NEW_CHAT_ROUTE,
   STARMAP_ROUTE
 } from '@/app/routes'
+import { managedEmployeeRedirect } from '@/lib/managed-employee-policy'
 
 const SECTIONS = ['sessions', 'system', 'usage'] as const
 
@@ -17,7 +18,15 @@ export function useOverlayRouting() {
   const location = useLocation()
   const navigate = useNavigate()
 
-  const currentView = appViewForPath(location.pathname)
+  const employeeRedirectTarget = managedEmployeeRedirect(location.pathname, location.search)
+
+  useEffect(() => {
+    if (employeeRedirectTarget) {
+      navigate(employeeRedirectTarget, { replace: true })
+    }
+  }, [employeeRedirectTarget, navigate])
+
+  const currentView = employeeRedirectTarget ? 'chat' : appViewForPath(location.pathname)
   const settingsOpen = currentView === 'settings'
   const commandCenterOpen = currentView === 'command-center'
   const agentsOpen = currentView === 'agents'
@@ -34,10 +43,10 @@ export function useOverlayRouting() {
 
   // eslint-disable-next-line no-restricted-syntax -- legitimate non-atom ref write (see eslint rule comment)
   useEffect(() => {
-    if (!overlayOpen) {
+    if (!overlayOpen && !employeeRedirectTarget) {
       returnPathRef.current = `${location.pathname}${location.search}${location.hash}`
     }
-  }, [location.hash, location.pathname, location.search, overlayOpen])
+  }, [employeeRedirectTarget, location.hash, location.pathname, location.search, overlayOpen])
 
   const commandCenterInitialSection = useMemo<CommandCenterSection | undefined>(
     () => SECTIONS.find(value => value === new URLSearchParams(location.search).get('section')),

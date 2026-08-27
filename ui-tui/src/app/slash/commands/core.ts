@@ -1,6 +1,6 @@
 import { forceRedraw, type MouseTrackingMode } from '@hermes/ink'
 
-import { DASHBOARD_TUI_MODE, NO_CONFIRM_DESTRUCTIVE } from '../../../config/env.js'
+import { DASHBOARD_TUI_MODE, MY_KING_MANAGED_MODE, NO_CONFIRM_DESTRUCTIVE } from '../../../config/env.js'
 import { dailyFortune, randomFortune } from '../../../content/fortunes.js'
 import { HOTKEYS } from '../../../content/hotkeys.js'
 import { isSectionName, nextDetailsMode, parseDetailsMode, SECTION_NAMES } from '../../../domain/details.js'
@@ -89,7 +89,7 @@ export const DASHBOARD_EXIT_DISABLED_MESSAGE =
 export const DASHBOARD_UPDATE_DISABLED_MESSAGE =
   'update is disabled in hosted dashboard chat — the hosted environment is managed separately'
 
-export const coreCommands: SlashCommand[] = [
+const allCoreCommands: SlashCommand[] = [
   {
     help: 'list commands + hotkeys',
     name: 'help',
@@ -136,7 +136,7 @@ export const coreCommands: SlashCommand[] = [
       // /quit on the same DASHBOARD_TUI_MODE flag. Unlike the keyboard path
       // (which auto-starts a fresh chat), the explicit quit command refuses and
       // instructs the user to run /new themselves.
-      if (DASHBOARD_TUI_MODE) {
+      if (DASHBOARD_TUI_MODE || MY_KING_MANAGED_MODE) {
         ctx.transcript.sys(DASHBOARD_EXIT_DISABLED_MESSAGE)
 
         return
@@ -768,3 +768,10 @@ export const coreCommands: SlashCommand[] = [
     }
   }
 ]
+
+// Employee builds may inspect versions but must not discover or invoke an
+// updater from the TUI. The Python command boundary independently refuses the
+// same operation, so a crafted request still fails closed.
+export const coreCommands: SlashCommand[] = MY_KING_MANAGED_MODE
+  ? allCoreCommands.filter(command => command.name !== 'update')
+  : allCoreCommands

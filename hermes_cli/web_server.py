@@ -57,6 +57,11 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from hermes_cli import __version__, __release_date__
+from hermes_cli.managed_update_policy import (
+    UPDATES_DISABLED_ERROR,
+    UPDATES_DISABLED_MESSAGE,
+    managed_updates_disabled,
+)
 from hermes_cli.config import (
     build_cron_model_impact,
     cfg_get,
@@ -478,7 +483,50 @@ def _get_pty_active_session_files(app: "FastAPI") -> dict[str, Path]:
         return app.state.pty_active_session_files
 
 
-app = FastAPI(title="Hermes Agent", version=__version__, lifespan=_lifespan)
+app = FastAPI(
+    title="My King",
+    version=__version__,
+    lifespan=_lifespan,
+    docs_url=None,
+    redoc_url=None,
+)
+
+from fastapi.exception_handlers import (  # noqa: E402
+    http_exception_handler as _default_http_exception_handler,
+)
+from starlette.exceptions import HTTPException as _StarletteHTTPException  # noqa: E402
+
+
+@app.exception_handler(_StarletteHTTPException)
+async def _managed_auth_http_exception_handler(
+    request: Request,
+    exc: _StarletteHTTPException,
+):
+    """Brand browser auth failures while preserving API error contracts."""
+    accept = request.headers.get("accept", "")
+    is_auth_navigation = (
+        request.method == "GET"
+        and request.url.path.startswith("/auth/")
+        and "text/html" in accept.lower()
+    )
+    if not is_auth_navigation:
+        return await _default_http_exception_handler(request, exc)
+
+    from hermes_cli.dashboard_auth.auth_error_page import (
+        render_auth_error_html,
+    )
+    from hermes_cli.dashboard_auth.prefix import prefix_from_request
+
+    headers = dict(exc.headers or {})
+    headers["Cache-Control"] = "no-store"
+    return HTMLResponse(
+        render_auth_error_html(
+            status_code=exc.status_code,
+            login_href=f"{prefix_from_request(request)}/login",
+        ),
+        status_code=exc.status_code,
+        headers=headers,
+    )
 
 
 # Memory-provider OAuth connect routes live in the memory layer, not here.
@@ -2329,7 +2377,7 @@ def _dashboard_local_update_managed_externally() -> bool:
     externally managed unless their apply path is proven safe inside the
     running container filesystem.
     """
-    if _default_hermes_root_is_opt_data():
+    if managed_updates_disabled() or _default_hermes_root_is_opt_data():
         return True
     try:
         from hermes_constants import is_container
@@ -4830,6 +4878,15 @@ async def gateway_drain(request: Request):
 @app.post("/api/hermes/update")
 async def update_hermes():
     """Kick off ``hermes update`` in the background."""
+    if managed_updates_disabled():
+        return {
+            "ok": False,
+            "pid": None,
+            "name": "hermes-update",
+            "error": UPDATES_DISABLED_ERROR,
+            "message": UPDATES_DISABLED_MESSAGE,
+        }
+
     if _dashboard_local_update_managed_externally():
         message = (
             "Hermes updates are managed outside this dashboard in "
@@ -4984,6 +5041,18 @@ async def check_hermes_update(force: bool = False):
                  desktop's remote update overlay renders this as "what's
                  changed". Additive: existing consumers ignore it.
     """
+    if managed_updates_disabled():
+        return {
+            "install_method": "managed-myking",
+            "current_version": __version__,
+            "behind": None,
+            "update_available": False,
+            "can_apply": False,
+            "update_command": None,
+            "message": UPDATES_DISABLED_MESSAGE,
+            "error": UPDATES_DISABLED_ERROR,
+        }
+
     if _dashboard_local_update_managed_externally():
         return {
             "install_method": "managed-runtime",

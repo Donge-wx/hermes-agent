@@ -1,3 +1,4 @@
+import crypto from 'node:crypto'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -9,13 +10,11 @@ import {
   type MyKingRelayKeyStaging,
   prepareMyKingEmployeeConnector,
   readMyKingEmployeeBinding,
+  signMyKingEmployeeEnrollmentChallenge,
   writeMyKingEmployeeBinding,
   writeMyKingRelayPublicKey
 } from './employee-connector'
-import {
-  loadOrCreateMyKingEmployeeDeviceId,
-  removeMyKingEmployeeDeviceId
-} from './employee-device-identity'
+import { loadOrCreateMyKingEmployeeDeviceId, removeMyKingEmployeeDeviceId } from './employee-device-identity'
 import {
   completeMyKingEmployeeEnrollment,
   MyKingEmployeeEnrollmentError,
@@ -45,14 +44,25 @@ export interface MyKingEmployeeEnrollmentOptions {
   readonly enableConnector: () => Promise<void>
   readonly emit: (status: MyKingEmployeeEnrollmentStatus) => void
   readonly employeeHome: string
-  readonly employeeIsAdministrator: boolean
   readonly employeeUser: string
   readonly helperScriptPath: string
   readonly managedGatewayUrl: null | string
   readonly platform: NodeJS.Platform
   readonly postJson: MyKingEmployeePostJson
   readonly probeRemoteGateway: (url: string) => Promise<void>
-  readonly runElevated: (helperScriptPath: string, action: 'prepare' | 'unbind', planPath: string) => Promise<void>
+  readonly revokeEnrollment: (binding: MyKingEmployeeBinding) => Promise<void>
+  readonly runElevated: (
+    helperScriptPath: string,
+    action: 'prepare' | 'unbind',
+    planPath: string,
+    planSha256: string
+  ) => Promise<void>
+  readonly storeGatewayCredential: (input: {
+    readonly deviceId: string
+    readonly employeeId: string
+    readonly token: string
+    readonly url: string
+  }) => Promise<void>
   readonly userData: string
 }
 
@@ -108,15 +118,12 @@ export function createMyKingEmployeeEnrollment(options: MyKingEmployeeEnrollment
     }
 
     publish('configuring-secure-connection')
-    const outputPath = path.join(pending.staging.directory, 'ssh-host-public-keys.txt')
-
     const hostPublicKeys = await prepareMyKingEmployeeConnector({
       bindingPath: options.connectorPaths.bindingPath,
+      connectorPaths: options.connectorPaths,
       employeeHome: options.employeeHome,
-      employeeIsAdministrator: options.employeeIsAdministrator,
       employeeUser: options.employeeUser,
       helperScriptPath: options.helperScriptPath,
-      outputPath,
       platform: options.platform,
       privateKeyPath: pending.staging.privateKeyPath,
       redeem: pending.redeem,
@@ -140,6 +147,11 @@ export function createMyKingEmployeeEnrollment(options: MyKingEmployeeEnrollment
         baseUrl: options.baseUrl,
         enrollmentId: prepared.redeem.enrollmentId,
         completionToken: prepared.redeem.completionToken,
+        challengeSignature: signMyKingEmployeeEnrollmentChallenge({
+          challenge: prepared.redeem.challenge,
+          platform: options.platform,
+          privateKeyPath: prepared.staging.privateKeyPath
+        }),
         deviceId,
         sshHostPublicKeys: prepared.hostPublicKeys
       },
@@ -150,30 +162,43 @@ export function createMyKingEmployeeEnrollment(options: MyKingEmployeeEnrollment
       ready.employeeId !== prepared.redeem.employeeId ||
       ready.remoteGatewayUrl !== prepared.redeem.remoteGateway.url
     ) {
-      throw new MyKingEmployeeEnrollmentError('employee-mismatch', 'Employee identity or gateway changed during enrollment.')
+      throw new MyKingEmployeeEnrollmentError(
+        'employee-mismatch',
+        'Employee identity or gateway changed during enrollment.'
+      )
     }
 
     const completed = pending
-    pending = null
 
     const binding: MyKingEmployeeBinding = {
       version: 1,
       employeeId: ready.employeeId,
       employeeName: completed.redeem.employeeName,
+      enrollmentId: completed.redeem.enrollmentId,
       deviceId,
       remoteGatewayUrl: ready.remoteGatewayUrl,
       enrolledAt: new Date().toISOString(),
       lastCheckAt: null
     }
 
+    await options.storeGatewayCredential({
+      deviceId,
+      employeeId: ready.employeeId,
+      token: ready.gatewayAuth.token,
+      url: ready.remoteGatewayUrl
+    })
     writeMyKingEmployeeBinding(options.connectorPaths.bindingPath, binding)
+    pending = null
     removeStaging(completed.staging)
     publish('connecting-remote-gateway')
     await connectMyKingEmployeeGateway(() => options.applyRemoteGateway(binding.remoteGatewayUrl))
     await connectMyKingEmployeeGateway(() => options.probeRemoteGateway(binding.remoteGatewayUrl))
     publish('verifying-isolation')
     await options.enableConnector()
-    writeMyKingEmployeeBinding(options.connectorPaths.bindingPath, { ...binding, lastCheckAt: new Date().toISOString() })
+    writeMyKingEmployeeBinding(options.connectorPaths.bindingPath, {
+      ...binding,
+      lastCheckAt: new Date().toISOString()
+    })
 
     return publish('connected')
   }
@@ -217,7 +242,10 @@ export function createMyKingEmployeeEnrollment(options: MyKingEmployeeEnrollment
       publish('confirming-identity')
 
       if (existing && existing.employeeId !== redeem.employeeId) {
-        throw new MyKingEmployeeEnrollmentError('employee-mismatch', 'This device is already bound to another employee.')
+        throw new MyKingEmployeeEnrollmentError(
+          'employee-mismatch',
+          'This device is already bound to another employee.'
+        )
       }
 
       pending = { redeem, staging, hostPublicKeys: null }
@@ -251,6 +279,10 @@ export function createMyKingEmployeeEnrollment(options: MyKingEmployeeEnrollment
       return inFlight
     },
     async check() {
+      if (inFlight) {
+        return inFlight
+      }
+
       try {
         if (pending) {
           return await finishPending()
@@ -266,7 +298,10 @@ export function createMyKingEmployeeEnrollment(options: MyKingEmployeeEnrollment
         await connectMyKingEmployeeGateway(() => options.probeRemoteGateway(binding.remoteGatewayUrl))
         publish('verifying-isolation')
         await options.enableConnector()
-        writeMyKingEmployeeBinding(options.connectorPaths.bindingPath, { ...binding, lastCheckAt: new Date().toISOString() })
+        writeMyKingEmployeeBinding(options.connectorPaths.bindingPath, {
+          ...binding,
+          lastCheckAt: new Date().toISOString()
+        })
 
         return publish('connected')
       } catch (error) {
@@ -274,18 +309,37 @@ export function createMyKingEmployeeEnrollment(options: MyKingEmployeeEnrollment
         throw error
       }
     },
-    async unbind() {
-      const binding = readMyKingEmployeeBinding(options.connectorPaths.bindingPath)
-      const planPath = path.join(options.userData, 'employee-connector-unbind.json')
-      fs.writeFileSync(planPath, '{}\n', { encoding: 'utf8', mode: 0o600 })
-      await options.runElevated(options.helperScriptPath, 'unbind', planPath)
-      fs.rmSync(options.connectorPaths.bindingPath, { force: true })
-      removeMyKingEmployeeDeviceId(options.userData)
-      fs.rmSync(planPath, { force: true })
-      pending = null
-      await options.clearRemoteGateway(binding?.remoteGatewayUrl ?? null)
+    unbind() {
+      if (!inFlight) {
+        inFlight = (async () => {
+          const binding = readMyKingEmployeeBinding(options.connectorPaths.bindingPath)
+          const planPath = path.join(options.userData, `employee-connector-unbind-${crypto.randomUUID()}.json`)
+          const planJson = '{}'
+          const planSha256 = crypto.createHash('sha256').update(planJson).digest('hex')
 
-      return publish('idle')
+          fs.writeFileSync(planPath, planJson, { encoding: 'utf8', flag: 'wx', mode: 0o600 })
+
+          try {
+            if (binding) {
+              await options.revokeEnrollment(binding)
+            }
+            await options.runElevated(options.helperScriptPath, 'unbind', planPath, planSha256)
+            await options.clearRemoteGateway(binding?.remoteGatewayUrl ?? null)
+            removeStaging(pending?.staging ?? null)
+            pending = null
+            fs.rmSync(options.connectorPaths.bindingPath, { force: true })
+            removeMyKingEmployeeDeviceId(options.userData)
+
+            return publish('idle')
+          } finally {
+            fs.rmSync(planPath, { force: true })
+          }
+        })().finally(() => {
+          inFlight = null
+        })
+      }
+
+      return inFlight
     }
   }
 }

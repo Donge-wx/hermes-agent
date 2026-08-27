@@ -70,13 +70,13 @@ describe('My King employee enrollment assistant', () => {
     const ordinary = renderAssistant({ ...IDLE_STATUS, configured: false })
 
     await waitFor(() => expect(ordinary.employeeEnrollment.getStatus).toHaveBeenCalledTimes(1))
-    expect(screen.queryByText('连接公司智能体')).toBeNull()
+    expect(screen.queryByText('连接 AI Work OS')).toBeNull()
     ordinary.unmount()
 
     const managed = renderAssistant({ ...IDLE_STATUS, managedGateway: true })
 
     await waitFor(() => expect(managed.employeeEnrollment.getStatus).toHaveBeenCalledTimes(1))
-    expect(screen.queryByText('连接公司智能体')).toBeNull()
+    expect(screen.queryByText('连接 AI Work OS')).toBeNull()
   })
 
   it('submits and immediately clears a one-time code while showing the real stage', async () => {
@@ -93,7 +93,7 @@ describe('My King employee enrollment assistant', () => {
     const input = (await screen.findByPlaceholderText('一次性绑定码')) as HTMLInputElement
 
     fireEvent.change(input, { target: { value: 'ABCD-2345-EFGH' } })
-    fireEvent.click(screen.getByRole('button', { name: '连接公司' }))
+    fireEvent.click(screen.getByRole('button', { name: '连接' }))
 
     expect(enroll).toHaveBeenCalledWith('ABCD-2345-EFGH')
     expect(input.value).toBe('')
@@ -121,7 +121,7 @@ describe('My King employee enrollment assistant', () => {
     fireEvent.change((await screen.findByPlaceholderText('一次性绑定码')) as HTMLInputElement, {
       target: { value: 'ABCD-2345-EFGH' }
     })
-    fireEvent.click(screen.getByRole('button', { name: '连接公司' }))
+    fireEvent.click(screen.getByRole('button', { name: '连接' }))
 
     expect(await screen.findByText('公司服务器暂时不可用，请稍后重试。')).toBeTruthy()
     expect(screen.queryByText('My King 已连接')).toBeNull()
@@ -147,6 +147,7 @@ describe('My King employee enrollment assistant', () => {
         deviceId: 'random-device-id',
         employeeId: 'employee-1',
         employeeName: '测试员工',
+        enrollmentId: 'enrollment-1',
         enrolledAt: '2026-08-27T01:00:00.000Z',
         lastCheckAt: '2026-08-27T01:30:00.000Z',
         remoteGatewayUrl: 'https://gateway.myking.test',
@@ -194,6 +195,7 @@ describe('My King employee enrollment assistant', () => {
         deviceId: 'random-device-id',
         employeeId: 'employee-1',
         employeeName: '测试员工',
+        enrollmentId: 'enrollment-1',
         enrolledAt: '2026-08-27T01:00:00.000Z',
         lastCheckAt: '2026-08-27T01:30:00.000Z',
         remoteGatewayUrl: 'https://gateway.myking.test',
@@ -208,7 +210,7 @@ describe('My King employee enrollment assistant', () => {
 
     const view = renderAssistant(IDLE_STATUS)
 
-    await screen.findByText('连接公司智能体')
+    await screen.findByText('连接 AI Work OS')
     act(() => view.emit({ ...IDLE_STATUS, stage: 'connecting-remote-gateway' }))
     act(() => view.emit(connected))
     expect(screen.getByText('My King 已连接')).toBeTruthy()
@@ -221,6 +223,7 @@ describe('My King employee enrollment assistant', () => {
         deviceId: 'random-device-id',
         employeeId: 'employee-1',
         employeeName: '测试员工',
+        enrollmentId: 'enrollment-1',
         enrolledAt: '2026-08-27T01:00:00.000Z',
         lastCheckAt: '2026-08-27T01:30:00.000Z',
         remoteGatewayUrl: 'https://gateway.myking.test',

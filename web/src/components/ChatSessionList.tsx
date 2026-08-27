@@ -26,6 +26,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
 
 import { useI18n } from "@/i18n";
+import { getChatCopy } from "@/i18n/chat-copy";
 import { api, type SessionInfo } from "@/lib/api";
 import { cn, timeAgo } from "@/lib/utils";
 
@@ -62,7 +63,8 @@ export function ChatSessionList({
   onPicked,
   onNewChat,
 }: ChatSessionListProps) {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
+  const copy = getChatCopy(locale);
   const [, setSearchParams] = useSearchParams();
   const [sessions, setSessions] = useState<SessionInfo[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -202,7 +204,7 @@ export function ChatSessionList({
                 {s.message_count > 0 && (
                   <>
                     <span aria-hidden>·</span>
-                    <span>{s.message_count} msgs</span>
+                    <span>{copy.messages(s.message_count)}</span>
                   </>
                 )}
                 {s.source && s.source !== "cli" && (
@@ -217,7 +219,7 @@ export function ChatSessionList({
         })}
       </div>
     );
-  }, [activeSessionId, error, loading, pick, reload, sessions, t]);
+  }, [activeSessionId, copy, error, loading, pick, reload, sessions, t]);
 
   return (
     <aside

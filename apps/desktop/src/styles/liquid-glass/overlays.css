@@ -251,7 +251,7 @@
 }
 
 :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='onboarding-header'] > span {
-  filter: drop-shadow(0 0.5rem 1.25rem color-mix(in srgb, var(--lg-blue-mist) 52%, transparent));
+  filter: var(--lg-filter-onboarding-brand);
 }
 
 :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='onboarding-title'] {
@@ -581,9 +581,31 @@
 
 :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='overlay-nav-item'][aria-current='page'] {
   border-color: transparent;
-  background: var(--lg-glass-raised);
+  background: var(--lg-selected-wash);
   color: var(--lg-ink);
-  box-shadow: var(--lg-shadow-contact);
+  box-shadow: var(--lg-shadow-selection-lens);
+}
+
+/* An expanded parent names the section; its child names the actual view.
+   Keep both in one navigation plane instead of stacking two raised cards. */
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='overlay-nav-item'][data-expanded='true'][aria-current='page'] {
+  background: transparent;
+  color: var(--lg-ink-secondary);
+  box-shadow: none;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='overlay-nav-item'][data-nested='true'] {
+  min-height: var(--lg-size-nav-row-compact);
+  border-radius: var(--lg-radius-micro);
+  padding-inline: var(--lg-space-md);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='overlay-nav-item'][data-nested='true'][aria-current='page'] {
+  background: var(--lg-selected-wash);
+  color: var(--lg-ink);
+  box-shadow: none;
 }
 
 :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
@@ -751,4 +773,99 @@
 
 :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='alert-description'] {
   color: var(--lg-ink-secondary);
+}
+
+/* Search and layout work surfaces share the same readable scale as route
+   overlays. Their handlers, focus traps, keyboard navigation, and drag state
+   remain in the existing components. */
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='command-palette'] {
+  width: min(var(--lg-measure-command), calc(100vw - (2 * var(--lg-space-2xl))));
+  border-color: var(--lg-seam-soft);
+  border-radius: var(--lg-radius-panel);
+  background:
+    radial-gradient(82% 96% at 8% -18%, color-mix(in srgb, var(--lg-white) 86%, transparent), transparent 68%),
+    linear-gradient(130deg, color-mix(in srgb, var(--lg-white) 42%, transparent), transparent 52%),
+    var(--lg-pearl-25);
+  color: var(--lg-ink);
+  box-shadow: var(--lg-shadow-overlay);
+  backdrop-filter: var(--lg-backdrop-popover);
+  -webkit-backdrop-filter: var(--lg-backdrop-popover);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='command-palette'] [cmdk-input] {
+  min-height: var(--lg-size-control);
+  font-size: var(--lg-type-control);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='command-palette'] [cmdk-item] {
+  min-height: var(--lg-size-menu-row);
+  padding-inline: var(--lg-space-lg);
+  font-size: var(--lg-type-control);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='command-palette'] [cmdk-group-heading] {
+  padding: var(--lg-space-xl) var(--lg-space-lg) var(--lg-space-sm);
+  color: var(--lg-blue-hover);
+  font-size: var(--lg-type-micro);
+  letter-spacing: 0.08em;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='model-picker'] {
+  width: min(var(--lg-measure-model-picker), calc(100vw - (2 * var(--lg-space-2xl))));
+  max-width: var(--lg-measure-model-picker);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='model-picker'] [cmdk-list] {
+  max-height: min(52vh, var(--lg-measure-model-list));
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='layout-editor'] {
+  width: min(var(--lg-measure-command), calc(100% - (2 * var(--lg-space-2xl))));
+  border-color: var(--lg-seam-soft);
+  border-radius: var(--lg-radius-overlay);
+  background:
+    radial-gradient(78% 90% at 10% -12%, color-mix(in srgb, var(--lg-white) 86%, transparent), transparent 68%),
+    linear-gradient(128deg, color-mix(in srgb, var(--lg-white) 42%, transparent), transparent 52%),
+    var(--lg-glass-overlay);
+  color: var(--lg-ink);
+  box-shadow: var(--lg-shadow-overlay);
+  backdrop-filter: var(--lg-backdrop-popover);
+  -webkit-backdrop-filter: var(--lg-backdrop-popover);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='layout-editor-header'] {
+  min-height: calc(var(--lg-size-control) + var(--lg-space-2xl));
+  padding: var(--lg-space-2xl) var(--lg-space-3xl) var(--lg-space-lg);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='layout-editor-header'] h2 {
+  font-size: var(--lg-type-detail-heading);
+  line-height: var(--lg-line-detail-heading);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='layout-editor-header'] p,
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='layout-picker-section-label'] {
+  font-size: var(--lg-type-micro);
+  line-height: var(--lg-line-control);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='layout-preset-card'] {
+  min-height: var(--lg-size-layout-card);
+  gap: var(--lg-space-sm);
+  padding: var(--lg-space-sm);
+  border-color: var(--lg-seam-soft);
+  border-radius: var(--lg-radius-control);
+  background: color-mix(in srgb, var(--lg-white) 36%, transparent);
+  font-size: var(--lg-type-micro);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='layout-preset-card'] > div {
+  min-height: var(--lg-size-state-glyph);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='layout-preset-card'][data-selected='true'] {
+  border-color: color-mix(in srgb, var(--lg-blue) 34%, var(--lg-rim-outer));
+  background: var(--lg-selected-wash);
+  box-shadow: var(--lg-shadow-theme-card-selected);
 }

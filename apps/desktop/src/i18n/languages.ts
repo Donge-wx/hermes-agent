@@ -2,7 +2,9 @@ import { normalize } from '@/lib/text'
 
 import type { Locale } from './types'
 
-export const DEFAULT_LOCALE: Locale = 'en'
+// Clean managed installs start in Simplified Chinese. An explicitly persisted
+// locale still wins, so upstream compatibility remains intact.
+export const DEFAULT_LOCALE: Locale = 'zh'
 
 export const LOCALE_OPTIONS = [
   {

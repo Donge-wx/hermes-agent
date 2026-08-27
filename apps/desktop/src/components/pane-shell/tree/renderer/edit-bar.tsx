@@ -72,12 +72,14 @@ export function TreeEditBar() {
   return (
     <div
       className="absolute z-50 flex w-[26rem] max-w-[calc(100%-2rem)] flex-col rounded-xl border border-(--ui-stroke-secondary) bg-popover text-popover-foreground shadow-2xl [-webkit-app-region:no-drag]"
+      data-slot="layout-editor"
       ref={cardRef}
       style={pos ? { left: pos.x, top: pos.y } : { left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }}
     >
       {/* Header doubles as the drag handle (Panel-style title + actions). */}
       <header
         className="flex shrink-0 cursor-grab select-none items-start justify-between gap-3 px-4 pb-2 pt-3 active:cursor-grabbing"
+        data-slot="layout-editor-header"
         onPointerDown={startMove}
       >
         <div className="min-w-0">

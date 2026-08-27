@@ -37,20 +37,11 @@ import {
   parseLoopbackCallback,
   parseTokenResponse
 } from './native-oauth'
+import { renderNativeLoginPage } from './native-oauth-login-page'
 
 // Loopback login must complete inside this window (user opens browser,
 // authenticates, gets redirected back). Matches the server-side pending TTL.
 const DEFAULT_LOGIN_TIMEOUT_MS = 5 * 60 * 1000
-
-// The minimal page the browser lands on after the gateway redirect. No tokens,
-// no secrets — just a close affordance. Served for any loopback request so a
-// favicon probe doesn't look like a failure.
-const DONE_HTML =
-  '<!doctype html><meta charset="utf-8"><title>Signed in</title>' +
-  '<body style="font:15px system-ui;margin:3rem;text-align:center">' +
-  '<h2>&#10003; Signed in to My King</h2>' +
-  '<p>You can close this window and return to the app.</p>' +
-  '<script>setTimeout(()=>window.close(),800)</script>'
 
 export interface NativeLoginDeps {
   /** Open a URL in the user's system browser (shell.openExternal). */
@@ -59,6 +50,8 @@ export interface NativeLoginDeps {
   postJson: (url: string, body: unknown, opts?: { timeoutMs?: number }) => Promise<any>
   /** http.createServer, injectable for tests. */
   createServer?: typeof http.createServer
+  /** Approved My King lockup embedded into the local browser result page. */
+  brandLockupPng?: Uint8Array
   /** Clock + timeout, injectable for tests. */
   now?: () => number
   timeoutMs?: number
@@ -96,22 +89,25 @@ export async function runNativeLogin(
       // etc.) still gets the friendly page so the browser tab looks sane.
       const url = req.url || '/'
 
-      // Always answer the browser with the close page — we never surface the
-      // outcome to the browser, only to the app.
-      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
-      res.end(DONE_HTML)
-
       if (settled) {
+        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
+        res.end(renderNativeLoginPage('success', deps.brandLockupPng))
+
         return
       }
 
       // Ignore non-callback noise (e.g. /favicon.ico) — wait for the ?code=.
       if (!/[?&](code|error)=/.test(url)) {
+        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
+        res.end(renderNativeLoginPage('success', deps.brandLockupPng))
+
         return
       }
 
       try {
         const { code } = parseLoopbackCallback(url, state)
+        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
+        res.end(renderNativeLoginPage('success', deps.brandLockupPng))
         finishWith(async () => {
           const tokenBody = await deps.postJson(
             nativeTokenUrl(baseUrl),
@@ -122,6 +118,8 @@ export async function runNativeLogin(
           return parseTokenResponse(tokenBody)
         })
       } catch (error) {
+        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
+        res.end(renderNativeLoginPage('error', deps.brandLockupPng))
         fail(error instanceof Error ? error : new Error(String(error)))
       }
     })

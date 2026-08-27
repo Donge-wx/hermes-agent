@@ -48,6 +48,21 @@ if env_path.exists():
 SERVICE_NAME = "hermes-gateway"
 SERVICE_DESCRIPTION = "Hermes Agent Gateway - Messaging Platform Integration"
 
+
+def get_hermes_home() -> Path:
+    """Return the service's configured Hermes home.
+
+    launchd does not inherit a shell's profile-specific environment. Resolve
+    the process setting here so My King can keep its service logs and runtime
+    data under ``HERMES_HOME`` while an ordinary Hermes install retains the
+    historical ``~/.hermes`` default.
+    """
+    configured = os.environ.get("HERMES_HOME", "").strip()
+    if configured:
+        return Path(configured).expanduser()
+    return Path.home() / ".hermes"
+
+
 def get_systemd_unit_path() -> Path:
     """Get the path for the systemd user service file."""
     return Path.home() / ".config" / "systemd" / "user" / f"{SERVICE_NAME}.service"
@@ -173,7 +188,8 @@ def generate_launchd_plist() -> str:
     python_path = get_python_path()
     script_path = get_gateway_script_path()
     working_dir = str(PROJECT_DIR)
-    log_dir = Path.home() / ".hermes" / "logs"
+    hermes_home = get_hermes_home()
+    log_dir = hermes_home / "logs"
     
     return f"""<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -211,6 +227,8 @@ def generate_launchd_plist() -> str:
     <dict>
         <key>PATH</key>
         <string>/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <key>HERMES_HOME</key>
+        <string>{hermes_home}</string>
     </dict>
 </dict>
 </plist>
@@ -222,7 +240,7 @@ def install_launchd():
     plist_path.parent.mkdir(parents=True, exist_ok=True)
     
     # Ensure log directory exists
-    log_dir = Path.home() / ".hermes" / "logs"
+    log_dir = get_hermes_home() / "logs"
     log_dir.mkdir(parents=True, exist_ok=True)
     
     print(f"Installing launchd service to: {plist_path}")
@@ -234,7 +252,7 @@ def install_launchd():
     print(f"✓ Service installed and loaded")
     print(f"")
     print(f"To view logs:")
-    print(f"  tail -f ~/.hermes/logs/gateway.log")
+    print(f"  tail -f {log_dir}/gateway.log")
     print(f"")
     print(f"To manage the service:")
     print(f"  launchctl start ai.hermes.gateway")

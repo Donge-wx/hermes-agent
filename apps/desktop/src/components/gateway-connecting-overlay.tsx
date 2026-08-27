@@ -161,7 +161,13 @@ export function GatewayConnectingOverlay() {
           width={BOOT_LOCKUP_WIDTH}
         />
 
-        <Loader aria-hidden className="gateway-boot__loader" role="presentation" type="lemniscate-bloom" />
+        <Loader
+          aria-hidden
+          className="gateway-boot__loader"
+          data-slot="gateway-boot-loader"
+          role="presentation"
+          type="lemniscate-bloom"
+        />
 
         <div className="gateway-boot__copy">
           <div className="gateway-boot__status-row">

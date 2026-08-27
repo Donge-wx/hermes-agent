@@ -1,6 +1,8 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+vi.mock('@/lib/managed-update-policy', () => ({ MANAGED_UPDATES_EXTERNALLY: false }))
+
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import type { DesktopUpdateStatus } from '@/global'
 import { I18nProvider } from '@/i18n/context'
@@ -115,6 +117,38 @@ describe('BlockerView', () => {
     expect(screen.getByText('Close other processes to update My King')).toBeTruthy()
     expect(screen.getByText('python.exe')).toBeTruthy()
     expect(screen.queryByText('Update didn’t finish')).toBeNull()
+  })
+
+  it('copies the compatibility updater command without exposing its internal brand in the UI', async () => {
+    // Given a command-line installation whose real updater command is owned by the compatibility backend.
+    const writeClipboard = vi.fn().mockResolvedValue(undefined)
+    window.hermesDesktop = { ...window.hermesDesktop, writeClipboard }
+    $updateOverlayTarget.set('client')
+    $updateOverlayOpen.set(true)
+    $updateStatus.set({
+      supported: true,
+      updateAvailable: true,
+      behind: 1,
+      commits: []
+    } as DesktopUpdateStatus)
+    $updateApply.set({
+      applying: false,
+      stage: 'manual',
+      message: 'hermes update',
+      percent: null,
+      error: null,
+      command: 'hermes update',
+      blockers: null,
+      log: []
+    })
+
+    // When the manual update view is rendered and its copy action is used.
+    await renderUpdatesOverlay()
+    fireEvent.click(screen.getByRole('button', { name: 'Copy backend update command' }))
+
+    // Then the UI remains My King-branded while the exact working command reaches the clipboard.
+    expect(screen.queryByText(/hermes update/i)).toBeNull()
+    expect(writeClipboard).toHaveBeenCalledWith('hermes update')
   })
 
   it('identifies foreign blockers without offering automatic termination', async () => {

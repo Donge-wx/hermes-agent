@@ -2,7 +2,7 @@
   "name": "hermes",
   "productName": "My King",
   "private": true,
-  "version": "0.17.0",
+  "version": "2.0.0",
   "description": "Native desktop shell for My King.",
   "author": "My King",
   "repository": {
@@ -35,12 +35,12 @@
     "pack": "npm run build && npm run builder -- --dir --publish never",
     "dist": "npm run build && npm run builder",
     "dist:mac": "npm run build && npm run builder -- --mac",
-    "dist:mac:dmg": "npm run build && npm run builder -- --mac dmg",
+    "dist:mac:dmg": "npm run build && node scripts/prepare-bundled-backend.mjs --platform darwin --arch arm64 && npm run builder -- --mac dmg --arm64",
     "dist:mac:zip": "npm run build && npm run builder -- --mac zip",
     "sign:mac:local": "node scripts/sign-macos-adhoc.mjs",
     "dist:win": "npm run build && npm run builder -- --win",
     "dist:win:msi": "npm run build && npm run builder -- --win msi",
-    "dist:win:nsis": "npm run build && npm run builder -- --win nsis",
+    "dist:win:nsis": "npm run build && node scripts/prepare-bundled-backend.mjs --platform win32 --arch x64 && npm run builder -- --win nsis --x64",
     "dist:linux": "npm run build && npm run builder -- --linux AppImage deb rpm",
     "perf": "node scripts/perf/run.mjs",
     "update:shim": "bash ../../scripts/desktop-update/repro.sh shim",
@@ -180,7 +180,7 @@
     "esbuild": "0.28.1",
     "jsdom": "29.1.1",
     "prettier": "3.9.5",
-    "rcedit": "5.0.2",
+    "resedit": "1.7.2",
     "tsx": "4.23.1",
     "typescript": "6.0.3",
     "vite": "8.2.0",
@@ -227,6 +227,10 @@
         "to": "icon.ico"
       },
       {
+        "from": "build/bundled/current",
+        "to": "my-king-runtime"
+      },
+      {
         "from": "../../scripts/desktop-update",
         "to": "my-king-update",
         "filter": [
@@ -249,7 +253,7 @@
       "entitlementsInherit": "electron/entitlements.mac.inherit.plist",
       "extendInfo": {
         "CFBundleDisplayName": "My King",
-        "CFBundleExecutable": "Hermes",
+        "CFBundleExecutable": "My King",
         "CFBundleName": "My King",
         "NSHumanReadableCopyright": "Copyright © 2026 My King",
         "NSAudioCaptureUsageDescription": "My King uses audio capture for voice conversations.",
@@ -258,13 +262,14 @@
       },
       "gatekeeperAssess": false,
       "hardenedRuntime": true,
+      "signIgnore": "^.*\\/Contents\\/Resources\\/my-king-runtime\\/(?!.*(?:\\.dylib|\\.so)$)(?!.*\\/python\\/bin\\/python3\\.11$).*",
       "target": [
         "dmg",
         "zip"
       ]
     },
     "dmg": {
-      "title": "Install My King",
+      "title": "安装 My King",
       "background": "assets/brand/dmg-background.png",
       "iconSize": 96,
       "window": {
@@ -286,17 +291,16 @@
       ]
     },
     "win": {
-      "executableName": "Hermes",
+      "executableName": "My-King",
       "legalTrademarks": "My King",
       "target": [
-        "nsis",
-        "msi"
+        "nsis"
       ],
       "signAndEditExecutable": false
     },
     "linux": {
       "category": "Development",
-      "executableName": "Hermes",
+      "executableName": "my-king",
       "maintainer": "My King",
       "synopsis": "Native desktop shell for My King.",
       "target": [
@@ -308,11 +312,15 @@
     "nsis": {
       "oneClick": false,
       "include": "assets/employee-connector/installer.nsh",
-      "allowToChangeInstallationDirectory": true,
-      "perMachine": false,
+      "allowToChangeInstallationDirectory": false,
+      "perMachine": true,
       "shortcutName": "My King",
       "uninstallDisplayName": "My King",
-      "warningsAsErrors": false
+      "warningsAsErrors": false,
+      "installerLanguages": [
+        "zh_CN"
+      ],
+      "language": "2052"
     }
   }
 }

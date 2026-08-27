@@ -261,7 +261,7 @@ export const sessionCommands: SlashCommand[] = [
             }
 
             ctx.transcript.sys(
-              `compressed ${r.removed} messages${r.usage?.total ? ` · ${fmtK(r.usage.total)} tok` : ''}`
+              `compressed ${r.removed} messages${r.usage?.total ? ` · ${fmtK(r.usage.total)} token` : ''}`
             )
           })
         )
@@ -714,9 +714,9 @@ export const sessionCommands: SlashCommand[] = [
 
         const rows: [string, string][] = [
           ['Model', r.model ?? ''],
-          ['Input tokens', f(r.input)],
-          ['Output tokens', f(r.output)],
-          ['Total tokens', f(r.total)],
+          ['Input token', f(r.input)],
+          ['Output token', f(r.output)],
+          ['Total token', f(r.total)],
           ['API calls', f(r.calls)]
         ]
 

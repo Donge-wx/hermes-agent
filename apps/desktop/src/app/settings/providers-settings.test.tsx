@@ -93,6 +93,29 @@ async function renderProvidersSettings() {
 }
 
 describe('ProvidersSettings', () => {
+  it('keeps provider rows and the disclosure inside one continuous account list', async () => {
+    await renderProvidersSettings()
+
+    const list = document.querySelector('[data-slot="provider-account-list"]')
+    const disclosure = document.querySelector('[data-slot="provider-account-disclosure"]')
+
+    expect(list).toBeTruthy()
+    expect(list?.querySelectorAll('[data-slot="provider-account-row"]')).toHaveLength(2)
+    expect(disclosure?.getAttribute('aria-expanded')).toBe('false')
+    expect(disclosure?.parentElement).toBe(list)
+
+    if (!disclosure) {
+      throw new Error('Provider disclosure is not rendered')
+    }
+
+    await act(async () => {
+      fireEvent.click(disclosure)
+    })
+
+    expect(disclosure?.getAttribute('aria-expanded')).toBe('true')
+    expect(list?.querySelectorAll('[data-slot="provider-account-row"]')).toHaveLength(4)
+  })
+
   it('disconnects a connected provider account and refreshes the accounts list', async () => {
     await renderProvidersSettings()
 

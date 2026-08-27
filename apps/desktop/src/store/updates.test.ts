@@ -2,6 +2,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { DesktopUpdateStatus } from '@/global'
 
+// The historical updater contract remains covered below. Production My King
+// builds use the managed policy; dedicated tests cover that fail-closed path.
+vi.mock('@/lib/managed-update-policy', () => ({
+  MANAGED_UPDATES_EXTERNALLY: false,
+  managedUpdatesDisabledResult: () => ({
+    error: 'updates-disabled',
+    message: 'Updates are managed by your administrator.',
+    ok: false
+  })
+}))
+
 const storage = new Map<string, string>()
 
 vi.mock('@/lib/storage', () => ({

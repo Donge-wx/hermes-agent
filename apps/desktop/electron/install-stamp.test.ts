@@ -23,14 +23,14 @@ describe('parseMyKingInstallStamp', () => {
     const stamp = parseMyKingInstallStamp(
       JSON.stringify({
         ...baseStamp,
-        employeeEnrollmentBaseUrl: 'https://enroll.myking.test/',
-        managedEmployeeGatewayUrl: 'https://gateway.myking.test/'
+        employeeEnrollmentBaseUrl: 'https://enroll.myking.com/',
+        managedEmployeeGatewayUrl: 'https://gateway.myking.com/'
       }),
       '/resources/install-stamp.json'
     )
 
-    expect(stamp?.employeeEnrollmentBaseUrl).toBe('https://enroll.myking.test')
-    expect(stamp?.managedEmployeeGatewayUrl).toBe('https://gateway.myking.test')
+    expect(stamp?.employeeEnrollmentBaseUrl).toBe('https://enroll.myking.com')
+    expect(stamp?.managedEmployeeGatewayUrl).toBe('https://gateway.myking.com')
   })
 
   it('rejects the whole stamp when an employee URL is unsafe', () => {
@@ -44,7 +44,20 @@ describe('parseMyKingInstallStamp', () => {
 })
 
 describe('parseMyKingPublicHttpsUrl', () => {
-  it.each(['http://company.test', 'https://127.0.0.2', 'https://[::1]', 'file:///tmp/x'])('rejects %s', value => {
+  it.each([
+    'http://company.test',
+    'https://127.0.0.2',
+    'https://10.0.0.1',
+    'https://172.16.0.1',
+    'https://192.168.2.56',
+    'https://169.254.1.1',
+    'https://[::1]',
+    'https://[fc00::1]',
+    'https://[fe80::1]',
+    'https://enroll.myking.test',
+    'https://enroll.example',
+    'file:///tmp/x'
+  ])('rejects %s', value => {
     expect(parseMyKingPublicHttpsUrl(value)).toBeNull()
   })
 })

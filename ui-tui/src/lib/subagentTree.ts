@@ -249,7 +249,7 @@ export function formatSummary(totals: SubagentAggregate): string {
   const tokens = totals.inputTokens + totals.outputTokens
 
   if (tokens > 0) {
-    pieces.push(`${fmtTokens(tokens)} tok`)
+    pieces.push(`${fmtTokens(tokens)} token`)
   }
 
   if (totals.activeCount > 0) {

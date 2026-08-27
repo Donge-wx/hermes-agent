@@ -29,6 +29,7 @@ import { SendDiagnosticsHost } from '@/components/send-diagnostics-dialog'
 import { emitGatewayEvent } from '@/contrib/events'
 import { getLatestSessionMessages } from '@/hermes'
 import { type ChatMessage, chatMessageText, preserveLocalAssistantErrors, toChatMessages } from '@/lib/chat-messages'
+import { isEmployeeFeatureAvailable } from '@/lib/managed-employee-policy'
 import { isMessagingSource } from '@/lib/session-source'
 import { latestSessionTodos } from '@/lib/todos'
 import { activateWakeIndicator } from '@/lib/wake-indicator'
@@ -129,7 +130,6 @@ import {
   titlebarToolsWidthCss
 } from '../shell/titlebar'
 import { TitlebarControls } from '../shell/titlebar-controls'
-import { UpdatesOverlay } from '../updates-overlay'
 
 import { ContribWiringContext } from './context'
 import {
@@ -1101,16 +1101,15 @@ export function ContribWiring({ children }: { children: ReactNode }) {
         onOpenProviders={openProviderSettings}
         profile={activeGatewayProfile}
       />
-      <UpdatesOverlay />
       <GatewayConnectingOverlay />
       <BootFailureOverlay />
       {!isAuxiliaryWindow() && <MyKingEmployeeEnrollmentAssistant placement="gate" />}
       <CommandPalette />
-      <PluginInstallModal />
+      {isEmployeeFeatureAvailable('capabilities.manage') && <PluginInstallModal />}
       <PetGenerateOverlay />
       <SessionSwitcher />
       <FileActionDialogs />
-      <McpInstallDeepLinkDialog />
+      {isEmployeeFeatureAvailable('capabilities.manage') && <McpInstallDeepLinkDialog />}
       <RemoteFolderPicker />
       <FindBar />
 
@@ -1194,7 +1193,9 @@ export function ContribWiring({ children }: { children: ReactNode }) {
 
       {/* Single persistent xterm host chasing the terminal pane's slot rect.
           The HUD has no terminal pane, so it has nothing to chase. */}
-      {!isHudWindow() && <PersistentTerminal onAddSelectionToChat={composer.addTerminalSelectionAttachment} />}
+      {!isHudWindow() && isEmployeeFeatureAvailable('terminal') && (
+        <PersistentTerminal onAddSelectionToChat={composer.addTerminalSelectionAttachment} />
+      )}
     </ContribWiringContext.Provider>
   )
 }

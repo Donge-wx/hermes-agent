@@ -11,11 +11,11 @@
  * main.ts requires these and wires them into the electron-coupled IPC layer.
  *
  * The three modes mirror the CLI's options exactly:
- *   - 'gui'  → remove ONLY the Chat GUI, keep the agent + all user data.
+ *   - 'gui'  → remove ONLY the My King desktop app, keep the agent + all user data.
  *              `hermes uninstall --gui --yes`
- *   - 'lite' → remove the GUI + agent code, KEEP user data (config / sessions
+ *   - 'lite' → remove My King + agent code, KEEP user data (config / sessions
  *              / .env) for a future reinstall. `hermes uninstall --yes`
- *   - 'full' → remove everything: GUI + agent + all user data.
+ *   - 'full' → remove everything: My King + agent + all user data.
  *              `hermes uninstall --full --yes`
  *
  * Why a detached cleanup script: 'lite'/'full' delete the very venv the
@@ -59,8 +59,8 @@ function modeRemovesUserData(mode) {
  * Resolve the on-disk app bundle/dir to remove for the running desktop app,
  * given the path to the running executable (`process.execPath`) and platform.
  *
- *   macOS:   …/Hermes.app/Contents/MacOS/Hermes  → …/Hermes.app
- *   Windows: …\Hermes\Hermes.exe                 → …\Hermes  (install dir)
+ *   macOS:   …/My King.app/Contents/MacOS/My King → …/My King.app
+ *   Windows: …\My King\My-King.exe                → …\My King (install dir)
  *   Linux:   AppImage → the APPIMAGE env path; unpacked → the *-unpacked dir
  *
  * Returns null when we can't confidently identify a removable bundle (e.g.
@@ -79,12 +79,19 @@ function resolveRemovableAppPath(execPath, platform, env: any = {}) {
   const p = platform === 'win32' ? path.win32 : path.posix
 
   if (platform === 'darwin') {
-    // …/Hermes.app/Contents/MacOS/Hermes → strip 3 segments to the .app
+    // The executable and the enclosing bundle must both be the My King
+    // identity. A generic “any .app” rule could delete an adjacent Hermes
+    // installation after the user selects My King uninstall.
     const macOsDir = p.dirname(exe) // …/Contents/MacOS
     const contents = p.dirname(macOsDir) // …/Contents
     const appBundle = p.dirname(contents) // …/Hermes.app
 
-    if (appBundle.endsWith('.app')) {
+    if (
+      p.basename(exe) === 'My King' &&
+      p.basename(macOsDir) === 'MacOS' &&
+      p.basename(contents) === 'Contents' &&
+      p.basename(appBundle) === 'My King.app'
+    ) {
       return appBundle
     }
 
@@ -92,25 +99,36 @@ function resolveRemovableAppPath(execPath, platform, env: any = {}) {
   }
 
   if (platform === 'win32') {
-    // NSIS per-user installs Hermes.exe directly in the install dir.
+    // NSIS per-user installs My-King.exe directly in a My King/My-King
+    // directory. Require both parts: a similarly named executable in an
+    // arbitrary folder (or the original Hermes installation) is never a
+    // target for this branded self-uninstaller.
     const dir = p.dirname(exe)
+    const filename = p.basename(exe)
 
-    if (/[\\/]Hermes$/i.test(dir) || /[\\/]hermes-desktop$/i.test(dir)) {
+    if (/^My-King\.exe$/i.test(filename) && (/[\\/]My King$/i.test(dir) || /[\\/]My-King$/i.test(dir))) {
       return dir
     }
 
     return null
   }
 
-  // Linux: an AppImage exposes its own path via the APPIMAGE env var.
+  // Linux: only My King AppImages are removable. APPIMAGE is process env and
+  // therefore untrusted for this destructive action.
   if (env.APPIMAGE) {
-    return env.APPIMAGE
+    const appImage = String(env.APPIMAGE)
+
+    if (/^My-King-.+\.AppImage$/.test(p.basename(appImage))) {
+      return appImage
+    }
+
+    return null
   }
 
-  // Unpacked electron-builder tree: …/linux-unpacked/hermes
+  // Unpacked electron-builder tree: …/linux-unpacked/my-king
   const dir = p.dirname(exe)
 
-  if (/-unpacked$/.test(dir)) {
+  if (p.basename(exe) === 'my-king' && p.basename(dir) === 'linux-unpacked') {
     return dir
   }
 

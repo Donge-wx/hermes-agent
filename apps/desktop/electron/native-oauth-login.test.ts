@@ -17,7 +17,15 @@ import { runNativeLogin } from './native-oauth-login'
 // A fake http.Server: captures the request handler, lets the test drive a
 // synthetic browser callback, and records listen/close lifecycle.
 function makeFakeServerFactory(port = 51234) {
-  const state: any = { handler: null, listening: false, closed: false, openedUrl: null }
+  const state: any = {
+    handler: null,
+    listening: false,
+    closed: false,
+    openedUrl: null,
+    responseBody: '',
+    responseHeaders: null,
+    responseStatus: 0
+  }
 
   const createServer: any = (handler: any) => {
     state.handler = handler
@@ -41,7 +49,16 @@ function makeFakeServerFactory(port = 51234) {
 
   // Drive a synthetic browser hit to the loopback callback.
   state.hitCallback = (query: string) => {
-    const res: any = { writeHead: () => undefined, end: () => undefined }
+    const res: any = {
+      writeHead: (status: number, headers: Record<string, string>) => {
+        state.responseStatus = status
+        state.responseHeaders = headers
+      },
+      end: (body = '') => {
+        state.responseBody = String(body)
+      }
+    }
+
     state.handler({ url: `/callback?${query}` }, res)
   }
 
@@ -72,6 +89,7 @@ test('runNativeLogin completes the loopback round trip and returns tokens', asyn
         }
       },
       createServer,
+      brandLockupPng: new Uint8Array([0x89, 0x50, 0x4e, 0x47]),
       timeoutMs: 5_000
     },
     { provider: 'nous' }
@@ -100,6 +118,16 @@ test('runNativeLogin completes the loopback round trip and returns tokens', asyn
   assert.ok(tokenPostBody.code_verifier && tokenPostBody.code_verifier.length >= 43)
   // Listener was cleaned up.
   assert.equal(state.closed, true)
+  assert.equal(state.responseStatus, 200)
+  assert.match(state.responseHeaders['content-type'], /^text\/html/)
+  assert.match(state.responseBody, /<html lang="zh-CN">/)
+  assert.match(state.responseBody, /My King/)
+  assert.match(state.responseBody, /data:image\/png;base64,iVBORw==/)
+  assert.match(state.responseBody, /alt="My King · AI WROK OS"/)
+  assert.match(state.responseBody, /请返回 My King/)
+  assert.match(state.responseBody, /min-height: 100dvh/)
+  assert.match(state.responseBody, /class="keep-together">软件会继续建立安全连接。/)
+  assert.doesNotMatch(state.responseBody, /Signed in|You can close this window/)
 })
 
 test('runNativeLogin rejects on a state mismatch (CSRF) without redeeming', async () => {
@@ -140,6 +168,8 @@ test('runNativeLogin surfaces a gateway error param', async () => {
   state.hitCallback('error=access_denied&error_description=user_declined')
 
   await assert.rejects(promise, /access_denied/i)
+  assert.match(state.responseBody, /登录未完成/)
+  assert.match(state.responseBody, /返回 My King/)
 })
 
 test('runNativeLogin times out when no callback arrives', async () => {

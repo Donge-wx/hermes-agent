@@ -22,7 +22,9 @@ function fixture(
   employeeId = 'employee-1',
   failFirstPrepare = false,
   failGatewayProbe = false,
-  failFirstComplete = false
+  failFirstComplete = false,
+  failRevoke = false,
+  failFirstCredentialStore = false
 ) {
   const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'myking-enrollment-'))
   temporaryDirectories.push(userData)
@@ -32,12 +34,15 @@ function fixture(
   let prepareCount = 0
   let probeCount = 0
   let completeCount = 0
+  let revokeCount = 0
+  let credentialStoreCount = 0
 
   const connectorPaths = {
     ...resolveMyKingEmployeeConnectorPaths({ platform: 'darwin', userData }),
     baseDir: path.join(userData, 'connector'),
     controlDir: path.join(userData, 'connector', 'control'),
     diagnosticsLogPath: path.join(userData, 'connector', 'logs', 'connector.log'),
+    hostPublicKeysPath: path.join(userData, 'connector', 'control', 'ssh-host-public-keys.txt'),
     readyPath: path.join(userData, 'connector', 'control', 'ready')
   }
 
@@ -45,7 +50,7 @@ function fixture(
     appVersion: '2.0.0',
     applyRemoteGateway: async () => undefined,
     arch: 'arm64',
-    baseUrl: 'https://enroll.myking.test',
+    baseUrl: 'https://enroll.myking.com',
     clearRemoteGateway: async url => {
       clearedGatewayUrls.push(url)
     },
@@ -56,7 +61,6 @@ function fixture(
     },
     emit: status => stages.push(status.stage),
     employeeHome: userData,
-    employeeIsAdministrator: false,
     employeeUser: 'employee',
     helperScriptPath: '/Applications/My King.app/employee-connector.sh',
     managedGatewayUrl: null,
@@ -66,10 +70,12 @@ function fixture(
 
       if (request.url.endsWith('/redeem')) {
         return {
+          challenge: 'challenge_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789',
+          challengeExpiresAt: '2099-08-27T01:00:00.000Z',
           enrollmentId: `enrollment-${calls.length}`,
           employeeId,
           employeeName: '测试员工',
-          remoteGateway: { url: 'https://gateway.myking.test' },
+          remoteGateway: { url: 'https://gateway.myking.com' },
           relay: {
             host: '192.0.2.51',
             port: 32222,
@@ -91,7 +97,8 @@ function fixture(
       return {
         status: 'ready',
         employeeId,
-        remoteGatewayUrl: 'https://gateway.myking.test',
+        gatewayAuth: { type: 'bearer', token: 'employee-gateway-token' },
+        remoteGatewayUrl: 'https://gateway.myking.com',
         message: '已连接公司智能体'
       }
     },
@@ -100,6 +107,13 @@ function fixture(
 
       if (failGatewayProbe && probeCount === 1) {
         throw new Error('network offline')
+      }
+    },
+    revokeEnrollment: async () => {
+      revokeCount += 1
+
+      if (failRevoke) {
+        throw new MyKingEmployeeEnrollmentError('revocation-failed', 'Revocation failed.')
       }
     },
     runElevated: async (_helper, action, planPath) => {
@@ -116,18 +130,31 @@ function fixture(
           throw new MyKingEmployeeEnrollmentError('permission-required', 'System permission is required.')
         }
 
-        const plan: unknown = JSON.parse(fs.readFileSync(planPath, 'utf8'))
+        JSON.parse(fs.readFileSync(planPath, 'utf8'))
+        fs.mkdirSync(path.dirname(connectorPaths.hostPublicKeysPath), { recursive: true })
+        fs.writeFileSync(connectorPaths.hostPublicKeysPath, `${HOST_PUBLIC_KEY}\n`)
+      }
+    },
+    storeGatewayCredential: async () => {
+      credentialStoreCount += 1
 
-        if (plan !== null && typeof plan === 'object' && 'outputPath' in plan && typeof plan.outputPath === 'string') {
-          fs.mkdirSync(path.dirname(plan.outputPath), { recursive: true })
-          fs.writeFileSync(plan.outputPath, `${HOST_PUBLIC_KEY}\n`)
-        }
+      if (failFirstCredentialStore && credentialStoreCount === 1) {
+        throw new MyKingEmployeeEnrollmentError('secure-storage-required', 'Secure storage unavailable.')
       }
     },
     userData
   })
 
-  return { calls, clearedGatewayUrls, connectorPaths, enrollment, prepareCount: () => prepareCount, stages, userData }
+  return {
+    calls,
+    clearedGatewayUrls,
+    connectorPaths,
+    enrollment,
+    prepareCount: () => prepareCount,
+    revokeCount: () => revokeCount,
+    stages,
+    userData
+  }
 }
 
 describe('My King employee enrollment', () => {
@@ -187,6 +214,19 @@ describe('My King employee enrollment', () => {
     expect(setup.prepareCount()).toBe(1)
   })
 
+  it('keeps the pending enrollment retryable when secure credential storage fails', async () => {
+    const setup = fixture('employee-1', false, false, false, false, true)
+
+    await expect(setup.enrollment.enroll('ABCD-2345-EFGH')).rejects.toMatchObject({
+      code: 'secure-storage-required'
+    })
+    const status = await setup.enrollment.check()
+
+    expect(status.stage).toBe('connected')
+    expect(setup.calls.filter(call => call.url.endsWith('/redeem'))).toHaveLength(1)
+    expect(setup.prepareCount()).toBe(1)
+  })
+
   it('reports a gateway connectivity failure instead of a connector success', async () => {
     const setup = fixture('employee-1', false, true)
 
@@ -212,13 +252,12 @@ describe('My King employee enrollment', () => {
       appVersion: '2.0.0',
       applyRemoteGateway: async () => undefined,
       arch: 'arm64',
-      baseUrl: 'https://enroll.myking.test',
+      baseUrl: 'https://enroll.myking.com',
       clearRemoteGateway: async () => undefined,
       connectorPaths: setup.connectorPaths,
       enableConnector: async () => undefined,
       emit: status => setup.stages.push(status.stage),
       employeeHome: setup.userData,
-      employeeIsAdministrator: false,
       employeeUser: 'employee',
       helperScriptPath: '/employee-connector.sh',
       managedGatewayUrl: null,
@@ -226,10 +265,12 @@ describe('My King employee enrollment', () => {
       postJson: async request => {
         if (request.url.endsWith('/redeem')) {
           return {
+            challenge: 'challenge_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789',
+            challengeExpiresAt: '2099-08-27T01:00:00.000Z',
             enrollmentId: 'enrollment-fail',
             employeeId: 'employee-1',
             employeeName: '测试员工',
-            remoteGateway: { url: 'https://gateway.myking.test' },
+            remoteGateway: { url: 'https://gateway.myking.com' },
             relay: {
               host: '192.0.2.51',
               port: 32222,
@@ -245,15 +286,15 @@ describe('My King employee enrollment', () => {
         throw new Error('company unavailable')
       },
       probeRemoteGateway: async () => undefined,
+      revokeEnrollment: async () => undefined,
       runElevated: async (_helper, action, planPath) => {
         if (action === 'prepare') {
-          const plan: unknown = JSON.parse(fs.readFileSync(planPath, 'utf8'))
-
-          if (plan !== null && typeof plan === 'object' && 'outputPath' in plan && typeof plan.outputPath === 'string') {
-            fs.writeFileSync(plan.outputPath, `${HOST_PUBLIC_KEY}\n`)
-          }
+          JSON.parse(fs.readFileSync(planPath, 'utf8'))
+          fs.mkdirSync(path.dirname(setup.connectorPaths.hostPublicKeysPath), { recursive: true })
+          fs.writeFileSync(setup.connectorPaths.hostPublicKeysPath, `${HOST_PUBLIC_KEY}\n`)
         }
       },
+      storeGatewayCredential: async () => undefined,
       userData: setup.userData
     })
 
@@ -282,7 +323,18 @@ describe('My King employee enrollment', () => {
     const status = await setup.enrollment.unbind()
 
     expect(status).toMatchObject({ binding: null, connectorReady: false, stage: 'idle' })
-    expect(setup.clearedGatewayUrls).toEqual(['https://gateway.myking.test'])
+    expect(setup.clearedGatewayUrls).toEqual(['https://gateway.myking.com'])
+    expect(setup.revokeCount()).toBe(1)
     expect(fs.existsSync(path.join(setup.userData, 'employee-connector-device.json'))).toBe(false)
+  })
+
+  it('keeps local binding and device identity when Nora revocation fails', async () => {
+    const setup = fixture('employee-1', false, false, false, true)
+    await setup.enrollment.enroll('ABCD-2345-EFGH')
+
+    await expect(setup.enrollment.unbind()).rejects.toMatchObject({ code: 'revocation-failed' })
+    expect(fs.existsSync(setup.connectorPaths.bindingPath)).toBe(true)
+    expect(fs.existsSync(path.join(setup.userData, 'employee-connector-device.json'))).toBe(true)
+    expect(setup.clearedGatewayUrls).toEqual([])
   })
 })

@@ -316,9 +316,13 @@ pub async fn run_script(
         cmd.creation_flags(0x0800_0000);
     }
 
-    let mut child: Child = cmd
-        .spawn()
-        .with_context(|| format!("spawning {} via {}", script_path.display(), interpreter_label()))?;
+    let mut child: Child = cmd.spawn().with_context(|| {
+        format!(
+            "spawning {} via {}",
+            script_path.display(),
+            interpreter_label()
+        )
+    })?;
 
     // Byte-oriented readers + [`decode_console_bytes`]: do NOT use
     // `BufReader::lines()`, which requires valid UTF-8 and hides localized
@@ -366,7 +370,10 @@ pub async fn run_script(
     })
 }
 
-fn stable_script_cwd<'a>(script_path: &'a Path, hermes_home_override: Option<&'a str>) -> Option<&'a Path> {
+fn stable_script_cwd<'a>(
+    script_path: &'a Path,
+    hermes_home_override: Option<&'a str>,
+) -> Option<&'a Path> {
     if let Some(home) = hermes_home_override {
         let path = Path::new(home);
         if path.is_dir() {
@@ -578,7 +585,10 @@ info line
         // under CP1252 (0xE3 = ã). BufReader::lines() previously failed here
         // with "stream did not contain valid UTF-8" and the UI only showed "No".
         let bytes: &[u8] = b"N\xE3o foi fornecido o terminador";
-        assert_eq!(decode_console_bytes(bytes), "Não foi fornecido o terminador");
+        assert_eq!(
+            decode_console_bytes(bytes),
+            "Não foi fornecido o terminador"
+        );
     }
 
     #[test]

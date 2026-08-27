@@ -225,7 +225,7 @@ export const en: Translations = {
       'Your bundle was uploaded privately. Share the link below in your support thread so the team can see your logs.',
     failedTitle: 'Upload failed',
     failedHint:
-      'You can also run `hermes debug share --nous` from a terminal, or `hermes debug share --local` to print the report without uploading.',
+      'You can also open the local logs from Settings → Gateway, then attach the diagnostic details to your support thread.',
     handoffLead: 'Pick up the discussion in:',
     links: {
       github: 'GitHub Issues',
@@ -663,7 +663,7 @@ export const en: Translations = {
     about: {
       heading: 'My King Desktop',
       desktopPackageVersion: value => `Desktop interface ${value}`,
-      backendRuntimeVersion: value => `Backend ${value}`,
+      backendRuntimeVersion: value => `My King backend v${value.replace(/^v/i, '')}`,
       versionUnavailable: 'Version unavailable',
       bundleOutOfSync: 'App build out of date',
       bundleOutOfSyncDesc:
@@ -847,10 +847,10 @@ export const en: Translations = {
     },
     gateway: {
       employeeEnrollment: {
-        title: 'Connect to your company agent',
+        title: 'Connect to AI Work OS',
         description: 'Open the invitation link from your administrator, or enter the one-time enrollment code.',
         codePlaceholder: 'One-time enrollment code',
-        connect: 'Connect company',
+        connect: 'Connect',
         check: 'Check connection',
         diagnostics: 'View diagnostics',
         connectedTitle: 'My King is connected',
@@ -865,7 +865,8 @@ export const en: Translations = {
         reauthorize: 'Authorize again',
         unbind: 'Unbind',
         unbindTitle: 'Unbind this employee device?',
-        unbindDescription: 'My King will remove only the connector, key, and background task it created on this device.',
+        unbindDescription:
+          'My King will remove only the connector, key, and background task it created on this device.',
         diagnosticsTitle: 'My King Employee Connector diagnostics',
         diagnosticsEmpty: 'No connector diagnostics have been recorded yet.',
         close: 'Close',
@@ -906,9 +907,14 @@ export const en: Translations = {
           'ssh-service-failed': 'The SSH service could not start. View diagnostics for details.',
           'secure-connection-failed': 'The secure connection could not start. Connect again.',
           'gateway-unreachable': 'The company gateway could not be reached. Check your network and try again.',
-          'gateway-auth-required': 'The company gateway has not provided a managed sign-in session. Contact your administrator.',
+          'gateway-auth-required':
+            'The company gateway has not provided a managed sign-in session. Contact your administrator.',
+          'gateway-ws-unreachable': 'The company gateway real-time connection could not be verified.',
+          'secure-storage-required': 'Secure operating-system credential storage is unavailable.',
+          'revocation-failed': 'The company server did not confirm revocation. The local binding was kept; try again.',
           'company-unavailable': 'The company server is temporarily unavailable. Try again later.',
-          'invalid-server-response': 'The company server returned an invalid response. Try again or contact your administrator.',
+          'invalid-server-response':
+            'The company server returned an invalid response. Try again or contact your administrator.',
           'not-ready': 'The company has not confirmed this device is ready. Try again shortly.',
           'enrollment-failed': 'The company rejected this enrollment. Contact your administrator.',
           'invalid-invitation': 'Enter a valid one-time enrollment code.',
@@ -924,8 +930,7 @@ export const en: Translations = {
       intro:
         'Local by default. Use remote when this app should drive a My King backend elsewhere. Gateway connections are machine-level; profiles are discovered from the gateways you connect.',
       envOverrideTitle: 'Environment variables are controlling this desktop session.',
-      envOverrideDesc:
-        'Unset HERMES_DESKTOP_REMOTE_URL and HERMES_DESKTOP_REMOTE_TOKEN to use the saved setting below.',
+      envOverrideDesc: 'Remove the desktop remote URL and token environment overrides to use the saved setting below.',
       modeTitle: 'Connection mode',
       localTitle: 'Local gateway',
       localDesc: 'Start a private My King backend on localhost. This is the default and works offline.',
@@ -964,7 +969,7 @@ export const en: Translations = {
       cloudAgentProvisioning: 'Provisioning…',
       cloudStatusLabel: status => `Status: ${status}`,
       remoteUrlTitle: 'Remote URL',
-      remoteUrlDesc: 'Base URL for the remote dashboard backend. Path prefixes are supported, for example /hermes.',
+      remoteUrlDesc: 'Base URL for the remote dashboard backend. Path prefixes are supported, for example /myking.',
       probing: 'Checking how this gateway authenticates…',
       probeError: 'Could not reach this gateway yet. Check the URL — the auth method will appear once it responds.',
       signedIn: 'Signed in',
@@ -1033,7 +1038,7 @@ export const en: Translations = {
       sshKeyTitle: 'Identity file',
       sshKeyDesc: 'Private key path. Blank = ssh-agent or ~/.ssh/config.',
       sshHermesPathTitle: 'My King path (optional)',
-      sshHermesPathDesc: 'Full path to the remote hermes binary. Blank = auto-detect.',
+      sshHermesPathDesc: 'Full path to the remote My King-compatible agent executable. Blank = auto-detect.',
       sshHermesPathPlaceholder: 'auto-detect',
       sshTestConnection: 'Test SSH',
       sshConnect: 'Connect',
@@ -1046,7 +1051,7 @@ export const en: Translations = {
       sshErrHostKey:
         'The host key has CHANGED since you last connected. Verify this is expected, then run ssh-keygen -R <host> and reconnect.',
       sshErrNotInstalled:
-        'My King is not installed on the remote host. Install it there (curl -fsSL https://hermes-agent.nousresearch.com/install.sh | sh) or set the My King path.',
+        'My King is not installed on the remote host. Install the compatible agent runtime there with the official installer, or set the My King path.',
       sshErrPlatform:
         'Unsupported remote platform. My King Desktop SSH mode supports Linux, macOS, and Windows remote hosts.',
       sshErrTimeout: 'SSH connection timed out. The host may be unreachable or asleep.',
@@ -1118,7 +1123,7 @@ export const en: Translations = {
       catalogEnvRequired: 'Fill in the required values before installing.',
       capabilitySummary: (tools, prompts, resources) =>
         `${[`${tools} tools`, ...(prompts ? [`${prompts} prompts`] : []), ...(resources ? [`${resources} resources`] : [])].join(', ')} enabled`,
-      costTokens: tokens => `~${tokens} tok/call`,
+      costTokens: tokens => `~${tokens} token/call`,
       usage30d: uses => `${uses} uses/30d`,
       unusedPill: 'unused',
       statusConnecting: 'Connecting…',
@@ -1348,6 +1353,16 @@ export const en: Translations = {
       'Vision uses your auxiliary model configuration — the image-capable model is picked there, not per-provider here.',
     visionModelLink: 'Choose vision model in Settings → Models',
     toolsetsEnabled: (enabled, total) => `${enabled}/${total} toolsets enabled`,
+    toolsCount: count => `${count} ${count === 1 ? 'tool' : 'tools'}`,
+    includedTools: 'Included tools',
+    metadataLabels: {
+      name: 'Name',
+      description: 'Description',
+      version: 'Version',
+      author: 'Author',
+      license: 'License',
+      platforms: 'Platforms'
+    },
     configureToolset: label => `Configure ${label}`,
     toggleToolset: (label, enabled) => `Turn ${label} toolset ${enabled ? 'on' : 'off'}`,
     skillsLoadFailed: 'Skills failed to load',
@@ -1381,7 +1396,7 @@ export const en: Translations = {
     edit: 'Edit',
     archive: 'Archive',
     skillArchivedTitle: 'Skill archived',
-    skillArchivedMessage: 'Restorable via hermes curator restore.',
+    skillArchivedMessage: 'Restorable from the archived skills view.',
     hub: {
       searchPlaceholder: 'Search the skill hub',
       search: 'Search',
@@ -1493,7 +1508,7 @@ export const en: Translations = {
     ageDays: days => `${days}d ago`,
     durationSeconds: seconds => `${seconds}s`,
     durationMinutes: (minutes, seconds) => `${minutes}m ${seconds}s`,
-    tokens: value => `${value} tok`
+    tokens: value => `${value} token`
   },
 
   commandCenter: {
@@ -1580,7 +1595,7 @@ export const en: Translations = {
       maintenance: 'Diagnostics, backups, curator, and memory data',
       sessions: 'Search and manage sessions',
       system: 'Status, logs, and system actions',
-      usage: 'Token, cost, and skill activity over time'
+      usage: 'token, cost, and skill activity over time'
     },
     nav: {
       newChat: { title: 'New session', detail: 'Start a fresh session' },
@@ -1591,8 +1606,8 @@ export const en: Translations = {
     },
     sectionEntries: {
       sessions: { title: 'Sessions panel', detail: 'Search, pin, and manage sessions' },
-      system: { title: 'System panel', detail: 'Gateway status, logs, restart/update' },
-      usage: { title: 'Usage panel', detail: 'Token, cost, and skill activity' }
+      system: { title: 'System panel', detail: 'Gateway status, logs, and restart' },
+      usage: { title: 'Usage panel', detail: 'token, cost, and skill activity' }
     },
     providerNavigate: 'Navigate',
     providerSessions: 'Sessions',
@@ -1603,7 +1618,8 @@ export const en: Translations = {
     unpinSession: 'Unpin session',
     exportSession: 'Export session',
     deleteSession: 'Delete session',
-    noSessions: 'No sessions yet.',
+    noSessionsTitle: 'No sessions yet',
+    noSessions: 'Your conversations will appear here after you start one.',
     gatewayRunning: 'Messaging gateway running',
     gatewayStopped: 'Messaging gateway stopped',
     hermesActiveSessions: (version, count) => `My King ${version} · Active sessions ${count}`,
@@ -1622,13 +1638,13 @@ export const en: Translations = {
     days: count => `${count}d`,
     statSessions: 'Sessions',
     statApiCalls: 'API calls',
-    statTokens: 'Tokens in/out',
+    statTokens: 'Input / output token',
     statCost: 'Est. cost',
     actualCost: cost => `actual ${cost}`,
     loadingUsage: 'Loading usage...',
     noUsage: period => `No usage in the last ${period} days.`,
     retry: 'Retry',
-    dailyTokens: 'Daily tokens',
+    dailyTokens: 'Daily token',
     input: 'input',
     output: 'output',
     noDailyActivity: 'No daily activity.',
@@ -1721,6 +1737,7 @@ export const en: Translations = {
     saveChanges: 'Save changes',
     saved: 'Saved',
     replaceValue: 'Replace current value',
+    fieldPlaceholder: label => `Enter ${label.toLowerCase()}`,
     openDocs: 'Open docs',
     clearField: key => `Clear ${key}`,
     enableAria: name => `Enable ${name}`,
@@ -1753,6 +1770,70 @@ export const en: Translations = {
     pairingLockedOut: 'Too many failed approvals — this platform is locked out. Try again later.',
     waitingSince: minutes => (minutes < 1 ? 'just now' : `${minutes}m ago`),
     fieldCopy: {
+      DINGTALK_CLIENT_ID: { label: 'App client ID', help: 'The AppKey from the DingTalk developer console.' },
+      DINGTALK_CLIENT_SECRET: { label: 'App client secret', help: 'The AppSecret paired with the DingTalk AppKey.' },
+      DINGTALK_WEBHOOK_URL: {
+        label: 'Robot webhook URL',
+        help: 'Static robot URL for scheduled and cross-platform notifications.'
+      },
+      DINGTALK_ALLOWED_USERS: {
+        label: 'Allowed member IDs',
+        help: 'Comma-separated staff or sender IDs allowed to talk to the bot.'
+      },
+      DINGTALK_HOME_CHANNEL: {
+        label: 'Default conversation ID',
+        help: 'Default conversation for scheduled tasks and notifications.'
+      },
+      DINGTALK_HOME_CHANNEL_NAME: {
+        label: 'Default conversation name',
+        help: 'Display name used for the default conversation in logs and status.'
+      },
+      FEISHU_APP_ID: { label: 'App ID', help: 'The bot application ID from the Feishu developer console.' },
+      FEISHU_APP_SECRET: { label: 'App secret', help: 'The application secret paired with the Feishu App ID.' },
+      FEISHU_ENCRYPT_KEY: { label: 'Event encryption key', help: 'Decrypts Feishu event callback payloads.' },
+      FEISHU_VERIFICATION_TOKEN: {
+        label: 'Event verification token',
+        help: 'Verifies the source of Feishu event callbacks.'
+      },
+      FEISHU_DOMAIN: {
+        label: 'Service region',
+        help: 'Use feishu for China or lark for the international service.',
+        placeholder: 'feishu'
+      },
+      FEISHU_ALLOWED_USERS: {
+        label: 'Allowed user IDs',
+        help: 'Comma-separated Feishu user IDs allowed to talk to the bot.'
+      },
+      FEISHU_ALLOW_ALL_USERS: {
+        label: 'Allow all users',
+        help: 'Testing only. Lets any Feishu user start a conversation.'
+      },
+      FEISHU_HOME_CHANNEL: { label: 'Default chat ID', help: 'Default chat for scheduled tasks and notifications.' },
+      FEISHU_HOME_CHANNEL_NAME: {
+        label: 'Default chat name',
+        help: 'Display name used for the default chat in logs and status.'
+      },
+      WECOM_CALLBACK_CORP_ID: { label: 'Enterprise ID', help: 'The Corp ID from the WeCom administration console.' },
+      WECOM_CALLBACK_CORP_SECRET: { label: 'App secret', help: 'The secret for the WeCom custom application.' },
+      WECOM_CALLBACK_AGENT_ID: { label: 'App agent ID', help: 'The Agent ID for the WeCom custom application.' },
+      WECOM_CALLBACK_TOKEN: {
+        label: 'Callback verification token',
+        help: 'The verification token from the WeCom callback settings.'
+      },
+      WECOM_CALLBACK_ENCODING_AES_KEY: {
+        label: 'Callback EncodingAESKey',
+        help: 'The encryption key for WeCom callback messages.'
+      },
+      WEIXIN_ACCOUNT_ID: { label: 'WeChat account ID', help: 'The iLink Bot account ID obtained through QR sign-in.' },
+      WEIXIN_TOKEN: {
+        label: 'WeChat sign-in token',
+        help: 'The iLink Bot authentication token obtained through QR sign-in.'
+      },
+      WEIXIN_BASE_URL: {
+        label: 'iLink API address',
+        help: 'The iLink API base address saved during QR sign-in.',
+        placeholder: 'https://ilinkai.weixin.qq.com'
+      },
       TELEGRAM_BOT_TOKEN: {
         label: 'Bot token',
         help: 'Create a bot with @BotFather, then paste the token it gives you.',
@@ -1813,7 +1894,7 @@ export const en: Translations = {
       },
       MATRIX_HOMESERVER: { label: 'Homeserver URL', placeholder: 'https://matrix.org' },
       MATRIX_ACCESS_TOKEN: { label: 'Access token' },
-      MATRIX_USER_ID: { label: 'Bot user ID', placeholder: '@hermes:example.org' },
+      MATRIX_USER_ID: { label: 'Bot user ID', placeholder: '@myking:example.org' },
       MATRIX_ALLOWED_USERS: {
         label: 'Allowed Matrix user IDs',
         help: 'Recommended. Comma-separated user IDs in @user:server format.'
@@ -2207,6 +2288,7 @@ export const en: Translations = {
     results: 'Results',
     pinned: 'Pinned',
     sessions: 'Sessions',
+    bots: 'Bots',
     cronJobs: 'Cron jobs',
     groupAriaGrouped: 'Show sessions as a single list',
     groupAriaUngrouped: 'Group sessions by workspace',
@@ -2362,7 +2444,7 @@ export const en: Translations = {
   composer: {
     intro: {
       headline: 'Your workspace, one prompt away.',
-      body: "Search the repo, edit files, run tests, and move work forward. Tell me the goal; My King will handle the rest."
+      body: 'Search the repo, edit files, run tests, and move work forward. Tell me the goal; My King will handle the rest.'
     },
     message: 'Message',
     wakingProfile: profile => `Waking up ${profile}…`,
@@ -2634,12 +2716,14 @@ export const en: Translations = {
     maybeLater: 'Maybe later',
     moreChanges: count => `+ ${count} more change${count === 1 ? '' : 's'} included.`,
     manualTitle: 'Update from your terminal',
-    manualBody: 'You installed My King from the command line, so updates run there too. Paste this into your terminal:',
+    manualBody:
+      'You installed My King from the command line, so updates run there too. Copy the backend update command and paste it into your terminal:',
     manualPickedUp: 'My King will pick up the new version next time you launch it.',
     guiSkewTitle: 'Update the desktop app',
     guiSkewBody:
       'The backend was updated, but this desktop app package wasn’t changed. Update or reinstall the My King desktop app (your AppImage / .deb / .rpm) to match.',
     copy: 'Copy',
+    copyCommand: 'Copy backend update command',
     copied: 'Copied',
     done: 'Done',
     applyingBody:
@@ -2711,7 +2795,7 @@ export const en: Translations = {
     remoteSetupDesc: 'Enter your gateway URL. My King Desktop will detect whether it needs a token or browser sign-in.',
     remoteUrlTitle: 'Gateway URL',
     remoteUrlDesc: 'Use the base URL of the My King gateway, including https:// when remote.',
-    remoteUrlPlaceholder: 'https://gateway.example.com/hermes',
+    remoteUrlPlaceholder: 'https://gateway.example.com/myking',
     probing: 'Detecting gateway authentication...',
     probeError: 'Could not reach that My King gateway.',
     identityProvider: 'your identity provider',
@@ -2783,6 +2867,7 @@ export const en: Translations = {
       gemini: { short: 'Gemini models', description: 'Direct access to Google Gemini models.' },
       xai: { short: 'Grok models', description: 'Direct access to xAI Grok models.' },
       local: {
+        title: 'Local / custom endpoint',
         short: 'self-hosted',
         description:
           'Point My King at a local or self-hosted OpenAI-compatible endpoint (vLLM, llama.cpp, Ollama, etc).'
@@ -2827,7 +2912,7 @@ export const en: Translations = {
     freeTier: 'Free tier',
     pro: 'Pro',
     free: 'Free',
-    price: (input, output) => `${input} in / ${output} out per Mtok`,
+    price: (input, output) => `${input} in / ${output} out per million token`,
     change: 'Change',
     startChatting: 'Begin',
     docs: provider => `${provider} docs`
@@ -2846,7 +2931,7 @@ export const en: Translations = {
     proNeedsSubscription: 'Pro models need a paid Nous subscription.',
     free: 'Free',
     freeTier: 'Free tier',
-    priceTitle: 'Input / Output price per million tokens',
+    priceTitle: 'Input / output price per million token',
     wasPrice: 'was'
   },
 
@@ -2917,7 +3002,7 @@ export const en: Translations = {
       updateInProgress: 'Update in progress',
       commitsBehind: (count, branch) => `${count} commit${count === 1 ? '' : 's'} behind ${branch}`,
       desktopVersion: version => `My King Desktop v${version}`,
-      backendVersion: version => `Backend v${version}`,
+      backendVersion: version => `My King backend v${version}`,
       clientLabel: version => `client v${version}`,
       connectionSsh: host => `SSH: ${host}`,
       connectionRemote: host => `Remote: ${host}`,
@@ -2925,7 +3010,7 @@ export const en: Translations = {
       connectionCloudTooltip: host => `My King Cloud · ${host}`,
       connectionSshTooltip: host => `SSH · ${host}`,
       connectionRemoteTooltip: host => `Remote · ${host}`,
-      backendLabel: version => `backend v${version}`,
+      backendLabel: version => `My King backend v${version}`,
       commit: sha => `commit ${sha}`,
       branch: branch => `branch ${branch}`,
       closeCommandCenter: 'Close Command Center',
@@ -2951,7 +3036,7 @@ export const en: Translations = {
       toggleRunningTimer: 'Turn timer',
       toggleSessionTimer: 'Session timer',
       toggleTerminal: 'Terminal',
-      toggleVersion: 'Version & updates',
+      toggleVersion: 'Desktop version',
       toggleWorkspace: 'Workspace',
       agents: 'Agents',
       closeAgents: 'Close agents',
@@ -2982,7 +3067,7 @@ export const en: Translations = {
         loading: 'Loading breakdown…',
         percentFull: percent => `${percent}% Full`,
         title: 'Context Usage',
-        tokenSummary: (used, max) => `${used} / ${max} Tokens`
+        tokenSummary: (used, max) => `${used} / ${max} token`
       },
       session: 'Session',
       yoloOn: 'YOLO on — auto-approving dangerous commands. Shift+click toggles globally.',
@@ -3489,7 +3574,7 @@ export const en: Translations = {
       success: platform => `Handed off to ${platform}. Resume here anytime.`,
       systemNote: platform => `↻ Handed off to ${platform} — resume here anytime.`,
       failed: error => `Handoff failed: ${error}`,
-      timedOut: 'Timed out waiting for the gateway. Is `hermes gateway` running?'
+      timedOut: 'Timed out waiting for the gateway. Is the My King backend running?'
     }
   },
 

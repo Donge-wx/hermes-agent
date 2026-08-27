@@ -21,6 +21,7 @@ import {
   RefreshCw,
   Terminal
 } from '@/lib/icons'
+import { isEmployeeFeatureAvailable } from '@/lib/managed-employee-policy'
 import { coerceRemoteUrlScheme } from '@/lib/remote-url'
 import { selectableCardClass } from '@/lib/selectable-card'
 import { cn } from '@/lib/utils'
@@ -1238,7 +1239,7 @@ export function GatewaySettings({ embedded = false }: { embedded?: boolean } = {
                 className={cn('h-8', CONTROL_TEXT)}
                 disabled={state.envOverride}
                 onChange={event => setState(current => ({ ...current, remoteUrl: event.target.value }))}
-                placeholder="https://gateway.example.com/hermes"
+                placeholder="https://gateway.example.com/myking"
                 value={state.remoteUrl}
               />
             }
@@ -1442,7 +1443,7 @@ export function GatewaySettings({ embedded = false }: { embedded?: boolean } = {
           above (which applies a cloud connection on select), so its only
           bottom-row action would be redundant — hidden in cloud mode. */}
       {state.mode !== 'cloud' ? (
-        <div className="mt-6 flex flex-wrap items-center justify-end gap-4">
+        <div className="mt-6 flex flex-wrap items-center justify-end gap-4" data-slot="gateway-actions">
           {state.mode === 'remote' ? (
             <Button
               className="mr-auto"
@@ -1483,7 +1484,7 @@ export function GatewaySettings({ embedded = false }: { embedded?: boolean } = {
         </div>
       ) : null}
 
-      {embedded ? null : (
+      {embedded || !isEmployeeFeatureAvailable('logs.raw') ? null : (
         <div className="mt-6 grid gap-1">
           <ListRow
             action={

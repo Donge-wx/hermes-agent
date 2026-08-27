@@ -12,7 +12,9 @@ These tests pin user/role/global allowlist semantics, explicit allow-all
 handling, and fail-closed behavior so the parity cannot regress.
 """
 
+from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -132,6 +134,58 @@ def test_update_prompt_view_accepts_role_allowlist():
     )
     assert view._check_auth(_interaction(99999, role_ids=[42])) is True
     assert view._check_auth(_interaction(99999, role_ids=[7])) is False
+
+
+@pytest.mark.asyncio
+async def test_managed_update_prompt_view_is_silent_and_does_not_write(tmp_path, monkeypatch):
+    """A historic My King button cannot acknowledge or resume an update."""
+    fake_home = tmp_path / "home"
+    managed_home = fake_home / ".myking"
+    managed_home.mkdir(parents=True)
+    monkeypatch.setattr(Path, "home", classmethod(lambda _cls: fake_home))
+    monkeypatch.setenv("HERMES_HOME", str(managed_home))
+    view = UpdatePromptView(session_key="s", allowed_user_ids={"123"})
+    interaction = SimpleNamespace(
+        user=SimpleNamespace(id=123, display_name="Alice", roles=[]),
+        message=SimpleNamespace(embeds=[]),
+        response=SimpleNamespace(
+            edit_message=AsyncMock(),
+            send_message=AsyncMock(),
+        ),
+    )
+
+    await view._respond(interaction, "y", 2, "Yes")
+
+    assert view.resolved is False
+    interaction.response.edit_message.assert_not_awaited()
+    interaction.response.send_message.assert_not_awaited()
+    assert not (managed_home / ".update_response").exists()
+
+
+@pytest.mark.asyncio
+async def test_standard_update_prompt_view_edits_and_writes_response(tmp_path, monkeypatch):
+    """Ordinary Hermes retains its historic update-button behavior."""
+    fake_home = tmp_path / "home"
+    hermes_home = fake_home / ".hermes"
+    hermes_home.mkdir(parents=True)
+    monkeypatch.setattr(Path, "home", classmethod(lambda _cls: fake_home))
+    monkeypatch.setenv("HERMES_HOME", str(hermes_home))
+    view = UpdatePromptView(session_key="s", allowed_user_ids={"123"})
+    interaction = SimpleNamespace(
+        user=SimpleNamespace(id=123, display_name="Alice", roles=[]),
+        message=SimpleNamespace(embeds=[]),
+        response=SimpleNamespace(
+            edit_message=AsyncMock(),
+            send_message=AsyncMock(),
+        ),
+    )
+
+    await view._respond(interaction, "y", 2, "Yes")
+
+    assert view.resolved is True
+    interaction.response.edit_message.assert_awaited_once()
+    interaction.response.send_message.assert_not_awaited()
+    assert (hermes_home / ".update_response").read_text() == "y"
 
 
 def test_clarify_choice_view_accepts_role_allowlist():
@@ -277,4 +331,3 @@ def test_other_views_not_admin_gated():
         session_key="s", confirm_id="c", allowed_user_ids={"11111"}
     )
     assert sc._check_auth(_interaction(11111)) is True
-

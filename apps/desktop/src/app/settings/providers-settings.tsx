@@ -1,5 +1,4 @@
 import { useStore } from '@nanostores/react'
-import type { ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { runInTerminal } from '@/app/right-sidebar/store'
@@ -34,16 +33,6 @@ import { SettingsContent, SettingsSkeleton } from './primitives'
 // The embedded terminal (and thus the "run disconnect command" path) only
 // exists in the Electron desktop shell, not the web dashboard.
 const canRunInTerminal = () => typeof window !== 'undefined' && Boolean(window.hermesDesktop?.terminal)
-
-// Parallel group headers ("Connected", "Other providers") so the expanded list
-// reads as its own section instead of bleeding into the connected group.
-function GroupLabel({ children }: { children: ReactNode }) {
-  return (
-    <p className="mt-3 px-0.5 text-[length:var(--conversation-caption-font-size)] font-medium text-(--ui-text-tertiary)">
-      {children}
-    </p>
-  )
-}
 
 // Sub-views surfaced as a sidebar subnav: account sign-in vs raw API keys.
 export const PROVIDER_VIEWS = ['accounts', 'keys', 'custom-endpoints'] as const
@@ -159,7 +148,7 @@ function OAuthPicker({
   const showOthers = !collapsible || showAll
 
   return (
-    <section className="mb-5 grid gap-2">
+    <section className="mb-5 grid gap-2" data-slot="provider-account-section">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3">
         <SettingsCategoryHeading icon={KeyRound} title={p.connectAccount} />
         <Button
@@ -175,45 +164,53 @@ function OAuthPicker({
       <p className="-mt-2 mb-1 text-[length:var(--conversation-caption-font-size)] leading-(--conversation-caption-line-height) text-(--ui-text-tertiary)">
         {p.intro}
       </p>
-      {featured && <FeaturedProviderRow onSelect={select} provider={featured} />}
-      {/* Slot #2 — always visible, matching onboarding / CANONICAL_PROVIDERS. */}
-      <FireworksProviderRow onClick={onWantApiKey} />
-      {connected.length > 0 && (
-        <>
-          <GroupLabel>{p.connected}</GroupLabel>
-          {connected.map(p => (
+      <div data-expanded={showAll} data-slot="provider-account-list">
+        {featured && (
+          <div data-kind="featured" data-slot="provider-account-row">
+            <FeaturedProviderRow onSelect={select} provider={featured} />
+          </div>
+        )}
+        {/* Slot #2 — always visible, matching onboarding / CANONICAL_PROVIDERS. */}
+        <div data-slot="provider-account-row">
+          <FireworksProviderRow onClick={onWantApiKey} />
+        </div>
+        {connected.map(p => (
+          <div data-slot="provider-account-row" key={p.id}>
             <ConnectedProviderRow
               disconnecting={disconnecting === p.id}
-              key={p.id}
               onDisconnect={onDisconnect}
               onSelect={select}
               onTerminalDisconnect={onTerminalDisconnect}
               provider={p}
             />
-          ))}
-        </>
-      )}
-      {showOthers && (
-        <>
-          {connected.length > 0 && <GroupLabel>{p.otherProviders}</GroupLabel>}
-          {others.map(p => (
-            <ProviderRow key={p.id} onSelect={select} provider={p} />
-          ))}
-          <OpenRouterProviderRow onClick={onWantApiKey} />
-        </>
-      )}
-      {collapsible && (
-        <Button
-          className="py-1 text-[length:var(--conversation-caption-font-size)]"
-          onClick={() => setShowAll(v => !v)}
-          size="inline"
-          type="button"
-          variant="text"
-        >
-          {showAll ? p.collapse : connected.length > 0 ? p.connectAnother : p.otherProviders}
-          <ChevronDown className={cn('size-3.5 transition', showAll && 'rotate-180')} />
-        </Button>
-      )}
+          </div>
+        ))}
+        {showOthers && (
+          <>
+            {others.map(p => (
+              <div data-slot="provider-account-row" key={p.id}>
+                <ProviderRow onSelect={select} provider={p} />
+              </div>
+            ))}
+            <div data-slot="provider-account-row">
+              <OpenRouterProviderRow onClick={onWantApiKey} />
+            </div>
+          </>
+        )}
+        {collapsible && (
+          <RowButton
+            aria-expanded={showAll}
+            className="group flex w-full items-center justify-between gap-3 px-3 text-left"
+            data-slot="provider-account-disclosure"
+            onClick={() => setShowAll(v => !v)}
+          >
+            <span className="font-medium">
+              {showAll ? p.collapse : connected.length > 0 ? p.connectAnother : p.otherProviders}
+            </span>
+            <ChevronDown className={cn('size-4 transition', showAll && 'rotate-180')} />
+          </RowButton>
+        )}
+      </div>
     </section>
   )
 }

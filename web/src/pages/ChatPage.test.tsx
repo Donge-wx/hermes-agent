@@ -17,6 +17,8 @@ class FakeWebglAddon {
 }
 
 class FakeTerminal {
+  static instances: FakeTerminal[] = [];
+
   options: Record<string, unknown>;
   rows = 24;
   cols = 80;
@@ -27,6 +29,7 @@ class FakeTerminal {
 
   constructor(options: Record<string, unknown>) {
     this.options = options;
+    FakeTerminal.instances.push(this);
   }
 
   attachCustomKeyEventHandler() {
@@ -75,10 +78,15 @@ class FakeTerminal {
 
   refresh() {}
 
-  write() {}
+  writes: string[] = [];
+
+  write(data: string) {
+    this.writes.push(data);
+  }
 }
 
 const maybeReloadForLoopbackWsAuthFailure = vi.fn(() => false);
+const i18nMock = vi.hoisted(() => ({ locale: "en" }));
 const apiMocks = vi.hoisted(() => ({
   buildWsUrl: vi.fn(async () => "ws://localhost/api/pty?channel=chat-1"),
 }));
@@ -109,6 +117,7 @@ vi.mock("@/themes", () => ({
 }));
 vi.mock("@/i18n", () => ({
   useI18n: () => ({
+    locale: i18nMock.locale,
     t: {
       app: {
         closeModelTools: "Close model tools",
@@ -190,6 +199,8 @@ async function render(ui: ReactNode) {
 }
 
 beforeEach(() => {
+  i18nMock.locale = "en";
+  FakeTerminal.instances = [];
   FakeWebSocket.instances = [];
   maybeReloadForLoopbackWsAuthFailure.mockClear();
   apiMocks.buildWsUrl.mockReset();
@@ -255,6 +266,26 @@ afterEach(async () => {
 });
 
 describe("ChatPage", () => {
+  it("projects backend PTY failure frames into Chinese before xterm renders them", async () => {
+    i18nMock.locale = "zh";
+    const { default: ChatPage } = await import("./ChatPage");
+
+    await render(
+      <MemoryRouter initialEntries={["/chat"]}>
+        <ChatPage isActive />
+      </MemoryRouter>,
+    );
+    await vi.waitFor(() => expect(FakeWebSocket.instances).toHaveLength(1));
+
+    FakeWebSocket.instances[0].onmessage?.({
+      data: "\r\n\u001b[31mChat unavailable: 1\u001b[0m\r\n",
+    });
+
+    const rendered = FakeTerminal.instances.flatMap((terminal) => terminal.writes).join("");
+    expect(rendered).toContain("对话暂时不可用：1");
+    expect(rendered).not.toContain("Chat unavailable");
+  });
+
   it("treats loopback 4401 closes as stale-token reload candidates", async () => {
     const { default: ChatPage } = await import("./ChatPage");
 

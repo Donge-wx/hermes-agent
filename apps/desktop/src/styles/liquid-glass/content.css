@@ -17,9 +17,10 @@
 }
 
 /* On compact layouts the navigation pane becomes a pinned overlay. Keep the
-   intro centered in the still-visible work area instead of letting the
-   overlay cover the lockup or copy. This is presentation-only: the overlay's
-   reveal state, routing, and pane geometry remain owned by LayoutTree. */
+   intro and Composer inside the still-visible work area instead of letting the
+   overlay cover the lockup, copy, attachment action, or editable text origin.
+   This is presentation-only: the overlay's reveal state, routing, and pane
+   geometry remain owned by LayoutTree. */
 :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
   [data-narrow-overlay=''][data-side='left'] {
   width: min(var(--lg-measure-overlay-sidebar), 85vw) !important;
@@ -40,6 +41,22 @@
   :has(> [data-narrow-overlay=''][data-side='right'])
   [data-slot='aui_intro'] {
   padding-inline-end: calc(min(var(--lg-measure-overlay-sidebar), 85vw) + var(--lg-space-2xl));
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']:has(
+    [data-narrow-overlay=''][data-side='left']
+  )
+  [data-slot='composer-dock']:not([data-popped-out]) {
+  left: calc(50% + var(--lg-measure-overlay-sidebar-half));
+  width: min(var(--composer-width), calc(100% - var(--lg-measure-overlay-sidebar) - var(--lg-space-4xl)));
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']:has(
+    [data-narrow-overlay=''][data-side='right']
+  )
+  [data-slot='composer-dock']:not([data-popped-out]) {
+  left: calc(50% - var(--lg-measure-overlay-sidebar-half));
+  width: min(var(--composer-width), calc(100% - var(--lg-measure-overlay-sidebar) - var(--lg-space-4xl)));
 }
 
 /* Balance the short page lead at high UI zoom so CJK phrases such as
@@ -254,4 +271,95 @@
 
 :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] * {
   scrollbar-color: color-mix(in srgb, var(--lg-rim-strong) 70%, transparent) transparent;
+}
+
+/* Page-level feedback is a composed state, never an orphaned spinner or two
+   tiny lines floating in an otherwise empty work plane. */
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='page-loader'] > div,
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='panel-empty'] > div {
+  max-width: var(--lg-measure-intro-body);
+  gap: var(--lg-space-lg);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='page-loader'] {
+  padding: var(--lg-space-4xl);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  :is([data-slot='page-loader-glyph'], [data-slot='panel-empty-glyph']) {
+  width: var(--lg-size-state-glyph);
+  height: var(--lg-size-state-glyph);
+  border: var(--lg-stroke-hairline) solid var(--lg-rim-outer);
+  border-radius: var(--lg-radius-panel);
+  background:
+    radial-gradient(92% 100% at 18% 0%, color-mix(in srgb, var(--lg-white) 92%, transparent), transparent 66%),
+    linear-gradient(145deg, color-mix(in srgb, var(--lg-blue-mist) 20%, transparent), transparent),
+    var(--lg-glass-raised);
+  color: var(--lg-blue-hover);
+  box-shadow: var(--lg-shadow-float);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='page-loader-glyph'] > svg {
+  width: var(--lg-size-state-loader);
+  height: var(--lg-size-state-loader);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='panel-empty-glyph'] .codicon {
+  font-size: var(--lg-size-icon-control-large) !important;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  :is([data-slot='page-loader-label'], [data-slot='panel-empty-title']) {
+  color: var(--lg-ink);
+  font-size: var(--lg-type-detail-heading);
+  font-weight: 600;
+  line-height: var(--lg-line-detail-heading);
+  text-wrap: balance;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='panel-empty-description'] {
+  color: var(--lg-ink-tertiary);
+  font-size: var(--lg-type-caption);
+  line-height: var(--lg-line-body);
+  text-wrap: pretty;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='about-brand-stage'] {
+  min-height: var(--lg-size-about-stage);
+  justify-content: center;
+  gap: var(--lg-space-2xl);
+  padding: var(--lg-space-4xl) var(--lg-space-2xl);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='about-brand-mark'] {
+  width: var(--lg-size-about-mark);
+  height: var(--lg-size-about-mark);
+  filter: var(--lg-filter-about-mark);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='about-tagline'] {
+  color: var(--lg-blue-hover);
+  font-size: var(--lg-type-section-heading);
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  line-height: var(--lg-line-control);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='about-version-stack'] {
+  display: grid;
+  gap: var(--lg-space-sm);
+  color: var(--lg-ink-secondary);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='about-version-stack'] h2 {
+  color: var(--lg-ink);
+  font-size: var(--lg-type-detail-heading);
+  line-height: var(--lg-line-detail-heading);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='about-version-stack']
+  :is([data-slot='desktop-package-version'], [data-slot='backend-runtime-version']) {
+  font-size: var(--lg-type-caption);
+  line-height: var(--lg-line-control);
 }

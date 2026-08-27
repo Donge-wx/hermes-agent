@@ -26,6 +26,7 @@ interface PreviewBrowserBarProps {
   canGoBack: boolean
   canGoForward: boolean
   consoleOpen: boolean
+  developerToolsAvailable?: boolean
   devToolsOpen: boolean
   loading: boolean
   onBack: () => void
@@ -89,6 +90,7 @@ export function PreviewBrowserBar({
   canGoBack,
   canGoForward,
   consoleOpen,
+  developerToolsAvailable = true,
   devToolsOpen,
   loading,
   onBack,
@@ -185,18 +187,22 @@ export function PreviewBrowserBar({
         label={t.preview.openInBrowser}
         onSelect={onOpenExternal}
       />
-      <PaneStripGlyph
-        active={consoleOpen}
-        icon={<Codicon name="terminal" size="0.8125rem" />}
-        label={consoleOpen ? copy.hideConsole : copy.showConsole}
-        onSelect={onToggleConsole}
-      />
-      <PaneStripGlyph
-        active={devToolsOpen}
-        icon={<Codicon name="bug" size="0.8125rem" />}
-        label={devToolsOpen ? copy.hideDevTools : copy.openDevTools}
-        onSelect={onToggleDevTools}
-      />
+      {developerToolsAvailable && (
+        <>
+          <PaneStripGlyph
+            active={consoleOpen}
+            icon={<Codicon name="terminal" size="0.8125rem" />}
+            label={consoleOpen ? copy.hideConsole : copy.showConsole}
+            onSelect={onToggleConsole}
+          />
+          <PaneStripGlyph
+            active={devToolsOpen}
+            icon={<Codicon name="bug" size="0.8125rem" />}
+            label={devToolsOpen ? copy.hideDevTools : copy.openDevTools}
+            onSelect={onToggleDevTools}
+          />
+        </>
+      )}
     </div>
   )
 }

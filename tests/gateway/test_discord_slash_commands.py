@@ -3,6 +3,7 @@
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -112,6 +113,71 @@ def adapter():
     # construct a full auth context (allowlist / channel scope).
     adapter._check_slash_authorization = AsyncMock(return_value=True)
     return adapter
+
+
+def test_managed_discord_menu_omits_core_update(adapter, monkeypatch, tmp_path):
+    """Managed Discord registration must not expose the blocked core update."""
+    fake_home = tmp_path / "home"
+    managed_home = fake_home / ".myking"
+    managed_home.mkdir(parents=True)
+    monkeypatch.setattr(Path, "home", classmethod(lambda _cls: fake_home))
+    monkeypatch.setenv("HERMES_HOME", str(managed_home))
+
+    adapter._register_slash_commands()
+
+    assert "update" not in adapter._client.tree.commands
+    assert "version" in adapter._client.tree.commands
+
+
+def test_standard_discord_menu_keeps_core_update(adapter, monkeypatch, tmp_path):
+    """Ordinary Hermes keeps the existing Discord update registration."""
+    fake_home = tmp_path / "home"
+    hermes_home = fake_home / ".hermes"
+    hermes_home.mkdir(parents=True)
+    monkeypatch.setattr(Path, "home", classmethod(lambda _cls: fake_home))
+    monkeypatch.setenv("HERMES_HOME", str(hermes_home))
+
+    adapter._register_slash_commands()
+
+    assert "update" in adapter._client.tree.commands
+    assert "version" in adapter._client.tree.commands
+
+
+@pytest.mark.asyncio
+async def test_managed_discord_update_prompt_does_not_send(adapter, monkeypatch, tmp_path):
+    """Managed Discord must not resolve a channel or create an update prompt."""
+    fake_home = tmp_path / "home"
+    managed_home = fake_home / ".myking"
+    managed_home.mkdir(parents=True)
+    monkeypatch.setattr(Path, "home", classmethod(lambda _cls: fake_home))
+    monkeypatch.setenv("HERMES_HOME", str(managed_home))
+    adapter._client.get_channel = MagicMock()
+    adapter._client.fetch_channel = AsyncMock()
+
+    result = await adapter.send_update_prompt(chat_id="12345", prompt="Update now?")
+
+    assert result.success is False
+    assert result.error == "updates_disabled"
+    adapter._client.get_channel.assert_not_called()
+    adapter._client.fetch_channel.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_standard_discord_update_prompt_sends(adapter, monkeypatch, tmp_path):
+    """Ordinary Hermes retains the Discord update-prompt contract."""
+    fake_home = tmp_path / "home"
+    hermes_home = fake_home / ".hermes"
+    hermes_home.mkdir(parents=True)
+    monkeypatch.setattr(Path, "home", classmethod(lambda _cls: fake_home))
+    monkeypatch.setenv("HERMES_HOME", str(hermes_home))
+    channel = SimpleNamespace(send=AsyncMock(return_value=SimpleNamespace(id=55)))
+    adapter._client.get_channel = MagicMock(return_value=channel)
+
+    result = await adapter.send_update_prompt(chat_id="12345", prompt="Update now?")
+
+    assert result.success is True
+    assert result.message_id == "55"
+    channel.send.assert_awaited_once()
 
 
 # ------------------------------------------------------------------
@@ -600,5 +666,3 @@ def test_register_skill_command_payload_fits_discord_8kb_limit(adapter):
         f"Flat /skill command payload is ~{len(payload)} bytes — the whole "
         f"point of this design is that it stays small regardless of skill count"
     )
-
-

@@ -9441,11 +9441,11 @@ def test_slash_exec_r7_read_commands_use_metadata_mirror_flag_on(monkeypatch):
     monkeypatch.setattr(server, "_load_cfg", lambda: {"dashboard": {"turn_isolation": True}})
 
     cases = {
-        "usage": "Total tokens:                 140",
+        "usage": "Total token:                 140",
         "history": "live question from state db",
         "prompt": "host system prompt",
-        "status": "Tokens: 140",
-        "context": "Context usage: ~80 / 1,000 tokens",
+        "status": "token: 140",
+        "context": "Context usage: ~80 / 1,000 token",
         "tools": "terminal",
         "help": "/status",
     }
@@ -9976,7 +9976,7 @@ def test_session_status_reads_live_gateway_agent(monkeypatch):
     assert "Session ID: session-key" in out
     assert "Title: Live TUI" in out
     assert "Model: live-model (live-provider)" in out
-    assert "Tokens: 1,234" in out
+    assert "token: 1,234" in out
     assert "Agent Running: Yes" in out
 
 

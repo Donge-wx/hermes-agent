@@ -13938,20 +13938,20 @@ def _format_live_usage_output(session: dict) -> str:
         with session["history_lock"]:
             message_count = len(session.get("history", []))
     lines = [
-        "Session Token Usage",
+        "Session token Usage",
         "────────────────────────────────────────",
         f"Model: {usage.get('model') or _metadata_mirror(session).get('model') or getattr(agent, 'model', '') or '(unknown)'}",
-        f"Input tokens:                 {int(usage.get('input') or 0):,}",
-        f"Output tokens:                {int(usage.get('output') or 0):,}",
+        f"Input token:                  {int(usage.get('input') or 0):,}",
+        f"Output token:                 {int(usage.get('output') or 0):,}",
     ]
     reasoning = int(usage.get("reasoning") or 0)
     if reasoning:
-        lines.append(f"Reasoning tokens:             {reasoning:,}")
+        lines.append(f"Reasoning token:              {reasoning:,}")
     lines.extend(
         [
-            f"Prompt tokens:                {int(usage.get('prompt') or 0):,}",
-            f"Completion tokens:            {int(usage.get('completion') or 0):,}",
-            f"Total tokens:                 {int(usage.get('total') or 0):,}",
+            f"Prompt token:                 {int(usage.get('prompt') or 0):,}",
+            f"Completion token:             {int(usage.get('completion') or 0):,}",
+            f"Total token:                  {int(usage.get('total') or 0):,}",
             f"API calls:                    {int(usage.get('calls') or 0):,}",
         ]
     )
@@ -14056,10 +14056,10 @@ def _format_live_context_output(session: dict) -> str:
         if context_max:
             usage_pct = (context_used / context_max) * 100
             lines.append(
-                f"Context usage: ~{context_used:,} / {context_max:,} tokens ({usage_pct:.1f}%)"
+                f"Context usage: ~{context_used:,} / {context_max:,} token ({usage_pct:.1f}%)"
             )
         else:
-            lines.append(f"Context usage: ~{context_used:,} tokens")
+            lines.append(f"Context usage: ~{context_used:,} token")
     if usage.get("compressions"):
         lines.append(f"Compressions: {int(usage.get('compressions') or 0):,}")
     return "\n".join(lines)

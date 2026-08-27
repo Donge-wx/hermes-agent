@@ -2,6 +2,7 @@
 
 import asyncio
 import os
+from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
@@ -928,6 +929,27 @@ class TestDefaultInteractionDispatch:
         assert response.exists()
         assert response.read_text() == "y"
 
+    @pytest.mark.asyncio
+    async def test_managed_update_prompt_click_does_not_write_response_file(self, tmp_path, monkeypatch):
+        """A historic My King interaction is ignored before authorization or IPC."""
+        adapter = self._make_adapter()
+        fake_home = tmp_path / "home"
+        managed_home = fake_home / ".myking"
+        managed_home.mkdir(parents=True)
+        monkeypatch.setattr(Path, "home", classmethod(lambda _cls: fake_home))
+        monkeypatch.setenv("HERMES_HOME", str(managed_home))
+        adapter._is_authorized_interaction_for_session = mock.MagicMock()
+
+        from gateway.platforms.qqbot.keyboards import parse_interaction_event
+        event = parse_interaction_event({
+            "id": "i", "chat_type": 2, "user_openid": "u-1",
+            "data": {"resolved": {"button_data": "update_prompt:y"}},
+        })
+        await adapter._default_interaction_dispatch(event)
+
+        adapter._is_authorized_interaction_for_session.assert_not_called()
+        assert not (managed_home / ".update_response").exists()
+
 
 class TestSendExecApproval:
     """Verify the gateway contract: QQAdapter.send_exec_approval(...)."""
@@ -972,6 +994,23 @@ class TestSendUpdatePrompt:
     def _make_adapter(self):
         from gateway.platforms.qqbot.adapter import QQAdapter
         return QQAdapter(_make_config(app_id="a", client_secret="b"))
+
+    @pytest.mark.asyncio
+    async def test_managed_update_prompt_does_not_send_keyboard(self, tmp_path, monkeypatch):
+        """Managed QQBot must not surface an update keyboard."""
+        adapter = self._make_adapter()
+        fake_home = tmp_path / "home"
+        managed_home = fake_home / ".myking"
+        managed_home.mkdir(parents=True)
+        monkeypatch.setattr(Path, "home", classmethod(lambda _cls: fake_home))
+        monkeypatch.setenv("HERMES_HOME", str(managed_home))
+        adapter.send_with_keyboard = mock.AsyncMock()  # type: ignore[assignment]
+
+        result = await adapter.send_update_prompt(chat_id="u1", prompt="Update now?")
+
+        assert result.success is False
+        assert result.error == "updates_disabled"
+        adapter.send_with_keyboard.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_delegates_to_send_with_keyboard(self):
@@ -1221,4 +1260,3 @@ class TestReadEventsClosedWsGuard:
         adapter._ws = SimpleNamespace(closed=True)
         with pytest.raises(RuntimeError):
             asyncio.run(adapter._read_events())
-

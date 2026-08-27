@@ -1,11 +1,13 @@
 import crypto from 'node:crypto'
 
+import { parseRemoteProfileListing } from './connection-registry'
 import { assertBootstrapNotSuperseded, redactSecrets, SSH_ERROR } from './ssh-connection'
 
 const LOCKFILE_SCHEMA_VERSION = 2
 const PROTOCOL_VERSION = 1
 const READY_RE = /^HERMES_(?:BACKEND|DASHBOARD)_READY port=(\d+)/gm
 const READY_POLL_INTERVAL_MS = 750
+const WINDOWS_MANAGED_HERMES_HOME = '%LOCALAPPDATA%\\myking'
 
 function psLiteral(value) {
   return `'${String(value).replace(/'/g, "''")}'`
@@ -19,20 +21,43 @@ function powerShellCommand(script) {
   return `powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand ${encodedPowerShell(script)}`
 }
 
-async function probeWindowsRemote(ssh, explicitHermesPath = '') {
+function windowsHermesHomeSetup(remoteHermesHome) {
+  const managedHome = psLiteral(remoteHermesHome)
+
+  return remoteHermesHome
+    ? [
+        `$managedHome=${managedHome}`,
+        remoteHermesHome === WINDOWS_MANAGED_HERMES_HOME
+          ? '$hermesHome=[Environment]::ExpandEnvironmentVariables($managedHome)'
+          : '$hermesHome=$managedHome',
+        'if(-not [IO.Path]::IsPathRooted($hermesHome)){throw "The configured My King home must be an absolute Windows path."}'
+      ]
+    : [
+        '$hermesHome=$env:HERMES_HOME',
+        'if(-not $hermesHome){$hermesHome=Join-Path $env:LOCALAPPDATA "hermes"}'
+      ]
+}
+
+async function probeWindowsRemote(ssh, explicitHermesPath = '', remoteHermesHome = '') {
   const explicit = psLiteral(explicitHermesPath)
+  const homeSetup = windowsHermesHomeSetup(remoteHermesHome)
+
+  const fallbackCandidates = remoteHermesHome
+    ? []
+    : [
+        '$cmd=Get-Command hermes.exe -ErrorAction SilentlyContinue',
+        'if($cmd){$candidates+=$cmd.Source}',
+        '$candidates+=(Join-Path $HOME "hermes-agent\\.venv\\Scripts\\hermes.exe")'
+      ]
 
   const script = [
     '$ErrorActionPreference="Stop"',
     `$explicit=${explicit}`,
-    '$hermesHome=$env:HERMES_HOME',
-    'if(-not $hermesHome){$hermesHome=Join-Path $env:LOCALAPPDATA "hermes"}',
+    ...homeSetup,
     '$candidates=@()',
     'if($explicit){$candidates+=$explicit}',
-    '$cmd=Get-Command hermes.exe -ErrorAction SilentlyContinue',
-    'if($cmd){$candidates+=$cmd.Source}',
+    ...fallbackCandidates,
     '$candidates+=(Join-Path $hermesHome "hermes-agent\\venv\\Scripts\\hermes.exe")',
-    '$candidates+=(Join-Path $HOME "hermes-agent\\.venv\\Scripts\\hermes.exe")',
     '$hermes=$candidates|Where-Object{Test-Path -LiteralPath $_ -PathType Leaf}|Select-Object -First 1',
     'if(-not $hermes){throw "My King is not installed on the remote Windows host."}',
     'if($explicit -and $hermes -ne $explicit){throw "The configured My King path is not an executable file."}',
@@ -44,6 +69,30 @@ async function probeWindowsRemote(ssh, explicitHermesPath = '') {
   return JSON.parse((await ssh.exec(powerShellCommand(script))).trim())
 }
 
+async function listWindowsRemoteHermesProfiles(ssh, remoteHermesHome = '') {
+  const script = [
+    '$ErrorActionPreference="Stop"',
+    ...windowsHermesHomeSetup(remoteHermesHome),
+    '$profiles=Join-Path $hermesHome "profiles"',
+    '$profileNames=@()',
+    'if(Test-Path -LiteralPath $profiles -PathType Container){$profileNames=@(Get-ChildItem -LiteralPath $profiles -Directory|Select-Object -ExpandProperty Name)}',
+    '[ordered]@{profiles=$profileNames}|ConvertTo-Json -Compress'
+  ].join(';')
+
+  try {
+    const output = await ssh.exec(powerShellCommand(script))
+    const parsed = JSON.parse(String(output || '').trim() || '{}')
+    const names = Array.isArray(parsed?.profiles) ? parsed.profiles.filter(name => typeof name === 'string') : []
+
+    return parseRemoteProfileListing(names.join('\n'))
+  } catch (cause) {
+    const error: any = new Error('Could not list remote My King profiles.')
+    error.kind = 'transient-transport-error'
+    error.cause = cause
+    throw error
+  }
+}
+
 const TRANSPORT_KINDS = new Set([
   SSH_ERROR.AUTH_FAILED,
   SSH_ERROR.HOST_KEY_CHANGED,
@@ -51,7 +100,7 @@ const TRANSPORT_KINDS = new Set([
   SSH_ERROR.UNREACHABLE
 ])
 
-async function detectRemotePlatform(ssh, explicitHermesPath = '') {
+async function detectRemotePlatform(ssh, explicitHermesPath = '', remoteHermesHome = '') {
   try {
     const output = (await ssh.exec('uname -s; uname -m')).trim().split('\n')
 
@@ -68,7 +117,7 @@ async function detectRemotePlatform(ssh, explicitHermesPath = '') {
   }
 
   try {
-    return await probeWindowsRemote(ssh, explicitHermesPath)
+    return await probeWindowsRemote(ssh, explicitHermesPath, remoteHermesHome)
   } catch (cause: any) {
     if (TRANSPORT_KINDS.has(cause?.kind)) {
       throw cause
@@ -93,13 +142,15 @@ async function detectRemotePlatform(ssh, explicitHermesPath = '') {
 function helperCommand(runtime, operation, args = []) {
   const argv = [runtime.python, '-m', 'hermes_cli.windows_ssh_runtime', operation, ...args]
 
-  const script = [
-    '$ErrorActionPreference="Stop"',
-    `& ${argv.map(psLiteral).join(' ')}`,
-    'if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}'
-  ].join(';')
+  const script = ['$ErrorActionPreference="Stop"']
 
-  return powerShellCommand(script)
+  if (runtime.hermesHome) {
+    script.push(`$env:HERMES_HOME=${psLiteral(runtime.hermesHome)}`)
+  }
+
+  script.push(`& ${argv.map(psLiteral).join(' ')}`, 'if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}')
+
+  return powerShellCommand(script.join(';'))
 }
 
 async function helper(ssh, runtime, operation, args = [], stdinData?) {
@@ -267,6 +318,7 @@ async function connectWindowsRemote(deps) {
     ownershipId,
     profile = '',
     remoteHermesPath = '',
+    remoteHermesHome = '',
     reuseToken = '',
     signal,
     pickLocalPort,
@@ -279,7 +331,7 @@ async function connectWindowsRemote(deps) {
   } = deps
 
   assertBootstrapNotSuperseded(signal)
-  const runtime = await probeWindowsRemote(ssh, remoteHermesPath)
+  const runtime = await probeWindowsRemote(ssh, remoteHermesPath, remoteHermesHome)
   const inspection = await helper(ssh, runtime, 'inspect', [runtime.hermesPath])
 
   if (!inspection.supported) {
@@ -446,9 +498,11 @@ export {
   encodedPowerShell,
   helper,
   helperCommand,
+  listWindowsRemoteHermesProfiles,
   powerShellCommand,
   probeWindowsRemote,
   psLiteral,
   reusableWindowsLock,
-  validLock
+  validLock,
+  WINDOWS_MANAGED_HERMES_HOME
 }

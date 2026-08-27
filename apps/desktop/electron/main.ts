@@ -36,6 +36,7 @@ import {
   MY_KING_APP_ID,
   MY_KING_PROTOCOL,
   PUBLIC_APP_COPYRIGHT,
+  publicApplicationText,
   resolveApplicationIdentity
 } from './application-menu-labels'
 import { stopBackendChild as stopBackendChildImpl, stopBackendTreesForUpdate } from './backend-child'
@@ -68,14 +69,8 @@ import {
 import { decideBootstrapRepair } from './bootstrap-repair-guard'
 import { runBootstrap } from './bootstrap-runner'
 import { detectBundleSkew } from './bundle-skew'
+import { resolveBundledBackend } from './bundled-backend'
 import { applyConnectionChange } from './connection-apply'
-import {
-  acceptedMyKingDeepLinkSchemes,
-  extractMyKingDeepLink,
-  parseMyKingEnrollmentLink,
-  selectMyKingDeepLinkProtocol,
-  takeMyKingEnrollmentDeepLink
-} from './deep-link-protocols'
 import {
   apiRequestRegistryConnectionId,
   authModeFromStatus,
@@ -133,10 +128,20 @@ import {
 } from './connection-registry'
 import { describeCrashReason, installCrashForensics } from './crash-forensics'
 import { adoptServedDashboardToken } from './dashboard-token'
+import {
+  acceptedMyKingDeepLinkSchemes,
+  extractMyKingDeepLink,
+  parseMyKingEnrollmentLink,
+  selectMyKingDeepLinkProtocol,
+  takeMyKingEnrollmentDeepLink
+} from './deep-link-protocols'
 import { loadOrCreateInstallationId, sshOwnershipId } from './desktop-installation'
 import { formatDesktopLogLine } from './desktop-log-line'
 import { resolveDesktopRemoteRoute } from './desktop-remote-route'
-import { runMyKingEmployeeConnectorElevated } from './employee-connector-elevation'
+import {
+  assertMyKingEmployeeConnectorHelperTrusted,
+  runMyKingEmployeeConnectorElevated
+} from './employee-connector-elevation'
 import {
   enableMyKingEmployeeConnector,
   readMyKingEmployeeBinding,
@@ -144,13 +149,17 @@ import {
 } from './employee-connector'
 import {
   MyKingEmployeeEnrollmentError,
+  mintMyKingEmployeeGatewaySession,
   redactMyKingEmployeeSecrets,
+  revokeMyKingEmployeeEnrollment,
   type MyKingEmployeeHttpRequest
 } from './employee-enrollment-contract'
 import { createMyKingEmployeeEnrollment } from './employee-enrollment'
 import {
-  removeMyKingEmployeeStaticGatewayCredential,
-  resolveMyKingEmployeeGatewayRoute
+  readMyKingEmployeeGatewayCredential,
+  removeMyKingEmployeeGatewayCredential,
+  resolveMyKingEmployeeGatewayRoute,
+  writeMyKingEmployeeGatewayCredential
 } from './employee-gateway-route'
 import {
   buildPosixCleanupScript,
@@ -219,9 +228,21 @@ import { createHudSnapShortcut } from './hud-snap-shortcut'
 import { buildHudWindowUrl } from './hud-url'
 import { createLinkTitleWindow, guardLinkTitleSession, readLinkTitleWindowTitle } from './link-title-window'
 import { ensureMainWindow } from './main-window-lifecycle'
+import {
+  isManagedUpdateApiRequest,
+  MANAGED_UPDATE_ACCESS,
+  managedUpdateAllDenied,
+  managedUpdateApiDenied
+} from './managed-update-ipc'
 import { createMediaProtocolHandler, MEDIA_PROTOCOL } from './media-protocol'
 import { copyLegacyHermesDataIfNeeded, copyLegacyUserDataIfNeeded } from './my-king-migration'
-import { resolveMyKingHome, resolveMyKingUserData, shouldUseExternalHermesRuntime } from './my-king-paths'
+import {
+  migrateLegacyHermesDataIfAllowed,
+  resolveMyKingHome,
+  resolveMyKingRemoteHermesHome,
+  resolveMyKingUserData,
+  shouldUseExternalHermesRuntime
+} from './my-king-paths'
 import {
   oauthGuardMayHardFail,
   oauthSessionIsLive,
@@ -284,6 +305,7 @@ import {
 } from './profile-session-routing'
 import { createQuickEntryShortcut, quickEntryWindowBounds, sanitizeQuickEntrySettings } from './quick-entry'
 import { type ActiveWork, mergeActiveWork, normalizeActiveWork, quitPromptFor } from './quit-guard'
+import { registerManagedUpdateIpc } from './register-managed-update-ipc'
 import * as remoteLifecycle from './remote-lifecycle'
 import {
   RemoteLivenessTracker,
@@ -369,7 +391,13 @@ import {
   getVenvSitePackagesEntries,
   resolveVenvHermesCommand
 } from './windows-hermes-path'
-import { connectWindowsRemote, detectRemotePlatform, helper } from './windows-remote-lifecycle'
+import {
+  connectWindowsRemote,
+  detectRemotePlatform,
+  helper,
+  listWindowsRemoteHermesProfiles,
+  WINDOWS_MANAGED_HERMES_HOME
+} from './windows-remote-lifecycle'
 import {
   alreadyHasNoSandbox,
   buildNoSandboxRelaunchArgs,
@@ -405,17 +433,25 @@ const APPLICATION_IDENTITY = resolveApplicationIdentity(process.env.HERMES_DESKT
 const INTERNAL_APP_NAME = APPLICATION_IDENTITY.internalName
 app.setName(INTERNAL_APP_NAME)
 
-const USER_DATA_OVERRIDE = process.env.HERMES_DESKTOP_USER_DATA_DIR
+const REQUESTED_USER_DATA_OVERRIDE = process.env.HERMES_DESKTOP_USER_DATA_DIR
+const DEFAULT_USER_DATA = resolveMyKingUserData({ appData: app.getPath('appData') })
 
 const DEFAULT_MY_KING_USER_DATA = resolveMyKingUserData({
   appData: app.getPath('appData'),
-  override: USER_DATA_OVERRIDE
+  override: REQUESTED_USER_DATA_OVERRIDE
 })
+
+const USER_DATA_OVERRIDE = DEFAULT_MY_KING_USER_DATA === DEFAULT_USER_DATA ? undefined : DEFAULT_MY_KING_USER_DATA
 
 if (!USER_DATA_OVERRIDE) {
   const legacyUserData = path.join(app.getPath('appData'), 'Hermes')
 
-  if (copyLegacyUserDataIfNeeded(legacyUserData, DEFAULT_MY_KING_USER_DATA)) {
+  if (migrateLegacyHermesDataIfAllowed({
+    buildAppId: __HERMES_DESKTOP_BUILD_APP_ID__,
+    copy: copyLegacyUserDataIfNeeded,
+    source: legacyUserData,
+    target: DEFAULT_MY_KING_USER_DATA
+  })) {
     console.log(`[my-king] copied legacy desktop settings from ${legacyUserData} to ${DEFAULT_MY_KING_USER_DATA}`)
   }
 }
@@ -689,6 +725,7 @@ function resolveHermesHome() {
       home: app.getPath('home'),
       localAppData: process.env.LOCALAPPDATA,
       envOverride: process.env.HERMES_HOME,
+      isPackaged: IS_PACKAGED,
       userDataOverride: USER_DATA_OVERRIDE
     })
   )
@@ -701,7 +738,12 @@ if (!process.env.HERMES_HOME && !USER_DATA_OVERRIDE) {
     ? path.join(process.env.LOCALAPPDATA, 'hermes')
     : path.join(app.getPath('home'), '.hermes')
 
-  if (copyLegacyHermesDataIfNeeded(legacyHermesHome, HERMES_HOME)) {
+  if (migrateLegacyHermesDataIfAllowed({
+    buildAppId: __HERMES_DESKTOP_BUILD_APP_ID__,
+    copy: copyLegacyHermesDataIfNeeded,
+    source: legacyHermesHome,
+    target: HERMES_HOME
+  })) {
     console.log(`[my-king] copied legacy user data from ${legacyHermesHome} to ${HERMES_HOME}`)
   }
 }
@@ -754,6 +796,10 @@ const MY_KING_EMPLOYEE_CONNECTOR_PATHS = resolveMyKingEmployeeConnectorPaths({
   programData: process.env.ProgramData,
   userData: app.getPath('userData')
 })
+const MY_KING_EMPLOYEE_GATEWAY_CREDENTIAL_PATH = path.join(
+  app.getPath('userData'),
+  'employee-gateway-credential.json'
+)
 const MY_KING_EMPLOYEE_CONNECTOR_HELPER = IS_PACKAGED
   ? path.join(
       process.resourcesPath,
@@ -1232,13 +1278,12 @@ if (IS_WINDOWS) {
   app.setAppUserModelId(MY_KING_APP_ID)
 }
 
-// Seed the native About panel with the live My King version. This is refreshed
-// on every open via the explicit "About" menu handler (refreshAboutPanel), so
-// an in-place `hermes update` mid-session is reflected without an app restart;
-// the seed here just covers the first open and any non-menu invocation path.
+// Seed the native About panel with the desktop and backend versions. This is
+// refreshed on every open via the explicit "About" menu handler; the seed here
+// covers the first open and any non-menu invocation path.
 app.setAboutPanelOptions({
   applicationName: APP_NAME,
-  applicationVersion: resolveHermesVersion(),
+  applicationVersion: nativeAboutVersion(),
   copyright: PUBLIC_APP_COPYRIGHT
 })
 
@@ -1550,6 +1595,7 @@ function rememberLog(chunk) {
 }
 
 let myKingEmployeeEnrollment: ReturnType<typeof createMyKingEmployeeEnrollment> | null = null
+let myKingEmployeeGatewaySession: { accessToken: string; baseUrl: string; expiresAt: number } | null = null
 
 function myKingEmployeeApiError(status: number, value: unknown): MyKingEmployeeEnrollmentError {
   const code =
@@ -1631,32 +1677,20 @@ function broadcastMyKingEmployeeEnrollmentStatus(status) {
   )
 }
 
-function windowsEmployeeIsAdministrator() {
-  if (!IS_WINDOWS) {
-    return false
-  }
-
+async function runMyKingEmployeeConnectorWithAuthorization(helperScriptPath, action, planPath, planSha256) {
   try {
-    const whoami = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'whoami.exe')
-    const groups = execFileSync(whoami, ['/groups', '/fo', 'csv', '/nh'], {
-      encoding: 'utf8',
-      windowsHide: true
+    assertMyKingEmployeeConnectorHelperTrusted({
+      helperScriptPath,
+      isPackaged: IS_PACKAGED,
+      platform: process.platform,
+      resourcesPath: process.resourcesPath
     })
-
-    return groups.includes('S-1-5-32-544')
-  } catch {
-    return false
-  }
-}
-
-async function runMyKingEmployeeConnectorWithAuthorization(helperScriptPath, action, planPath) {
-  try {
     await runMyKingEmployeeConnectorElevated({
       action,
       helperScriptPath,
       planPath,
-      platform: process.platform,
-      systemRoot: process.env.SystemRoot
+      planSha256,
+      platform: process.platform
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
@@ -1678,6 +1712,18 @@ async function verifyMyKingEmployeeGateway(expectedUrl) {
       'The employee gateway route did not stay on the assigned company gateway.'
     )
   }
+
+  const wsProbe = await probeGatewayWebSocket(connection.wsUrl, {
+    WebSocketImpl: globalThis.WebSocket,
+    headers: connection.headers
+  })
+
+  if (!wsProbe.ok) {
+    throw new MyKingEmployeeEnrollmentError(
+      'gateway-ws-unreachable',
+      `The employee gateway WebSocket could not be verified: ${wsProbe.reason || 'connection failed'}`
+    )
+  }
 }
 
 async function applyMyKingEmployeeGateway(expectedUrl) {
@@ -1694,17 +1740,8 @@ async function applyMyKingEmployeeGateway(expectedUrl) {
 
 async function clearMyKingEmployeeGateway(assignedUrl) {
   await teardownPrimaryBackendAndWait({ soft: true })
-
-  if (assignedUrl) {
-    const normalizedAssignedUrl = normalizeRemoteBaseUrl(assignedUrl)
-
-    await clearOauthSession(undefined)
-    oauthCookieWarmup = null
-    _clearNativeTokens(normalizedAssignedUrl)
-    writeDesktopConnectionConfig(
-      removeMyKingEmployeeStaticGatewayCredential(readDesktopConnectionConfig(), normalizedAssignedUrl)
-    )
-  }
+  myKingEmployeeGatewaySession = null
+  removeMyKingEmployeeGatewayCredential(MY_KING_EMPLOYEE_GATEWAY_CREDENTIAL_PATH)
 
   sendConnectionApplied()
 }
@@ -1724,14 +1761,57 @@ function getMyKingEmployeeEnrollment() {
     enableConnector: () => enableMyKingEmployeeConnector(MY_KING_EMPLOYEE_CONNECTOR_PATHS),
     emit: broadcastMyKingEmployeeEnrollmentStatus,
     employeeHome: app.getPath('home'),
-    employeeIsAdministrator: windowsEmployeeIsAdministrator(),
     employeeUser: os.userInfo().username,
     helperScriptPath: MY_KING_EMPLOYEE_CONNECTOR_HELPER,
     managedGatewayUrl: INSTALL_STAMP?.managedEmployeeGatewayUrl ?? null,
     platform: process.platform,
     postJson: postMyKingEmployeeJson,
     probeRemoteGateway: verifyMyKingEmployeeGateway,
+    revokeEnrollment: async binding => {
+      const credential = readMyKingEmployeeGatewayCredential(MY_KING_EMPLOYEE_GATEWAY_CREDENTIAL_PATH)
+      const gatewayToken = credential ? decryptDesktopSecret(credential.token) : ''
+
+      if (
+        !credential ||
+        !gatewayToken ||
+        credential.employeeId !== binding.employeeId ||
+        credential.deviceId !== binding.deviceId
+      ) {
+        throw new MyKingEmployeeEnrollmentError(
+          'gateway-auth-required',
+          'The device-scoped employee credential is missing; server access was not revoked.'
+        )
+      }
+
+      await revokeMyKingEmployeeEnrollment(
+        {
+          baseUrl: INSTALL_STAMP?.employeeEnrollmentBaseUrl ?? '',
+          enrollmentId: binding.enrollmentId,
+          deviceId: binding.deviceId,
+          gatewayToken
+        },
+        postMyKingEmployeeJson
+      )
+    },
     runElevated: runMyKingEmployeeConnectorWithAuthorization,
+    storeGatewayCredential: async credential => {
+      const token = encryptDesktopSecret(credential.token)
+
+      if (!token || token.encoding !== 'safeStorage') {
+        throw new MyKingEmployeeEnrollmentError(
+          'secure-storage-required',
+          'Secure operating-system credential storage is required for employee access.'
+        )
+      }
+
+      writeMyKingEmployeeGatewayCredential(MY_KING_EMPLOYEE_GATEWAY_CREDENTIAL_PATH, {
+        version: 1,
+        employeeId: credential.employeeId,
+        deviceId: credential.deviceId,
+        url: credential.url,
+        token: { encoding: 'safeStorage', value: token.value }
+      })
+    },
     userData: app.getPath('userData')
   })
 
@@ -2275,7 +2355,7 @@ async function waitForUpdateToFinish() {
         type: 'warning',
         title: 'My King update',
         message: 'The update finished, but needs one more step',
-        detail: result.message
+        detail: publicApplicationText(result.message)
       })
     } else if (result && result.ok) {
       rememberLog(`[updates] detached update finished OK (branch ${result.branch})`)
@@ -2283,7 +2363,7 @@ async function waitForUpdateToFinish() {
       rememberLog(`[updates] detached update FAILED (exit ${result.exitCode}): ${result.message}`)
       dialog.showErrorBox(
         'My King update did not finish',
-        `${result.message}\n\nDetails: ${path.join(HERMES_HOME, 'logs', 'desktop-update-handoff.log')}`
+        `${publicApplicationText(result.message)}\n\nDetails: ${path.join(HERMES_HOME, 'logs', 'desktop-update-handoff.log')}`
       )
     }
   } catch (err) {
@@ -4673,6 +4753,48 @@ function resolveHermesBackend(backendArgs) {
     }
   }
 
+  // Managed installers are self-contained. The immutable Python runtime and
+  // backend always outrank mutable user installs. A malformed employee build
+  // fails closed instead of silently entering the legacy network bootstrap.
+  if (IS_PACKAGED) {
+    const bundled = resolveBundledBackend({ resourcesPath: process.resourcesPath, platform: process.platform })
+
+    if ('missing' in bundled) {
+      rememberLog(`[bundle] incomplete managed runtime: ${bundled.missing.join(', ')}`)
+
+      return {
+        kind: 'bundle-incomplete',
+        label: bundled.message,
+        command: null,
+        args: backendArgs,
+        bootstrap: false,
+        env: {},
+        shell: false,
+        missing: bundled.missing
+      }
+    }
+
+    return {
+      kind: 'python',
+      label: 'My King bundled backend',
+      command: bundled.command,
+      args: ['-m', 'hermes_cli.main', ...backendArgs],
+      env: {
+        ...buildDesktopBackendEnv({
+          hermesHome: HERMES_HOME,
+          pythonPathEntries: [bundled.backendRoot, bundled.sitePackages],
+          venvRoot: bundled.pythonRoot
+        }),
+        PYTHONDONTWRITEBYTECODE: '1',
+        PYTHONNOUSERSITE: '1'
+      },
+      root: bundled.backendRoot,
+      bootstrap: false,
+      bundled: true,
+      shell: false
+    }
+  }
+
   // 3. ACTIVE_HERMES_ROOT — the canonical install at
   //    %LOCALAPPDATA%\\hermes\\hermes-agent (Windows) or ~/.hermes/hermes-agent.
   //    A valid bootstrap marker proves Desktop finished the first-run install
@@ -4832,6 +4954,12 @@ function resolveHermesBackend(backendArgs) {
 }
 
 async function ensureRuntime(backend) {
+  if (backend.kind === 'bundle-incomplete') {
+    const error: Error & { isBundleIncomplete?: boolean } = new Error(backend.label)
+    error.isBundleIncomplete = true
+    throw error
+  }
+
   if (!backend.bootstrap) {
     await advanceBootProgress('runtime.external', `Using ${backend.label}`, 32)
 
@@ -6429,26 +6557,6 @@ function getAppIconPath() {
   return APP_ICON_PATHS.find(fileExists)
 }
 
-function sendOpenUpdatesRequested() {
-  if (!mainWindow || mainWindow.isDestroyed()) {
-    return
-  }
-
-  const { webContents } = mainWindow
-
-  if (!webContents || webContents.isDestroyed()) {
-    return
-  }
-
-  webContents.send('hermes:open-updates')
-
-  if (!mainWindow.isVisible()) {
-    mainWindow.show()
-  }
-
-  mainWindow.focus()
-}
-
 // Push titlebar/fullscreen chrome state to a window's renderer. Defaults to the
 // primary, but any full chat window (primary or a secondary "instance" peer)
 // passes itself so its own fullscreen toggle drives its own traffic-light inset.
@@ -6476,17 +6584,11 @@ function buildApplicationMenu() {
   const template = []
   const roleItems = buildApplicationMenuRoleItems()
 
-  const checkForUpdatesItem = {
-    label: 'Check for Updates…',
-    click: () => sendOpenUpdatesRequested()
-  }
-
   if (IS_MAC) {
     template.push({
       label: APP_NAME,
       submenu: [
         { label: `About ${APP_NAME}`, click: () => showAboutPanelFresh() },
-        checkForUpdatesItem,
         { type: 'separator' },
         { role: 'services' },
         { type: 'separator' },
@@ -6597,11 +6699,6 @@ function buildApplicationMenu() {
     submenu: IS_MAC
       ? [{ role: 'minimize' }, { role: 'zoom' }, { role: 'front' }]
       : [{ role: 'minimize' }, { role: 'close' }]
-  })
-  template.push({
-    label: 'Help',
-    role: 'help',
-    submenu: [checkForUpdatesItem]
   })
 
   return Menu.buildFromTemplate(template)
@@ -7192,7 +7289,7 @@ function openOauthLoginWindow(baseUrl, { silent = false } = {}) {
       win = new BrowserWindow({
         width: 520,
         height: 720,
-        title: silent ? 'Connecting to My King Cloud agent…' : 'Sign in to My King gateway',
+        title: silent ? '正在连接 My King 云端智能体…' : '登录 My King 网关',
         autoHideMenuBar: true,
         // Silent cascade: start HIDDEN. The auto-SSO 302 chain completes in
         // well under a second, so the window normally never needs to show. We
@@ -7454,7 +7551,21 @@ function _clearNativeTokens(baseUrl: string) {
 // True when we hold native bearer tokens for this gateway (the native-flow
 // analogue of hasLiveOauthSession's cookie check).
 function hasNativeSession(baseUrl: string): boolean {
-  return _loadNativeTokens(baseUrl) !== null
+  if (_loadNativeTokens(baseUrl) !== null) {
+    return true
+  }
+
+  const binding = readMyKingEmployeeBinding(MY_KING_EMPLOYEE_CONNECTOR_PATHS.bindingPath)
+  const credential = readMyKingEmployeeGatewayCredential(MY_KING_EMPLOYEE_GATEWAY_CREDENTIAL_PATH)
+
+  return Boolean(
+    binding &&
+      credential &&
+      credential.employeeId === binding.employeeId &&
+      credential.deviceId === binding.deviceId &&
+      normalizeRemoteBaseUrl(credential.url) === normalizeRemoteBaseUrl(baseUrl) &&
+      decryptDesktopSecret(credential.token)
+  )
 }
 
 // POST JSON WITHOUT the OAuth cookie partition — used for the native token +
@@ -7473,6 +7584,50 @@ function postJsonNoAuth(url: string, body: unknown, opts: any = {}) {
 // /auth/native/refresh if the stored one is at/near expiry. Returns null when
 // there are no tokens or the refresh is terminally rejected (caller re-logins).
 async function ensureNativeAccessToken(baseUrl: string): Promise<string | null> {
+  const employeeBinding = readMyKingEmployeeBinding(MY_KING_EMPLOYEE_CONNECTOR_PATHS.bindingPath)
+  const employeeCredential = readMyKingEmployeeGatewayCredential(MY_KING_EMPLOYEE_GATEWAY_CREDENTIAL_PATH)
+  const normalizedBaseUrl = normalizeRemoteBaseUrl(baseUrl)
+
+  if (
+    employeeBinding &&
+    employeeCredential &&
+    employeeCredential.employeeId === employeeBinding.employeeId &&
+    employeeCredential.deviceId === employeeBinding.deviceId &&
+    normalizeRemoteBaseUrl(employeeCredential.url) === normalizedBaseUrl
+  ) {
+    if (
+      myKingEmployeeGatewaySession?.baseUrl === normalizedBaseUrl &&
+      myKingEmployeeGatewaySession.expiresAt > Date.now() + 30_000
+    ) {
+      return myKingEmployeeGatewaySession.accessToken
+    }
+
+    const gatewayToken = decryptDesktopSecret(employeeCredential.token)
+    const enrollmentBaseUrl = INSTALL_STAMP?.employeeEnrollmentBaseUrl
+
+    if (!gatewayToken || !enrollmentBaseUrl) {
+      return null
+    }
+
+    const session = await mintMyKingEmployeeGatewaySession(
+      {
+        baseUrl: enrollmentBaseUrl,
+        enrollmentId: employeeBinding.enrollmentId,
+        deviceId: employeeBinding.deviceId,
+        gatewayToken
+      },
+      postMyKingEmployeeJson
+    )
+
+    myKingEmployeeGatewaySession = {
+      accessToken: session.accessToken,
+      baseUrl: normalizedBaseUrl,
+      expiresAt: Date.parse(session.expiresAt)
+    }
+
+    return session.accessToken
+  }
+
   const tokens = _loadNativeTokens(baseUrl)
 
   if (!tokens) {
@@ -8035,7 +8190,7 @@ function renewPortalAccessSilently() {
           width: 520,
           height: 720,
           show: false,
-          title: 'Renewing My King Cloud session…',
+          title: '正在续期 My King 云端会话…',
           autoHideMenuBar: true,
           webPreferences: {
             contextIsolation: true,
@@ -8140,7 +8295,7 @@ function openPortalLoginWindow() {
       win = new BrowserWindow({
         width: 520,
         height: 720,
-        title: 'Sign in to My King Cloud',
+        title: '登录 My King 云端',
         autoHideMenuBar: true,
         webPreferences: {
           contextIsolation: true,
@@ -9471,12 +9626,26 @@ async function bootstrapSshConnectionInner(profile, sshConfig, reuseToken, sourc
   let result
 
   try {
-    const platform = await detectRemotePlatform(ssh, sshConfig.remoteHermesPath || '')
+    const remoteHermesHome = resolveMyKingRemoteHermesHome({
+      isPackaged: IS_PACKAGED,
+      remoteHermesPath: sshConfig.remoteHermesPath
+    })
+
+    const windowsRemoteHermesHome = remoteHermesHome ? WINDOWS_MANAGED_HERMES_HOME : ''
+
+    const platform = await detectRemotePlatform(
+      ssh,
+      sshConfig.remoteHermesPath || '',
+      windowsRemoteHermesHome
+    )
+
     const lifecycle = platform.os === 'Windows' ? connectWindowsRemote : remoteLifecycle.connect
+
     result = await lifecycle({
       ssh,
       profile: resolveRemoteSshDashboardProfile(sshConfig.remoteProfile, profile),
       remoteHermesPath: sshConfig.remoteHermesPath || '',
+      remoteHermesHome: platform.os === 'Windows' ? windowsRemoteHermesHome : remoteHermesHome,
       ownershipId: sshOwnershipKey(profile),
       reuseToken: reuseToken || '',
       forward: (localPort, remotePort) => ssh.forward(localPort, remotePort),
@@ -9608,36 +9777,24 @@ function currentMyKingEmployeeGatewayRoute() {
 
 async function resolveMyKingEmployeeGatewayBackend(url) {
   const baseUrl = normalizeRemoteBaseUrl(url)
-  const config = readDesktopConnectionConfig()
-  const blocks = [config.remote, ...Object.values(config.profiles || {})]
-  const saved = blocks.find(block => {
-    if (!block || typeof block !== 'object' || typeof block.url !== 'string') {
-      return false
+  const binding = readMyKingEmployeeBinding(MY_KING_EMPLOYEE_CONNECTOR_PATHS.bindingPath)
+  const credential = readMyKingEmployeeGatewayCredential(MY_KING_EMPLOYEE_GATEWAY_CREDENTIAL_PATH)
+
+  if (
+    binding &&
+    credential &&
+    credential.employeeId === binding.employeeId &&
+    credential.deviceId === binding.deviceId &&
+    normalizeRemoteBaseUrl(credential.url) === baseUrl
+  ) {
+    if (decryptDesktopSecret(credential.token)) {
+      return buildRemoteConnection(baseUrl, 'oauth', null, 'employee')
     }
-
-    try {
-      return normalizeRemoteBaseUrl(block.url) === baseUrl
-    } catch {
-      return false
-    }
-  })
-
-  if (saved) {
-    const authMode = normAuthMode(saved.authMode)
-    const token = authMode === 'oauth' ? null : decryptDesktopSecret(saved.token)
-
-    return buildRemoteConnection(baseUrl, authMode, token, 'employee', undefined, 'url', undefined, saved.headers)
-  }
-
-  const probe = await probeRemoteAuthMode(baseUrl)
-
-  if (probe.authMode === 'oauth') {
-    return buildRemoteConnection(baseUrl, 'oauth', null, 'employee')
   }
 
   throw new MyKingEmployeeEnrollmentError(
     'gateway-auth-required',
-    'The company gateway did not provide a usable managed authentication session.'
+    'The company gateway did not provide a device-scoped employee credential.'
   )
 }
 
@@ -9856,6 +10013,13 @@ async function testDesktopConnectionConfig(input: any = {}) {
       return { reachable: false, sshError: 'unreachable', error: 'SSH host is required.' }
     }
 
+    const remoteHermesHome = resolveMyKingRemoteHermesHome({
+      isPackaged: IS_PACKAGED,
+      remoteHermesPath: sshConfig.remoteHermesPath
+    })
+
+    const windowsRemoteHermesHome = remoteHermesHome ? WINDOWS_MANAGED_HERMES_HOME : ''
+
     const ssh = createSshProbeConnection(
       { host: sshConfig.host, user: sshConfig.user, port: sshConfig.port, keyPath: sshConfig.keyPath },
       { rememberLog: sshRememberLog }
@@ -9870,7 +10034,13 @@ async function testDesktopConnectionConfig(input: any = {}) {
       for (;;) {
         try {
           await ssh.open()
-          const platform: any = await detectRemotePlatform(ssh, sshConfig.remoteHermesPath || '')
+
+          const platform: any = await detectRemotePlatform(
+            ssh,
+            sshConfig.remoteHermesPath || '',
+            windowsRemoteHermesHome
+          )
+
           let hermesPath
           let hermesVersion
           let supported
@@ -9882,7 +10052,7 @@ async function testDesktopConnectionConfig(input: any = {}) {
             hermesVersion = inspection.version
             supported = inspection.supported
           } else {
-            hermesPath = await remoteLifecycle.locateHermes(ssh, sshConfig.remoteHermesPath || '')
+            hermesPath = await remoteLifecycle.locateHermes(ssh, sshConfig.remoteHermesPath || '', remoteHermesHome)
             hermesVersion = await remoteLifecycle.probeHermesVersion(ssh, hermesPath)
             supported = await remoteLifecycle.remoteSupportsSshOwnership(ssh, hermesPath)
           }
@@ -13159,6 +13329,13 @@ async function probeSshProfileInventory(connection) {
     return
   }
 
+  const remoteHermesHome = resolveMyKingRemoteHermesHome({
+    isPackaged: IS_PACKAGED,
+    remoteHermesPath: sshConfig.remoteHermesPath
+  })
+
+  const windowsRemoteHermesHome = remoteHermesHome ? WINDOWS_MANAGED_HERMES_HOME : ''
+
   const ssh = createSshProbeConnection(
     { host: sshConfig.host, user: sshConfig.user, port: sshConfig.port, keyPath: sshConfig.keyPath },
     { rememberLog: sshRememberLog }
@@ -13166,7 +13343,16 @@ async function probeSshProfileInventory(connection) {
 
   try {
     await ssh.open()
-    const profiles = await remoteLifecycle.listRemoteHermesProfiles(ssh)
+
+    const platform = await detectRemotePlatform(
+      ssh,
+      sshConfig.remoteHermesPath || '',
+      windowsRemoteHermesHome
+    )
+
+    const profiles = platform.os === 'Windows'
+      ? await listWindowsRemoteHermesProfiles(ssh, windowsRemoteHermesHome)
+      : await remoteLifecycle.listRemoteHermesProfiles(ssh, remoteHermesHome)
 
     if (profiles.length > 0) {
       sshRosterCache.set(connection.id, profiles)
@@ -13331,6 +13517,10 @@ ipcMain.handle('hermes:gateway:ws-url-for', async (_event, payload) => {
 // /api/hermes/update endpoint (the dashboard updater), which runs
 // `hermes update` on THAT machine.
 ipcMain.handle('hermes:connections:update-all', async (_event, payload) => {
+  if (MANAGED_UPDATE_ACCESS === 'administrator-only') {
+    return managedUpdateAllDenied()
+  }
+
   const registry = readDesktopConnectionsRegistry()
 
   // Optional renderer-side exclusions: the everything-update flow dispatches
@@ -13475,6 +13665,9 @@ ipcMain.handle('hermes:connection-config:oauth-login', async (_event, rawUrl) =>
       const tokens = await runNativeLogin(baseUrl, {
         openExternal: url => shell.openExternal(url),
         postJson: (url, body, opts) => postJsonNoAuth(url, body, opts),
+        brandLockupPng: fs.readFileSync(
+          path.join(app.getAppPath(), 'assets', 'brand', 'my-king-lockup.png')
+        ),
         rememberLog
       })
 
@@ -14084,6 +14277,12 @@ async function handleHermesApiRequest(request) {
 }
 
 ipcMain.handle('hermes:api', async (_event, request) => {
+  // The generic bridge is reachable from DevTools and older renderer bundles;
+  // it must not become a bypass around the managed update IPC policy.
+  if (isManagedUpdateApiRequest(request)) {
+    return managedUpdateApiDenied()
+  }
+
   // Hold the deletion gate for BOTH profile deletes and renames: a concurrent
   // renderer reconnect entering ensureBackend() mid-mutation would otherwise
   // respawn the old-name backend and recreate its HERMES_HOME (#45474).
@@ -14910,31 +15109,10 @@ const terminalIpc = registerTerminalIpc({
 
 const disposeTerminalSession = terminalIpc.disposeTerminalSession
 
-ipcMain.handle('hermes:updates:check', async () =>
-  checkUpdates().catch(error => ({
-    supported: true,
-    branch: readDesktopUpdateConfig().branch,
-    error: 'check-failed',
-    message: error?.message || String(error),
-    fetchedAt: Date.now()
-  }))
-)
-
-ipcMain.handle('hermes:updates:apply', async (_event, payload) =>
-  applyUpdates(payload || {}).catch(error => ({
-    ok: false,
-    error: 'apply-failed',
-    message: error?.message || String(error)
-  }))
-)
-
-ipcMain.handle('hermes:updates:branch:get', async () => readDesktopUpdateConfig())
-
-ipcMain.handle('hermes:updates:branch:set', async (_event, name) => {
-  const branch = typeof name === 'string' && name.trim() ? name.trim() : DEFAULT_UPDATE_BRANCH
-  writeDesktopUpdateConfig({ branch })
-
-  return { branch }
+registerManagedUpdateIpc({
+  ipcMain,
+  now: Date.now,
+  readConfig: readDesktopUpdateConfig
 })
 
 // Resolve the canonical My King version (the one `release.py` bumps in
@@ -14962,6 +15140,10 @@ function resolveHermesVersion() {
   return app.getVersion()
 }
 
+function nativeAboutVersion() {
+  return `My King Desktop v${app.getVersion()} · My King backend v${resolveHermesVersion()}`
+}
+
 // Renderer-bundle skew: `hermes update` moves the SOURCE TREE, but the UI
 // (including bundled plugins like Bot Mode) is compiled into this binary at
 // build time. A terminal-side update — or an in-app update whose bundle-swap
@@ -14975,17 +15157,15 @@ async function detectRendererSkew() {
   return detectBundleSkew(INSTALL_STAMP, runGit, resolveUpdateRoot())
 }
 
-// Re-resolve the live My King version and push it into the native About panel
-// just before showing it, so an in-place `hermes update` is reflected without
-// an app restart. macOS only — `showAboutPanel()` is a no-op elsewhere, and the
-// other platforms don't use this menu item.
+// Keep renderer-skew detection available for diagnostics, while the employee
+// About panel remains a read-only version display. macOS only —
+// `showAboutPanel()` is a no-op elsewhere, and the other platforms don't use
+// this menu item.
 function showAboutPanelFresh() {
-  void detectRendererSkew().then(skew => {
+  void detectRendererSkew().then(() => {
     app.setAboutPanelOptions({
       applicationName: APP_NAME,
-      applicationVersion: skew.outOfSync
-        ? `${resolveHermesVersion()} — app build out of date, update the desktop app`
-        : resolveHermesVersion(),
+      applicationVersion: nativeAboutVersion(),
       copyright: PUBLIC_APP_COPYRIGHT
     })
     app.showAboutPanel()

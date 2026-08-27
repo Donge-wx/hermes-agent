@@ -39,8 +39,8 @@ describe('My King Employee Connector paths', () => {
         platform: 'win32',
         programData: 'D:\\ProgramData',
         userData: 'D:\\Users\\employee\\AppData\\Roaming\\My King'
-      }).baseDir
-    ).toBe('D:\\ProgramData\\MyKing\\EmployeeConnector')
+      }).hostPublicKeysPath
+    ).toBe('D:\\ProgramData\\MyKing\\EmployeeConnector\\control\\ssh-host-public-keys.txt')
   })
 
   it('uses the required macOS Library directory', () => {
@@ -147,6 +147,7 @@ describe('employee binding isolation', () => {
       version: 1 as const,
       employeeId: 'employee-1',
       employeeName: '测试员工',
+      enrollmentId: 'enrollment-1',
       deviceId: 'a-random-device-id',
       remoteGatewayUrl: 'https://gateway.myking.test',
       enrolledAt: '2026-08-27T00:00:00.000Z',

@@ -14,6 +14,8 @@ import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { mkdirSync } from 'node:fs'
 
+import { readElectronBuildAppId } from './electron-build-identity.mjs'
+
 const here = dirname(fileURLToPath(import.meta.url))
 const root = resolve(here, '..')
 const distDir = resolve(root, 'dist')
@@ -23,15 +25,17 @@ const mainEntry = resolve(root, 'electron/main.ts')
 const mainOut = resolve(distDir, 'electron-main.mjs')
 const preloadEntry = resolve(root, 'electron/preload.ts')
 const preloadOut = resolve(distDir, 'electron-preload.js')
+const buildAppId = readElectronBuildAppId(resolve(root, 'package.json'))
 
 const external = ['electron', 'node-pty', 'get-windows', 'fs']
 // Production bundles bake packaged=true so unpackaged `electron .` still
 // behaves like a packaged build. Dev bundles (`--dev`) leave the env alone
 // so HERMES_DESKTOP_DEV_SERVER / source-tree resolution keep working.
 const isDev = process.argv.includes('--dev')
-const define = isDev
-  ? {}
-  : { 'process.env.HERMES_DESKTOP_IS_PACKAGED': JSON.stringify(true) }
+const define = {
+  __HERMES_DESKTOP_BUILD_APP_ID__: JSON.stringify(buildAppId),
+  ...(isDev ? {} : { 'process.env.HERMES_DESKTOP_IS_PACKAGED': JSON.stringify(true) })
+}
 
 // Bundle main.ts → dist/electron-main.mjs
 await build({

@@ -217,8 +217,7 @@ export const zh: Translations = {
     doneTitle: '诊断信息已发送',
     doneDescription: '调试包已私密上传。在您的支持会话中分享以下链接，团队即可查看您的日志。',
     failedTitle: '上传失败',
-    failedHint:
-      '您也可以在终端运行 `hermes debug share --nous`，或运行 `hermes debug share --local` 在不上传的情况下查看报告。',
+    failedHint: '您也可以从“设置 → 网关”打开本地日志，再将诊断详情附到支持会话中。',
     handoffLead: '在以下位置继续讨论:',
     links: {
       github: 'GitHub Issues',
@@ -868,7 +867,7 @@ export const zh: Translations = {
     about: {
       heading: 'My King Desktop',
       desktopPackageVersion: value => `桌面界面 ${value}`,
-      backendRuntimeVersion: value => `后端 ${value}`,
+      backendRuntimeVersion: value => `My King backend v${value.replace(/^v/i, '')}`,
       versionUnavailable: '版本不可用',
       bundleOutOfSync: '应用构建版本过旧',
       bundleOutOfSyncDesc:
@@ -1049,10 +1048,10 @@ export const zh: Translations = {
     },
     gateway: {
       employeeEnrollment: {
-        title: '连接公司智能体',
+        title: '连接 AI Work OS',
         description: '请打开管理员发送的邀请链接，或输入一次性绑定码。',
         codePlaceholder: '一次性绑定码',
-        connect: '连接公司',
+        connect: '连接',
         check: '检查连接',
         diagnostics: '查看诊断信息',
         connectedTitle: 'My King 已连接',
@@ -1067,8 +1066,9 @@ export const zh: Translations = {
         reauthorize: '重新授权',
         unbind: '解除绑定',
         unbindTitle: '解除这台员工电脑的绑定？',
-        unbindDescription: 'My King 只会删\u2060除自己创建的连接组件、密钥和后台任务，不会删\u2060除你的 SSH 配置或其他密钥。',
-        diagnosticsTitle: 'My King Employee Connector 诊断',
+        unbindDescription:
+          'My King 只会删\u2060除自己创建的连接组件、密钥和后台任务，不会删\u2060除你的 SSH 配置或其他密钥。',
+        diagnosticsTitle: 'My King 员工连接器诊断',
         diagnosticsEmpty: '暂时没有连接组件诊断记录。',
         close: '关闭',
         stages: {
@@ -1109,6 +1109,9 @@ export const zh: Translations = {
           'secure-connection-failed': '安全连接启动失败，请重新连接。',
           'gateway-unreachable': '无法连接公司网关，请检查网络后重试。',
           'gateway-auth-required': '公司网关尚未下发可用的托管登录会话，请联系管理员。',
+          'gateway-ws-unreachable': '公司网关的实时连接验证失败，请检查网络或联系管理员。',
+          'secure-storage-required': '系统安全凭据存储不可用，无法保存员工专用凭据。',
+          'revocation-failed': '公司服务器未确认权限撤销；本机绑定已保留，请重试解除绑定。',
           'company-unavailable': '公司服务器暂时不可用，请稍后重试。',
           'invalid-server-response': '公司服务器返回异常，请稍后重试或联系管理员。',
           'not-ready': '公司尚未确认设备就绪，请稍后重试。',
@@ -1126,7 +1129,7 @@ export const zh: Translations = {
       intro:
         'My King Desktop 默认会启动自己的本地网关。当你希望此应用控制另一台机\u2060器\u2060上或可信代理后的现有 My King 后\u2060端时，可以使用远程网关。网关连接属于本机级设置；profile 是从所连接的网关中发现的。',
       envOverrideTitle: '环境变量正在控制此桌面会话。',
-      envOverrideDesc: '取消设置 HERMES_DESKTOP_REMOTE_URL 和 HERMES_DESKTOP_REMOTE_TOKEN 后才会使用下面保存的设置。',
+      envOverrideDesc: '移除桌面远程 URL 和令牌的环境覆盖后，才会使用下面保存的设置。',
       modeTitle: '连接模式',
       localTitle: '本地网关',
       localDesc: '在 localhost 启动私有 My King 后\u2060端。这是默认方式，并且可离\u2060线\u2060工\u2060作。',
@@ -1165,7 +1168,7 @@ export const zh: Translations = {
       cloudAgentProvisioning: '正在配置…',
       cloudStatusLabel: status => `状态：${status}`,
       remoteUrlTitle: '远程 URL',
-      remoteUrlDesc: '远程 dashboard 后端的基础 URL。支持路径前缀，例如 /hermes。',
+      remoteUrlDesc: '远程 dashboard 后端的基础 URL。支持路径前缀，例如 /myking。',
       probing: '正在检查此网关的认证方式…',
       probeError: '暂时无法访问此网关。请检查 URL；网关响应后会显示认证方式。',
       signedIn: '已登录',
@@ -1233,7 +1236,7 @@ export const zh: Translations = {
       sshKeyTitle: '密钥文件',
       sshKeyDesc: '私钥路径。留空 = ssh-agent 或 ~/.ssh/config。',
       sshHermesPathTitle: 'My King 路径（可选）',
-      sshHermesPathDesc: '远程 hermes 可执行文件的完整路径。留空 = 自动检测。',
+      sshHermesPathDesc: '远程 My King 兼容智能体可执行文件的完整路径。留空 = 自动检测。',
       sshHermesPathPlaceholder: '自动检测',
       sshTestConnection: '测试 SSH',
       sshConnect: '连接',
@@ -1244,8 +1247,7 @@ export const zh: Translations = {
       sshErrAuth:
         'SSH 认证失败。请将密钥加载到 ssh-agent（ssh-add），或在 ~/.ssh/config 中设置 IdentityFile——My King 以非交互方式运行 ssh。',
       sshErrHostKey: '自上次连接以来主机密钥已更改。请确认这是预期的，然后运行 ssh-keygen -R <host> 并重新连接。',
-      sshErrNotInstalled:
-        '远程主机上未安装 My King。请在远程安装（curl -fsSL https://hermes-agent.nousresearch.com/install.sh | sh）或设置 My King 路径。',
+      sshErrNotInstalled: '远程主机上未安装 My King。请使用官方安装器安装兼容的智能体运行环境，或设置 My King 路径。',
       sshErrPlatform: '不支持的远程平台。My King Desktop 的 SSH 模式支持 Linux、macOS 和 Windows 远程主机。',
       sshErrTimeout: 'SSH 连接超时。主机可能无法访问或处于休眠状态。',
       sshErrUpdateRequired: '使用 Desktop SSH 连接前，请更新远程主机上的 My King。',
@@ -1540,6 +1542,16 @@ export const zh: Translations = {
     visionModelHint: '视觉功能使用你的辅助模型配置——支持图像的模型在那里选择，而不是在此处按提供商选择。',
     visionModelLink: '在 设置 → 模型 中选择视觉模型',
     toolsetsEnabled: (enabled, total) => `已启用 ${enabled}/${total} 个工具集`,
+    toolsCount: count => `${count} 个工具`,
+    includedTools: '包含的工具',
+    metadataLabels: {
+      name: '名称',
+      description: '说明',
+      version: '版本',
+      author: '作者',
+      license: '许可证',
+      platforms: '支持平台'
+    },
     configureToolset: label => `配置 ${label}`,
     toggleToolset: (label, enabled) => `${enabled ? '开启' : '关闭'} ${label} 工具集`,
     skillsLoadFailed: '技能加载失败',
@@ -1573,7 +1585,7 @@ export const zh: Translations = {
     edit: '编辑',
     archive: '归档',
     skillArchivedTitle: '技能已归档',
-    skillArchivedMessage: '可通过 hermes curator restore 恢复。',
+    skillArchivedMessage: '可从已归档技能视图中恢复。',
     hub: {
       searchPlaceholder: '搜索技能中心',
       search: '搜索',
@@ -1683,7 +1695,7 @@ export const zh: Translations = {
     ageDays: days => `${days} 天前`,
     durationSeconds: seconds => `${seconds} 秒`,
     durationMinutes: (minutes, seconds) => `${minutes} 分 ${seconds} 秒`,
-    tokens: value => `${value} 词元`
+    tokens: value => `${value} token`
   },
 
   commandCenter: {
@@ -1769,7 +1781,7 @@ export const zh: Translations = {
       maintenance: '诊断、备份、维护器与记忆数据',
       sessions: '搜索与管理会话',
       system: '状态、日志与系统操作',
-      usage: '一段时间内的词元、成本与技能活动'
+      usage: '一段时间内的 token、成本与技能活动'
     },
     nav: {
       newChat: { title: '新建会话', detail: '开始一个新会话' },
@@ -1780,8 +1792,8 @@ export const zh: Translations = {
     },
     sectionEntries: {
       sessions: { title: '会话面板', detail: '搜索、置顶与管理会话' },
-      system: { title: '系统面板', detail: '网关状态、日志、重启/更新' },
-      usage: { title: '用量面板', detail: '词元、成本与技能活动' }
+      system: { title: '系统面板', detail: '网关状态、日志与重启' },
+      usage: { title: '用量面板', detail: 'token、成本与技能活动' }
     },
     providerNavigate: '导航',
     providerSessions: '会话',
@@ -1792,7 +1804,8 @@ export const zh: Translations = {
     unpinSession: '取消置顶',
     exportSession: '导出会话',
     deleteSession: '删除会话',
-    noSessions: '暂无会话。',
+    noSessionsTitle: '还没有会话',
+    noSessions: '开始对话后，会话会显示在这里。',
     gatewayRunning: '消息网关运行中',
     gatewayStopped: '消息网关已停止',
     hermesActiveSessions: (version, count) => `My King ${version} · 活跃会话 ${count}`,
@@ -1811,13 +1824,13 @@ export const zh: Translations = {
     days: count => `${count} 天`,
     statSessions: '会话',
     statApiCalls: 'API 调用',
-    statTokens: '输入/输出词元',
+    statTokens: '输入/输出 token',
     statCost: '预估成本',
     actualCost: cost => `实际 ${cost}`,
     loadingUsage: '正在加载用量…',
     noUsage: period => `最近 ${period} 天暂无用量。`,
     retry: '重试',
-    dailyTokens: '每日词元',
+    dailyTokens: '每日 token',
     input: '输入',
     output: '输出',
     noDailyActivity: '暂无每日活动。',
@@ -1910,6 +1923,7 @@ export const zh: Translations = {
     saveChanges: '保存更改',
     saved: '已保存',
     replaceValue: '替换当前值',
+    fieldPlaceholder: label => `请输入${label}`,
     openDocs: '打开文档',
     clearField: key => `清除 ${key}`,
     enableAria: name => `启用 ${name}`,
@@ -1942,6 +1956,33 @@ export const zh: Translations = {
     pairingLockedOut: '批准失败次数过多，该平台已被暂时锁定，请稍后再试。',
     waitingSince: minutes => (minutes < 1 ? '刚刚' : `${minutes} 分钟前`),
     fieldCopy: {
+      DINGTALK_CLIENT_ID: { label: '应用 Client ID', help: '钉钉开发者后台中的 AppKey。' },
+      DINGTALK_CLIENT_SECRET: { label: '应用 Client Secret', help: '钉钉开发者后台中与 AppKey 配对的 AppSecret。' },
+      DINGTALK_WEBHOOK_URL: { label: '机器人 Webhook URL', help: '用于定时任务和跨平台通知的静态机器人地址。' },
+      DINGTALK_ALLOWED_USERS: { label: '允许的成员 ID', help: '以逗号分隔可与机器人对话的员工或发送者 ID。' },
+      DINGTALK_HOME_CHANNEL: { label: '默认会话 ID', help: '定时任务和通知默认投递到的会话。' },
+      DINGTALK_HOME_CHANNEL_NAME: { label: '默认会话名称', help: '默认会话在日志和状态中显示的名称。' },
+      FEISHU_APP_ID: { label: '应用 App ID', help: '飞书开放平台中机器人应用的 App ID。' },
+      FEISHU_APP_SECRET: { label: '应用 App Secret', help: '飞书开放平台中与 App ID 配对的应用密钥。' },
+      FEISHU_ENCRYPT_KEY: { label: '事件加密密钥', help: '用于解密飞书事件回调内容。' },
+      FEISHU_VERIFICATION_TOKEN: { label: '事件验证令牌', help: '用于验证飞书事件回调的来源。' },
+      FEISHU_DOMAIN: { label: '服务区域', help: '中国区填 feishu，国际版 Lark 填 lark。', placeholder: 'feishu' },
+      FEISHU_ALLOWED_USERS: { label: '允许的用户 ID', help: '以逗号分隔可与机器人对话的飞书用户 ID。' },
+      FEISHU_ALLOW_ALL_USERS: { label: '允许所有用户', help: '仅用于测试。启用后任何飞书用户都可发起对话。' },
+      FEISHU_HOME_CHANNEL: { label: '默认群聊 ID', help: '定时任务和通知默认投递到的群聊。' },
+      FEISHU_HOME_CHANNEL_NAME: { label: '默认群聊名称', help: '默认群聊在日志和状态中显示的名称。' },
+      WECOM_CALLBACK_CORP_ID: { label: '企业 ID', help: '企业微信管理后台中的 Corp ID。' },
+      WECOM_CALLBACK_CORP_SECRET: { label: '应用 Secret', help: '企业微信自建应用的 Secret。' },
+      WECOM_CALLBACK_AGENT_ID: { label: '应用 Agent ID', help: '企业微信自建应用的 Agent ID。' },
+      WECOM_CALLBACK_TOKEN: { label: '回调验证 Token', help: '企业微信回调配置中的验证 Token。' },
+      WECOM_CALLBACK_ENCODING_AES_KEY: { label: '回调 EncodingAESKey', help: '企业微信回调消息的加密密钥。' },
+      WEIXIN_ACCOUNT_ID: { label: '微信账号 ID', help: '通过扫码登录获取的 iLink Bot 账号 ID。' },
+      WEIXIN_TOKEN: { label: '微信登录 Token', help: '通过扫码登录获取的 iLink Bot 认证 Token。' },
+      WEIXIN_BASE_URL: {
+        label: 'iLink API 地址',
+        help: '扫码登录时保存的 iLink API 基础地址。',
+        placeholder: 'https://ilinkai.weixin.qq.com'
+      },
       TELEGRAM_BOT_TOKEN: {
         label: 'Bot 令牌',
         help: '用 @BotFather 创建一个机器人，然后粘贴它给你的令牌。',
@@ -1984,7 +2025,7 @@ export const zh: Translations = {
       MATTERMOST_ALLOWED_USERS: { label: '允许的用户 ID', help: '推荐。逗号分隔的 Mattermost 用户 ID。' },
       MATRIX_HOMESERVER: { label: 'Homeserver URL', placeholder: 'https://matrix.org' },
       MATRIX_ACCESS_TOKEN: { label: '访问令牌' },
-      MATRIX_USER_ID: { label: 'Bot 用户 ID', placeholder: '@hermes:example.org' },
+      MATRIX_USER_ID: { label: 'Bot 用户 ID', placeholder: '@myking:example.org' },
       MATRIX_ALLOWED_USERS: { label: '允许的 Matrix 用户 ID', help: '推荐。@user:server 格式的逗号分隔用户 ID。' },
       SIGNAL_HTTP_URL: {
         label: 'Signal 桥接 URL',
@@ -2017,7 +2058,7 @@ export const zh: Translations = {
       wecom: '在企业微信中添加群机器人，复制其 webhook key 作为 WECOM_BOT_ID。仅可发送——双向请用企业微信 (应用) 选项。',
       wecom_callback: '设置一个企业微信自建应用，暴露其回调 URL，并提供 corp ID、secret、agent ID 和 AES key。',
       weixin:
-        '运行 `hermes gateway setup`，选择 Weixin，然后使用个人微信账号扫描并确认二维码。My King 会通过腾讯 iLink Bot API 连接并保存凭据。',
+        '打开 My King 网关设置并选择 Weixin，然后使用个人微信账号扫描并确认二维码。My King 会通过腾讯 iLink Bot API 连接并保存凭据。',
       qqbot: '在 QQ 开放平台 (q.qq.com) 注册一个应用，复制 App ID 和 Client Secret。',
       api_server:
         '把 My King 暴露为兼容 OpenAI 的 API。设置一个鉴权密钥，然后把 Open WebUI / LobeChat 等指向 host:port。',
@@ -2393,6 +2434,7 @@ export const zh: Translations = {
     results: '结果',
     pinned: '已置顶',
     sessions: '会话',
+    bots: '机器人',
     cronJobs: '定时任务',
     groupAriaGrouped: '以单一列表显示会话',
     groupAriaUngrouped: '按工作区分组会话',
@@ -2817,12 +2859,13 @@ export const zh: Translations = {
     maybeLater: '稍后再说',
     moreChanges: count => `另有 ${count} 项更改。`,
     manualTitle: '从终端更新',
-    manualBody: '你是从命令行安装的 My King，因此更新也需要在那里运行。请将此命令粘贴到终端：',
+    manualBody: '你是从命令行安装的 My King，因此更新也需要在那里运行。请复制后端更新命令并粘贴到终端：',
     manualPickedUp: '下次启动 My King 时会使用新版本。',
     guiSkewTitle: '请更新桌面应用',
     guiSkewBody:
       '后端已更新，但此桌面应用包未更改。请更新或重新安装 My King 桌面应用（你的 AppImage / .deb / .rpm）以保持一致。',
     copy: '复制',
+    copyCommand: '复制后端更新命令',
     copied: '已复制',
     done: '完成',
     applyingBody:
@@ -2888,7 +2931,7 @@ export const zh: Translations = {
     remoteSetupDesc: '输入网关 URL。My King Desktop 会检测需要令牌还是浏览器登录。',
     remoteUrlTitle: '网关 URL',
     remoteUrlDesc: '使用 My King 网关的基础 URL；远程地址请包含 https://。',
-    remoteUrlPlaceholder: 'https://gateway.example.com/hermes',
+    remoteUrlPlaceholder: 'https://gateway.example.com/myking',
     probing: '正在检测网关认证方式...',
     probeError: '无法连接到该 My King 网关。',
     identityProvider: '你的身份提供方',
@@ -2953,6 +2996,7 @@ export const zh: Translations = {
       gemini: { short: 'Gemini 模型', description: '直接访问 Google Gemini 模型。' },
       xai: { short: 'Grok 模型', description: '直接访问 xAI Grok 模型。' },
       local: {
+        title: '本地 / 自定义端点',
         short: '自托管',
         description: '将 My King 指向本地或自托管的 OpenAI 兼容端点 (vLLM、llama.cpp、Ollama 等)。'
       }
@@ -2994,7 +3038,7 @@ export const zh: Translations = {
     freeTier: '免费层',
     pro: 'Pro',
     free: '免费',
-    price: (input, output) => `${input} 输入 / ${output} 输出每 Mtok`,
+    price: (input, output) => `${input} 输入 / ${output} 输出每百万 token`,
     change: '更改',
     startChatting: '开始',
     docs: provider => `${provider} 文档`
@@ -3084,7 +3128,7 @@ export const zh: Translations = {
       updateInProgress: '正在更新',
       commitsBehind: (count, branch) => `落后 ${branch} ${count} 个提交`,
       desktopVersion: version => `My King Desktop v${version}`,
-      backendVersion: version => `后端 v${version}`,
+      backendVersion: version => `My King backend v${version}`,
       clientLabel: version => `客户端 v${version}`,
       connectionSsh: host => `SSH: ${host}`,
       connectionRemote: host => `远程: ${host}`,
@@ -3092,7 +3136,7 @@ export const zh: Translations = {
       connectionCloudTooltip: host => `My King Cloud · ${host}`,
       connectionSshTooltip: host => `SSH · ${host}`,
       connectionRemoteTooltip: host => `Remote · ${host}`,
-      backendLabel: version => `后端 v${version}`,
+      backendLabel: version => `My King backend v${version}`,
       commit: sha => `提交 ${sha}`,
       branch: branch => `分支 ${branch}`,
       closeCommandCenter: '关闭命令中心',
@@ -3118,7 +3162,7 @@ export const zh: Translations = {
       toggleRunningTimer: '回合计时',
       toggleSessionTimer: '会话计时',
       toggleTerminal: '终端',
-      toggleVersion: '版本与更新',
+      toggleVersion: '桌面版本',
       toggleWorkspace: '工作区',
       agents: '代理',
       closeAgents: '关闭代理',
@@ -3149,7 +3193,7 @@ export const zh: Translations = {
         loading: '正在加载明细…',
         percentFull: percent => `已用 ${percent}%`,
         title: '上下文用量',
-        tokenSummary: (used, max) => `${used} / ${max} Tokens`
+        tokenSummary: (used, max) => `${used} / ${max} token`
       },
       session: '会话',
       yoloOn: 'YOLO 已开启 — 自动批准危险命令。Shift+点击可全局切换。',
@@ -3636,7 +3680,7 @@ export const zh: Translations = {
       success: platform => `已移交到 ${platform}。随时可在此处恢复。`,
       systemNote: platform => `↻ 已移交到 ${platform} — 随时可在此处恢复。`,
       failed: error => `移交失败：${error}`,
-      timedOut: '等待网关超时。`hermes gateway` 是否正在运行？'
+      timedOut: '等待网关超时。My King 后端是否正在运行？'
     }
   },
 

@@ -495,10 +495,10 @@ export function StatusRule({
   // (`12k tok`) and the visual fill bar is dropped entirely.
   const ctxLabel = usage.context_max
     ? segs.compactCtx
-      ? `${fmtK(usage.context_used ?? 0)} tok`
+      ? `${fmtK(usage.context_used ?? 0)} token`
       : `${fmtK(usage.context_used ?? 0)}/${fmtK(usage.context_max)}`
     : usage.total > 0
-      ? `${fmtK(usage.total)} tok`
+      ? `${fmtK(usage.total)} token`
       : ''
 
   const bar = !segs.compactCtx && usage.context_max ? ctxBar(pct) : ''

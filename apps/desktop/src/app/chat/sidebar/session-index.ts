@@ -15,9 +15,9 @@ import type { SessionInfo } from '@/types/hermes'
  * tip. Recents are indexed last and win a direct id collision.
  */
 export function buildSessionByAnyId(
-  visibleSessions: SessionInfo[],
-  cronSessions: SessionInfo[],
-  messagingSessions: SessionInfo[]
+  visibleSessions: readonly SessionInfo[],
+  cronSessions: readonly SessionInfo[],
+  messagingSessions: readonly SessionInfo[]
 ): Map<string, SessionInfo> {
   const map = new Map<string, SessionInfo>()
 

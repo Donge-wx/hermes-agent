@@ -1,6 +1,6 @@
-import type { Translations } from "./types";
+import type { ResolvedTranslations } from "./types";
 
-export const en: Translations = {
+export const en: ResolvedTranslations = {
   common: {
     save: "Save",
     saving: "Saving...",
@@ -53,12 +53,12 @@ export const en: Translations = {
   },
 
   app: {
-    brand: "Hermes Agent",
-    brandShort: "HA",
+    brand: "My King",
+    brandShort: "MK",
     closeNavigation: "Close navigation",
     closeModelTools: "Close model and tools",
     footer: {
-      org: "Nous Research",
+      org: "My King",
     },
     activeSessionsLabel: "Active Sessions:",
     gatewayStatusLabel: "Gateway Status:",
@@ -75,6 +75,12 @@ export const en: Translations = {
       config: "Config",
       cron: "Cron",
       documentation: "Documentation",
+      files: "Files",
+      channels: "Channels",
+      webhooks: "Webhooks",
+      pairing: "Pairing",
+      system: "System",
+      mcp: "MCP",
       keys: "Keys",
       logs: "Logs",
       models: "Models",
@@ -132,7 +138,7 @@ export const en: Translations = {
     recentSessions: "Recent Sessions",
     restartGateway: "Restart Gateway",
     restartGatewayConfirmMessage:
-      "This restarts the Hermes gateway process. Connected channels and active sessions will reconnect afterward.",
+      "This restarts the My King gateway process. Connected channels and active sessions will reconnect afterward.",
     restartGatewayConfirmTitle: "Restart gateway?",
     restartingGateway: "Restarting gateway…",
     running: "Running",
@@ -141,12 +147,12 @@ export const en: Translations = {
     starting: "Starting",
     startedInBackground: "Started in background — check logs for progress",
     stopped: "Stopped",
-    updateHermes: "Update Hermes",
+    updateHermes: "Update My King",
     updateHermesConfirmMessage:
       "This runs hermes update and restarts the gateway when it finishes. Active sessions keep their prompt cache until then.",
     updateHermesConfirmNow: "Update now",
-    updateHermesConfirmTitle: "Update Hermes?",
-    updatingHermes: "Updating Hermes…",
+    updateHermesConfirmTitle: "Update My King?",
+    updatingHermes: "Updating My King…",
     waitingForOutput: "Waiting for output…",
   },
 
@@ -190,6 +196,25 @@ export const en: Translations = {
     failedToDeleteSelected: "Failed to delete selected sessions",
     resumeInChat: "Resume in Chat",
     newChat: "New chat",
+    anyChatSource: "Any chat source",
+    anyAutomationSource: "Any automation source",
+    chatSources: "Chat sources",
+    automationSources: "Automation sources",
+    noSources: "No sources",
+    selectedSources: "{count} sources",
+    pruneOld: "Prune old sessions",
+    pruneDescription:
+      "Permanently remove archived sessions whose last activity is older than the given number of days. Active sessions are never pruned.",
+    olderThanDays: "Older than (days)",
+    prune: "Prune",
+    statsTotal: "Total",
+    statsActive: "Active in store",
+    statsArchived: "Archived",
+    statsMessages: "Messages",
+    statsSources: "Sources",
+    importSessions: "Import sessions",
+    importSessionsLabel: "Import exported sessions",
+    importSessionsTitle: "Import exported session JSON or JSONL",
     previousPage: "Previous page",
     nextPage: "Next page",
     roles: {
@@ -202,10 +227,10 @@ export const en: Translations = {
 
   analytics: {
     period: "Period:",
-    totalTokens: "Total Tokens",
+    totalTokens: "Total token",
     totalSessions: "Total Sessions",
     apiCalls: "API Calls",
-    dailyTokenUsage: "Daily Token Usage",
+    dailyTokenUsage: "Daily token usage",
     dailyBreakdown: "Daily Breakdown",
     perModelBreakdown: "Per-Model Breakdown",
     topSkills: "Top Skills",
@@ -220,22 +245,40 @@ export const en: Translations = {
     startSession: "Start a session to see analytics here",
     date: "Date",
     model: "Model",
-    tokens: "Tokens",
+    tokens: "token",
     perDayAvg: "/day avg",
     acrossModels: "across {count} models",
     inOut: "{input} in / {output} out",
+    hiddenTitle: "Token analytics hidden",
+    hiddenDescription:
+      "The token, cost, and per-day analytics on this page are a local debug estimate. Auxiliary calls, provider retries, fallback attempts, and cache writes are not counted completely.",
+    hiddenProviderHint:
+      "Check your provider dashboard (OpenRouter, Anthropic, etc.) for actual usage and billing.",
+    hiddenConfigHint: "To show the local debug estimate anyway, enable",
   },
 
   models: {
     modelsUsed: "Models Used",
     estimatedCost: "Est. Cost",
-    tokens: "tokens",
+    tokens: "token",
     sessions: "sessions",
     avgPerSession: "avg/session",
     apiCalls: "API calls",
     toolCalls: "tool calls",
     noModelsData: "No model usage data for this period",
     startSession: "Start a session to see model data here",
+    modelSettings: "Model settings",
+    appliesToNewSessions: "applies to new sessions",
+    mainModel: "Main model",
+    unset: "unset",
+    change: "Change",
+    auxiliaryTasks: "Auxiliary tasks",
+    configure: "Configure",
+    taskSummary: "{count} tasks · all auto",
+    overrideSummary: "{overrides} overrides · {auto} auto",
+    mixtureOfAgents: "Mixture of Agents",
+    notLoaded: "not loaded",
+    referenceSummary: "{count} reference models",
   },
 
   logs: {
@@ -246,6 +289,22 @@ export const en: Translations = {
     component: "Component",
     lines: "Lines",
     noLogLines: "No log lines found",
+    files: { agent: "Agent", errors: "Errors", gateway: "Gateway" },
+    levels: {
+      ALL: "All",
+      DEBUG: "Debug",
+      INFO: "Info",
+      WARNING: "Warning",
+      ERROR: "Error",
+    },
+    components: {
+      all: "All",
+      gateway: "Gateway",
+      agent: "Agent",
+      tools: "Tools",
+      cli: "CLI",
+      cron: "Cron",
+    },
   },
 
   cron: {
@@ -387,7 +446,7 @@ export const en: Translations = {
     enableRuntime: "Enable",
     forceReinstall: "Force reinstall (delete existing folder first)",
     headline:
-      "Discover, install, enable, and update Hermes plugins (`hermes plugins` parity).",
+      "Discover, install, enable, and update My King plugins (`hermes plugins` parity).",
     identifierLabel: "Git URL or owner/repo",
     inactive: "inactive",
     installBtn: "Install",
@@ -505,7 +564,7 @@ export const en: Translations = {
     showValue: "Show real value",
     hideValue: "Hide value",
     customTitle: "Custom Keys",
-    customHint: "Arbitrary environment variables stored in your .env that Hermes doesn't recognise. Use these to inject env vars for skills, MCP servers, or your own tooling.",
+    customHint: "Arbitrary environment variables stored in your .env that My King doesn't recognise. Use these to inject env vars for skills, MCP servers, or your own tooling.",
     customConfigured: "{count} custom key{s} set",
     addCustomKey: "Add a custom key",
     customKeyName: "Variable name",
@@ -554,6 +613,33 @@ export const en: Translations = {
       external: "External CLI",
     },
     expiresIn: "expires in {time}",
+    loadFailed: "Failed to load OAuth providers",
+    disconnected: "Disconnected",
+    disconnectFailed: "Disconnect failed",
+    openDocs: "Open {provider} documentation",
+    disconnectTitle: "Disconnect {provider}?",
+    disconnectDescription:
+      "This removes the stored OAuth tokens for {provider}. You will need to sign in again before using it.",
+    providerError: "Connection status error: {error}",
+  },
+
+  docs: {
+    title: "Local API documentation",
+    description:
+      "Inspect the endpoints exposed by this My King backend. The document comes from the local OpenAPI schema and works offline.",
+    openSchema: "Open OpenAPI JSON",
+    searchPlaceholder: "Search endpoints, paths, or descriptions…",
+    allGroups: "All endpoints",
+    endpointCount: "{count} endpoints",
+    noEndpoints: "No matching endpoints",
+    loadFailed: "Could not load the local API documentation",
+    parameters: "Parameters",
+    noParameters: "No parameters",
+    requestBody: "Request body",
+    responses: "Responses",
+    required: "Required",
+    optional: "Optional",
+    schemaVersion: "OpenAPI {version}",
   },
 
   language: {
@@ -574,11 +660,11 @@ export const en: Translations = {
   achievements: {
     hero: {
       kicker: "Agentic Gamerscore",
-      title: "Hermes Achievements",
+      title: "My King Achievements",
       subtitle:
-        "Collectible Hermes badges earned from real session history. Known unfinished achievements are shown as Discovered; Secret achievements stay hidden until the first matching behavior appears.",
+        "Collectible My King badges earned from real session history. Known unfinished achievements are shown as Discovered; Secret achievements stay hidden until the first matching behavior appears.",
       scan_subtitle:
-        "Scanning Hermes session history. First scan can take 5–10 seconds on large histories.",
+        "Scanning My King session history. First scan can take 5–10 seconds on large histories.",
     },
     actions: {
       rescan: "Rescan",
@@ -593,7 +679,7 @@ export const en: Translations = {
       highest_tier: "Highest tier",
       highest_tier_hint: "Copper → Silver → Gold → Diamond → Olympian",
       latest: "Latest",
-      latest_hint_empty: "run Hermes more",
+      latest_hint_empty: "run My King more",
       none_yet: "None yet",
     },
     state: {
@@ -624,10 +710,10 @@ export const en: Translations = {
       tiers_header: "Tiers",
       secret_header: "Secret achievements",
       secret_body:
-        "Secrets hide their exact trigger. Once Hermes sees a related signal, the card becomes Discovered and shows its requirement.",
+        "Secrets hide their exact trigger. Once My King sees a related signal, the card becomes Discovered and shows its requirement.",
       scan_status_header: "Scan status",
       scan_status_body:
-        "Hermes is scanning local history once, then cards will appear automatically. Nothing is stuck if this takes a few seconds.",
+        "My King is scanning local history once, then cards will appear automatically. Nothing is stuck if this takes a few seconds.",
       what_scanned_header: "What is scanned",
       what_scanned_body:
         "Sessions, tool calls, model metadata, errors, achievements, and local unlock state.",
@@ -674,7 +760,7 @@ export const en: Translations = {
         "Share on X opens a pre-filled post in a new tab. Click Copy image first if you want the 1200×630 badge attached — X lets you paste it right into the tweet composer. Download PNG saves the file for use anywhere.",
       clipboard_unsupported:
         "Clipboard image copy not supported in this browser — use Download instead.",
-      tweet_text: "Just unlocked {tier_part}\"{name}\" in Hermes Agent ☤",
+      tweet_text: "Just unlocked {tier_part}\"{name}\" in My King ☤",
     },
   },
 

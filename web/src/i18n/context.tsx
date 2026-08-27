@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
-import type { Locale, Translations } from "./types";
+import type { Locale, ResolvedTranslations, Translations } from "./types";
 import { en } from "./en";
 import { zh } from "./zh";
 import { zhHant } from "./zh-hant";
@@ -85,20 +85,31 @@ function getInitialLocale(): Locale {
   } catch {
     // SSR or privacy mode
   }
-  return "en";
+  return "zh";
 }
 
 interface I18nContextValue {
   locale: Locale;
   setLocale: (l: Locale) => void;
-  t: Translations;
+  t: ResolvedTranslations;
 }
 
 const I18nContext = createContext<I18nContextValue>({
-  locale: "en",
+  locale: "zh",
   setLocale: () => {},
-  t: en,
+  t: zh,
 });
+
+function resolveTranslations(source: Translations): ResolvedTranslations {
+  return {
+    ...source,
+    oauth: {
+      ...en.oauth,
+      ...source.oauth,
+    },
+    docs: source.docs ?? en.docs,
+  };
+}
 
 export function I18nProvider({ children }: { children: ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>(getInitialLocale);
@@ -121,7 +132,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   const value: I18nContextValue = {
     locale,
     setLocale,
-    t: TRANSLATIONS[locale],
+    t: resolveTranslations(TRANSLATIONS[locale]),
   };
 
   return (

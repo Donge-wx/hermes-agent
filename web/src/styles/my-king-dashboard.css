@@ -1,0 +1,450 @@
+:root {
+  --mk-web-canvas: #f4f7fc;
+  --mk-web-canvas-deep: #eaf0fb;
+  --mk-web-ink: #1d1d1f;
+  --mk-web-secondary: #5e6573;
+  --mk-web-tertiary: #7b8392;
+  --mk-web-blue: #2457e6;
+  --mk-web-blue-deep: #1742c4;
+  --mk-web-purple: #7658de;
+  --mk-web-cyan: #20aeb9;
+  --mk-web-success: #168a68;
+  --mk-web-warning: #a86413;
+  --mk-web-danger: #c93545;
+  --mk-web-glass: rgba(255, 255, 255, 0.68);
+  --mk-web-glass-strong: rgba(255, 255, 255, 0.88);
+  --mk-web-stroke: rgba(81, 105, 153, 0.18);
+  --mk-web-stroke-strong: rgba(81, 105, 153, 0.3);
+  --mk-web-focus: rgba(36, 87, 230, 0.26);
+  --mk-web-radius-control: 0.875rem;
+  --mk-web-radius-section: 1.125rem;
+  --mk-web-radius-panel: 1.5rem;
+  --mk-web-shadow-control:
+    inset 0 1px 0 rgba(255, 255, 255, 0.82),
+    0 5px 14px rgba(56, 76, 118, 0.08);
+  --mk-web-shadow-section:
+    inset 1px 1px 0 rgba(255, 255, 255, 0.9),
+    inset -1px -1px 0 rgba(92, 113, 156, 0.06),
+    0 14px 38px rgba(56, 76, 118, 0.1);
+  --mk-web-shadow-panel:
+    inset 1px 1px 0 rgba(255, 255, 255, 0.94),
+    inset -1px -1px 0 rgba(92, 113, 156, 0.08),
+    0 24px 64px rgba(56, 76, 118, 0.16),
+    0 8px 22px rgba(56, 76, 118, 0.08);
+}
+
+[data-myking-dashboard] {
+  position: relative;
+  isolation: isolate;
+  color: var(--mk-web-ink);
+  background:
+    radial-gradient(circle at 8% 8%, rgba(150, 120, 255, 0.18), transparent 30rem),
+    radial-gradient(circle at 92% 82%, rgba(63, 220, 214, 0.15), transparent 34rem),
+    radial-gradient(circle at 84% 10%, rgba(71, 146, 255, 0.13), transparent 28rem),
+    linear-gradient(145deg, #fbfdff 0%, var(--mk-web-canvas) 52%, var(--mk-web-canvas-deep) 100%) !important;
+}
+
+[data-myking-dashboard]::before,
+[data-myking-dashboard]::after {
+  position: fixed;
+  z-index: -1;
+  border-radius: 999px;
+  content: "";
+  filter: blur(22px);
+  pointer-events: none;
+}
+
+[data-myking-dashboard]::before {
+  inset: -18rem auto auto -16rem;
+  width: 34rem;
+  height: 34rem;
+  background: rgba(148, 116, 255, 0.16);
+}
+
+[data-myking-dashboard]::after {
+  inset: auto -14rem -18rem auto;
+  width: 36rem;
+  height: 36rem;
+  background: rgba(37, 202, 207, 0.14);
+}
+
+[data-myking-dashboard] button,
+[data-myking-dashboard] input,
+[data-myking-dashboard] select,
+[data-myking-dashboard] textarea {
+  font-family: var(--theme-font-sans);
+}
+
+[data-myking-dashboard] button,
+[data-myking-dashboard] nav a {
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+[data-myking-dashboard] .uppercase {
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+}
+
+[data-myking-dashboard] h1,
+[data-myking-dashboard] h2,
+[data-myking-dashboard] h3,
+[data-myking-dashboard] .font-expanded {
+  font-family: var(--theme-font-display);
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+[data-myking-dashboard] p,
+[data-myking-dashboard] [role="alert"] {
+  text-wrap: pretty;
+}
+
+#app-sidebar {
+  margin: 0.75rem 0 0.75rem 0.75rem;
+  height: calc(100dvh - 1.5rem) !important;
+  max-height: calc(100dvh - 1.5rem) !important;
+  border: 1px solid rgba(255, 255, 255, 0.84) !important;
+  border-radius: var(--mk-web-radius-panel);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.86), rgba(242, 247, 255, 0.66)),
+    var(--mk-web-glass) !important;
+  box-shadow: var(--mk-web-shadow-panel) !important;
+  -webkit-backdrop-filter: blur(30px) saturate(148%);
+  backdrop-filter: blur(30px) saturate(148%);
+}
+
+#app-sidebar > div:first-child {
+  min-height: 4.25rem;
+  border-bottom-color: transparent !important;
+}
+
+#app-sidebar > div:first-child img {
+  height: 2.35rem;
+}
+
+#app-sidebar nav {
+  margin: 0 0.55rem;
+  border-top-color: var(--mk-web-stroke) !important;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(81, 105, 153, 0.26) transparent;
+}
+
+#app-sidebar nav a,
+#app-sidebar button.group\/action {
+  min-height: 2.75rem;
+  margin-block: 0.125rem;
+  padding: 0.6rem 0.875rem !important;
+  border-radius: var(--mk-web-radius-control);
+  color: var(--mk-web-secondary);
+  font-size: 0.875rem;
+  font-weight: 560;
+  transition:
+    color 140ms ease,
+    background-color 140ms ease,
+    box-shadow 140ms ease,
+    transform 100ms ease;
+}
+
+#app-sidebar nav a:hover,
+#app-sidebar button.group\/action:hover {
+  color: var(--mk-web-ink);
+  background: rgba(255, 255, 255, 0.58);
+  box-shadow: var(--mk-web-shadow-control);
+}
+
+#app-sidebar nav a[aria-current="page"] {
+  color: #173e9d;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.78), rgba(218, 229, 255, 0.74)),
+    rgba(36, 87, 230, 0.1);
+  box-shadow:
+    inset 1px 1px 0 rgba(255, 255, 255, 0.92),
+    inset -1px -1px 0 rgba(36, 87, 230, 0.1),
+    0 7px 18px rgba(36, 87, 230, 0.12);
+}
+
+#app-sidebar nav a[aria-current="page"] > span[aria-hidden],
+#app-sidebar nav a > span[aria-hidden]:last-child,
+#app-sidebar button.group\/action > span[aria-hidden] {
+  display: none;
+}
+
+#app-sidebar [role="group"],
+#app-sidebar > div[class*="border-t"] {
+  border-color: var(--mk-web-stroke) !important;
+}
+
+#app-sidebar [role="status"],
+#app-sidebar a[title] {
+  letter-spacing: 0;
+}
+
+[data-myking-page-header] {
+  width: calc(100% - 2rem) !important;
+  min-height: 4.25rem !important;
+  margin: 0.75rem 1rem 0;
+  border: 1px solid rgba(255, 255, 255, 0.8) !important;
+  border-radius: var(--mk-web-radius-section);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.84), rgba(241, 246, 255, 0.68)),
+    var(--mk-web-glass) !important;
+  box-shadow: var(--mk-web-shadow-section);
+  -webkit-backdrop-filter: blur(26px) saturate(145%);
+  backdrop-filter: blur(26px) saturate(145%);
+}
+
+[data-myking-page-header] h1 {
+  color: var(--mk-web-ink);
+  font-size: clamp(1.125rem, 2vw, 1.45rem);
+  font-weight: 650;
+}
+
+[data-myking-dashboard] main > div {
+  scroll-margin-top: 1rem;
+}
+
+[data-myking-dashboard] .mk-surface-section {
+  border: 1px solid var(--mk-web-stroke);
+  border-radius: var(--mk-web-radius-section);
+  background: var(--mk-web-glass);
+  box-shadow: var(--mk-web-shadow-section);
+  -webkit-backdrop-filter: blur(24px) saturate(142%);
+  backdrop-filter: blur(24px) saturate(142%);
+}
+
+[data-myking-dashboard] .bg-card,
+[data-myking-dashboard] .border.border-midground\/15.bg-background-base\/80,
+[data-myking-dashboard] .border.bg-background-base\/80,
+[data-myking-dashboard] .border.border-border,
+[data-myking-dashboard] .rounded-none.border {
+  border-color: var(--mk-web-stroke) !important;
+  border-radius: var(--mk-web-radius-section) !important;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.78), rgba(245, 248, 255, 0.58)),
+    var(--mk-web-glass) !important;
+  box-shadow: var(--mk-web-shadow-section);
+}
+
+[data-myking-dashboard] .border.border-midground\/15.bg-background-base\/80 > [class*="border-b"],
+[data-myking-dashboard] .border.bg-background-base\/80 > [class*="border-b"] {
+  border-color: var(--mk-web-stroke) !important;
+}
+
+[data-myking-dashboard] .bg-muted\/20.border,
+[data-myking-dashboard] .bg-card\/50.border,
+[data-myking-dashboard] .bg-secondary\/20.border {
+  border-color: var(--mk-web-stroke) !important;
+  border-radius: var(--mk-web-radius-control) !important;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.7), rgba(240, 246, 255, 0.5)),
+    rgba(255, 255, 255, 0.5) !important;
+  box-shadow:
+    inset 1px 1px 0 rgba(255, 255, 255, 0.82),
+    inset -1px -1px 0 rgba(92, 113, 156, 0.05);
+}
+
+[data-myking-dashboard] .rounded-none {
+  border-radius: var(--mk-web-radius-control) !important;
+}
+
+[data-myking-dashboard] input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+[data-myking-dashboard] select,
+[data-myking-dashboard] textarea,
+[data-myking-dashboard] [role="combobox"] {
+  min-height: 2.75rem;
+  border-color: var(--mk-web-stroke-strong) !important;
+  border-radius: var(--mk-web-radius-control) !important;
+  background: rgba(255, 255, 255, 0.7) !important;
+  box-shadow:
+    inset 0 1px 2px rgba(47, 67, 106, 0.04),
+    0 1px 0 rgba(255, 255, 255, 0.84);
+  color: var(--mk-web-ink) !important;
+  font-size: 0.9375rem;
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease,
+    background-color 120ms ease;
+}
+
+[data-myking-dashboard] input:not([type="checkbox"]):not([type="radio"]):focus-visible,
+[data-myking-dashboard] select:focus-visible,
+[data-myking-dashboard] textarea:focus-visible,
+[data-myking-dashboard] [role="combobox"]:focus-visible {
+  border-color: var(--mk-web-blue) !important;
+  background: var(--mk-web-glass-strong) !important;
+  outline: none;
+  box-shadow:
+    0 0 0 4px var(--mk-web-focus),
+    inset 0 1px 2px rgba(47, 67, 106, 0.04);
+}
+
+[data-myking-dashboard] button {
+  min-height: 2.75rem;
+  padding-inline: 0.875rem;
+  border-radius: var(--mk-web-radius-control);
+  font-weight: 600;
+  transition:
+    color 120ms ease,
+    background-color 120ms ease,
+    border-color 120ms ease,
+    box-shadow 120ms ease,
+    transform 90ms ease,
+    filter 120ms ease;
+}
+
+[data-myking-dashboard] button[aria-label]:has(svg:only-child) {
+  min-width: 2.75rem;
+  padding-inline: 0.75rem;
+}
+
+[data-myking-dashboard] button:not(:disabled):active {
+  transform: translateY(1px) scale(0.985);
+}
+
+[data-myking-dashboard] button.bg-transparent:hover,
+[data-myking-dashboard] button.shadow-midground,
+[data-myking-dashboard] [role="radio"] {
+  border-color: rgba(255, 255, 255, 0.72) !important;
+  background: rgba(255, 255, 255, 0.6) !important;
+  box-shadow: var(--mk-web-shadow-control) !important;
+}
+
+[data-myking-dashboard] button.bg-midground,
+[data-myking-dashboard] [role="radio"][aria-checked="true"] {
+  border-color: rgba(255, 255, 255, 0.52) !important;
+  background: linear-gradient(145deg, #3970f2 0%, var(--mk-web-blue) 52%, var(--mk-web-blue-deep) 100%) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.34),
+    0 8px 20px rgba(36, 87, 230, 0.22) !important;
+  color: #fff !important;
+}
+
+[data-myking-dashboard] [role="dialog"],
+[data-myking-dashboard] [role="listbox"],
+[data-myking-dashboard] [data-radix-popper-content-wrapper] > * {
+  border: 1px solid rgba(255, 255, 255, 0.86) !important;
+  border-radius: var(--mk-web-radius-panel) !important;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.9), rgba(243, 247, 255, 0.72)),
+    var(--mk-web-glass-strong) !important;
+  box-shadow: var(--mk-web-shadow-panel) !important;
+  -webkit-backdrop-filter: blur(30px) saturate(148%);
+  backdrop-filter: blur(30px) saturate(148%);
+}
+
+body > [role="dialog"] > .font-mondwest.normal-case.border.bg-card,
+body > [role="dialog"] > div > .font-mondwest.normal-case.border.bg-card,
+body > div[role="dialog"] .font-mondwest.normal-case.border.bg-card {
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.86) !important;
+  border-radius: var(--mk-web-radius-panel) !important;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.93), rgba(243, 247, 255, 0.78)),
+    var(--mk-web-glass-strong) !important;
+  box-shadow: var(--mk-web-shadow-panel) !important;
+  -webkit-backdrop-filter: blur(30px) saturate(148%);
+  backdrop-filter: blur(30px) saturate(148%);
+}
+
+body > [role="dialog"] .font-mondwest.normal-case button,
+body > div[role="dialog"] .font-mondwest.normal-case button {
+  min-height: 2.75rem;
+  padding-inline: 0.875rem;
+  border-radius: var(--mk-web-radius-control) !important;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+[data-myking-dashboard] table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+[data-myking-dashboard] th {
+  color: var(--mk-web-secondary);
+  font-family: var(--theme-font-sans);
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+[data-myking-dashboard] :focus-visible {
+  outline: 3px solid var(--mk-web-focus) !important;
+  outline-offset: 2px;
+}
+
+@media (max-width: 1023px) {
+  #app-sidebar {
+    margin: 0;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    border-block: 0 !important;
+    border-left: 0 !important;
+    border-radius: 0 var(--mk-web-radius-panel) var(--mk-web-radius-panel) 0;
+  }
+
+  [data-myking-dashboard] > header:first-of-type {
+    min-height: 4rem;
+    border-color: rgba(255, 255, 255, 0.8) !important;
+    background: rgba(255, 255, 255, 0.78) !important;
+    box-shadow: 0 10px 28px rgba(56, 76, 118, 0.1);
+    -webkit-backdrop-filter: blur(24px) saturate(145%);
+    backdrop-filter: blur(24px) saturate(145%);
+  }
+
+  [data-myking-page-header] {
+    width: calc(100% - 1.5rem) !important;
+    margin: 0.75rem 0.75rem 0;
+  }
+}
+
+@media (max-width: 480px) {
+  [data-myking-page-header] {
+    min-height: 3.75rem !important;
+    border-radius: 1rem;
+  }
+
+  [data-myking-dashboard] .bg-card,
+  [data-myking-dashboard] .border.border-midground\/15.bg-background-base\/80,
+  [data-myking-dashboard] .border.bg-background-base\/80,
+  [data-myking-dashboard] .border.border-border,
+  [data-myking-dashboard] .rounded-none.border {
+    border-radius: 1rem !important;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  #app-sidebar,
+  [data-myking-page-header],
+  [data-myking-dashboard] .bg-card,
+  [data-myking-dashboard] .border.border-midground\/15.bg-background-base\/80,
+  [data-myking-dashboard] .border.bg-background-base\/80,
+  [data-myking-dashboard] [role="dialog"],
+  [data-myking-dashboard] [role="listbox"] {
+    background: #f8faff !important;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+@media (prefers-contrast: more) {
+  #app-sidebar,
+  [data-myking-page-header],
+  [data-myking-dashboard] .border,
+  [data-myking-dashboard] input,
+  [data-myking-dashboard] select,
+  [data-myking-dashboard] textarea {
+    border-color: rgba(29, 29, 31, 0.5) !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-myking-dashboard] *,
+  [data-myking-dashboard] *::before,
+  [data-myking-dashboard] *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}

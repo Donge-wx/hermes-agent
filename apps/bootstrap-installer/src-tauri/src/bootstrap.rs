@@ -45,8 +45,8 @@ pub struct StartBootstrapArgs {
     /// bootstrap-runner passes false to avoid building-while-running.
     #[serde(default = "default_true")]
     pub include_desktop: bool,
-    /// Optional override for HERMES_HOME. Tests use this; production
-    /// almost always falls back to the OS default.
+    /// Backward-compatible protocol field. The managed installer accepts only
+    /// the exact fixed My King home and rejects every redirect attempt.
     pub hermes_home: Option<String>,
 }
 
@@ -158,47 +158,58 @@ pub async fn get_bootstrap_status(
     })
 }
 
-/// Spawn the locally-built Hermes desktop binary, then close the installer
+/// Spawn the locally-built My King desktop binary, then close the installer
 /// window. Caller resolves the binary path from `install_root`.
 ///
 /// Returns Err with a human-readable message if the binary doesn't exist
 /// (e.g. when Stage-Desktop was skipped) so the frontend can present
 /// actionable failure UI rather than silently doing nothing.
 #[tauri::command]
-pub async fn launch_hermes_desktop(
-    app: AppHandle,
-    install_root: String,
-) -> Result<(), String> {
+pub async fn launch_hermes_desktop(app: AppHandle, install_root: String) -> Result<(), String> {
     let install_root = PathBuf::from(install_root);
     let exe_path = resolve_hermes_desktop_exe(&install_root).ok_or_else(|| {
         format!(
-            "Couldn't find a built Hermes desktop at {}. The desktop build step \
+            "Couldn't find a built My King desktop at {}. The desktop build step \
              may have been skipped or failed. Run `hermes desktop` from a \
              terminal to build and launch it.",
-            install_root.join("apps").join("desktop").join("release").display()
+            install_root
+                .join("apps")
+                .join("desktop")
+                .join("release")
+                .display()
         )
     })?;
 
-    tracing::info!(?exe_path, "launching Hermes desktop");
+    tracing::info!(?exe_path, "launching My King desktop");
 
     // Detach from us — the installer is about to exit. On macOS launch the
-    // bundle through LaunchServices instead of exec'ing Contents/MacOS/Hermes
+    // bundle through LaunchServices instead of exec'ing Contents/MacOS/My King
     // directly; this matches user double-click/open behavior and avoids cwd /
     // quarantine oddities after a self-update rebuild.
-    let mut cmd = desktop_launch_command(&exe_path, &install_root);
-    #[cfg(target_os = "windows")]
+    #[cfg(target_os = "macos")]
     {
-        use std::os::windows::process::CommandExt;
-        // DETACHED_PROCESS = 0x00000008
-        cmd.creation_flags(0x0000_0008);
+        let app_bundle = app_bundle_for_exe(&exe_path).ok_or_else(|| {
+            format!(
+                "failed to pin My King app for launch: {}",
+                exe_path.display()
+            )
+        })?;
+        open_macos_app_detached(&app_bundle)
+            .map_err(|error| format!("failed to launch {}: {error}", exe_path.display()))?;
     }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let mut cmd = desktop_launch_command(&exe_path, &install_root);
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            // DETACHED_PROCESS = 0x00000008
+            cmd.creation_flags(0x0000_0008);
+        }
 
-    cmd.spawn().map_err(|e| {
-        format!(
-            "failed to launch {}: {e}",
-            exe_path.display()
-        )
-    })?;
+        cmd.spawn()
+            .map_err(|error| format!("failed to launch {}: {error}", exe_path.display()))?;
+    }
 
     // Give Windows ~150ms to actually start the new process before we exit.
     tokio::time::sleep(std::time::Duration::from_millis(150)).await;
@@ -216,22 +227,25 @@ pub(crate) fn resolve_hermes_desktop_exe(install_root: &std::path::Path) -> Opti
     let release_dir = install_root.join("apps").join("desktop").join("release");
     let candidates: &[(&str, &str)] = if cfg!(target_os = "windows") {
         &[
-            ("win-unpacked", "Hermes.exe"),
-            ("win-arm64-unpacked", "Hermes.exe"),
+            ("win-unpacked", "My-King.exe"),
+            ("win-arm64-unpacked", "My-King.exe"),
         ]
     } else if cfg!(target_os = "macos") {
         &[
-            ("mac/My King.app/Contents/MacOS", "Hermes"),
-            ("mac-arm64/My King.app/Contents/MacOS", "Hermes"),
-            ("mac/Hermes.app/Contents/MacOS", "Hermes"),
-            ("mac-arm64/Hermes.app/Contents/MacOS", "Hermes"),
+            ("mac/My King.app/Contents/MacOS", "My King"),
+            ("mac-arm64/My King.app/Contents/MacOS", "My King"),
         ]
     } else {
-        &[("linux-unpacked", "hermes")]
+        &[("linux-unpacked", "my-king")]
     };
     for (subdir, exe) in candidates {
         let p = release_dir.join(subdir).join(exe);
-        if p.exists() {
+        #[cfg(target_os = "macos")]
+        if my_king_app_bundle_for_exe(&p).is_some() {
+            return Some(p);
+        }
+        #[cfg(not(target_os = "macos"))]
+        if p.is_file() {
             return Some(p);
         }
     }
@@ -242,11 +256,7 @@ pub(crate) fn resolve_hermes_desktop_app(install_root: &std::path::Path) -> Opti
     let exe = resolve_hermes_desktop_exe(install_root)?;
     #[cfg(target_os = "macos")]
     {
-        // .../<product>.app/Contents/MacOS/Hermes -> .../<product>.app
-        let app = exe.parent()?.parent()?.parent()?.to_path_buf();
-        if app.extension().and_then(|e| e.to_str()) == Some("app") && app.is_dir() {
-            return Some(app);
-        }
+        return my_king_app_bundle_for_exe(&exe);
     }
     #[cfg(not(target_os = "macos"))]
     {
@@ -370,72 +380,184 @@ fn write_bootstrap_complete_marker(install_root: &Path, pin: &Pin) -> Result<ser
 /// installer UI.
 pub(crate) fn spawn_installed_desktop(install_root: &std::path::Path) -> std::io::Result<()> {
     let exe = resolve_hermes_desktop_exe(install_root).ok_or_else(|| {
-        std::io::Error::new(std::io::ErrorKind::NotFound, "no built Hermes desktop app")
+        std::io::Error::new(std::io::ErrorKind::NotFound, "no built My King desktop app")
     })?;
-    let mut cmd = desktop_launch_command_std(&exe, install_root);
-    #[cfg(target_os = "windows")]
+    #[cfg(target_os = "macos")]
     {
-        use std::os::windows::process::CommandExt;
-        // DETACHED_PROCESS = 0x00000008 — keep the desktop alive after the
-        // installer exits, mirroring launch_hermes_desktop. Kept correct here
-        // even though the only caller is macOS-gated today, so future reuse on
-        // Windows doesn't reintroduce the relaunch race.
-        cmd.creation_flags(0x0000_0008);
+        let app_bundle = app_bundle_for_exe(&exe).ok_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                format!("failed to pin My King app for launch: {}", exe.display()),
+            )
+        })?;
+        open_macos_app_detached(&app_bundle)
     }
-    cmd.spawn().map(|_child| ())
+    #[cfg(not(target_os = "macos"))]
+    {
+        let mut cmd = desktop_launch_command_std(&exe, install_root);
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            // DETACHED_PROCESS = 0x00000008 — keep the desktop alive after the
+            // installer exits, mirroring launch_hermes_desktop.
+            cmd.creation_flags(0x0000_0008);
+        }
+        cmd.spawn().map(|_child| ())
+    }
 }
 
 #[cfg(target_os = "macos")]
 pub(crate) fn open_macos_app_detached(app_bundle: &std::path::Path) -> std::io::Result<()> {
-    let mut cmd = std::process::Command::new("/usr/bin/open");
-    cmd.arg(app_bundle);
-    cmd.current_dir(crate::paths::hermes_home());
-    cmd.spawn().map(|_child| ())
+    launch_macos_app_after_identity_check(
+        app_bundle,
+        || {},
+        |app| {
+            let mut command = std::process::Command::new("/usr/bin/open");
+            command.arg("-n").arg(app);
+            command.spawn().map(|_child| ())
+        },
+    )
+}
+
+#[cfg(target_os = "macos")]
+fn launch_macos_app_after_identity_check<F, L>(
+    app_bundle: &Path,
+    after_validation: F,
+    launcher: L,
+) -> std::io::Result<()>
+where
+    F: FnOnce(),
+    L: FnOnce(&Path) -> std::io::Result<()>,
+{
+    let before = macos_app_identity(app_bundle)?;
+    after_validation();
+    let after = macos_app_identity(app_bundle)?;
+    if before != after {
+        return Err(untrusted_my_king_app_error(app_bundle));
+    }
+    launcher(app_bundle)
+}
+
+#[cfg(target_os = "macos")]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct MacosAppIdentity {
+    app: (u64, u64),
+    contents: (u64, u64),
+    macos: (u64, u64),
+    executable: (u64, u64),
+}
+
+#[cfg(target_os = "macos")]
+fn macos_app_identity(app: &Path) -> std::io::Result<MacosAppIdentity> {
+    use std::os::unix::fs::MetadataExt;
+
+    if !is_real_my_king_app_bundle(app) {
+        return Err(untrusted_my_king_app_error(app));
+    }
+
+    let identity = |path: &Path| -> std::io::Result<(u64, u64)> {
+        let metadata = std::fs::metadata(path)?;
+        Ok((metadata.dev(), metadata.ino()))
+    };
+    let contents = app.join("Contents");
+    let macos = contents.join("MacOS");
+    let executable = macos.join("My King");
+
+    Ok(MacosAppIdentity {
+        app: identity(app)?,
+        contents: identity(&contents)?,
+        macos: identity(&macos)?,
+        executable: identity(&executable)?,
+    })
+}
+
+#[cfg(target_os = "macos")]
+fn untrusted_my_king_app_error(app: &Path) -> std::io::Error {
+    std::io::Error::new(
+        std::io::ErrorKind::InvalidInput,
+        format!(
+            "refusing to launch an untrusted My King app bundle: {}",
+            app.display()
+        ),
+    )
 }
 
 #[cfg(target_os = "macos")]
 fn app_bundle_for_exe(exe: &std::path::Path) -> Option<PathBuf> {
-    let app = exe.parent()?.parent()?.parent()?.to_path_buf();
-    if app.extension().and_then(|e| e.to_str()) == Some("app") && app.is_dir() {
+    my_king_app_bundle_for_exe(exe)
+}
+
+/// True only for an on-disk My King application bundle with the executable at
+/// the exact path macOS launches. `symlink_metadata` intentionally does not
+/// follow aliases: a My King-named symlink to Hermes must never pass identity
+/// checks or be handed to LaunchServices.
+pub(crate) fn is_real_my_king_app_bundle(app: &Path) -> bool {
+    app.file_name().and_then(|name| name.to_str()) == Some("My King.app")
+        && is_real_my_king_app_contents(app)
+}
+
+/// Validates the physical bundle layout for a freshly staged update. Staging
+/// directories carry a suffix during the atomic exchange, so their leaf name
+/// cannot be `My King.app` until after the final rename.
+pub(crate) fn is_real_my_king_app_contents(app: &Path) -> bool {
+    let contents = app.join("Contents");
+    let macos = contents.join("MacOS");
+    let executable = macos.join("My King");
+
+    is_real_directory(app)
+        && is_real_directory(&contents)
+        && is_real_directory(&macos)
+        && is_real_file(&executable)
+}
+
+fn is_real_directory(path: &Path) -> bool {
+    std::fs::symlink_metadata(path)
+        .map(|metadata| metadata.file_type().is_dir())
+        .unwrap_or(false)
+}
+
+fn is_real_file(path: &Path) -> bool {
+    std::fs::symlink_metadata(path)
+        .map(|metadata| metadata.file_type().is_file())
+        .unwrap_or(false)
+}
+
+#[cfg(target_os = "macos")]
+fn my_king_app_bundle_for_exe(executable: &Path) -> Option<PathBuf> {
+    if executable.file_name().and_then(|name| name.to_str()) != Some("My King") {
+        return None;
+    }
+    let macos = executable.parent()?;
+    if macos.file_name().and_then(|name| name.to_str()) != Some("MacOS") {
+        return None;
+    }
+    let contents = macos.parent()?;
+    if contents.file_name().and_then(|name| name.to_str()) != Some("Contents") {
+        return None;
+    }
+    let app = contents.parent()?.to_path_buf();
+    if is_real_my_king_app_bundle(&app) && executable == app.join("Contents/MacOS/My King") {
         Some(app)
     } else {
         None
     }
 }
 
+#[cfg(not(target_os = "macos"))]
 fn desktop_launch_command(
     exe_path: &std::path::Path,
     install_root: &std::path::Path,
 ) -> tokio::process::Command {
-    #[cfg(target_os = "macos")]
-    {
-        if let Some(app_bundle) = app_bundle_for_exe(exe_path) {
-            let mut cmd = tokio::process::Command::new("/usr/bin/open");
-            cmd.arg(app_bundle);
-            cmd.current_dir(crate::paths::hermes_home());
-            return cmd;
-        }
-    }
-
     let mut cmd = tokio::process::Command::new(exe_path);
     cmd.current_dir(exe_path.parent().unwrap_or(install_root));
     cmd
 }
 
+#[cfg(not(target_os = "macos"))]
 fn desktop_launch_command_std(
     exe_path: &std::path::Path,
     install_root: &std::path::Path,
 ) -> std::process::Command {
-    #[cfg(target_os = "macos")]
-    {
-        if let Some(app_bundle) = app_bundle_for_exe(exe_path) {
-            let mut cmd = std::process::Command::new("/usr/bin/open");
-            cmd.arg(app_bundle);
-            cmd.current_dir(crate::paths::hermes_home());
-            return cmd;
-        }
-    }
-
     let mut cmd = std::process::Command::new(exe_path);
     cmd.current_dir(exe_path.parent().unwrap_or(install_root));
     cmd
@@ -451,10 +573,17 @@ async fn run_bootstrap(
     cancel_rx_holder: Arc<Mutex<Option<mpsc::Receiver<()>>>>,
 ) -> Result<String> {
     let kind = ScriptKind::for_current_os();
+    let managed_home = crate::paths::resolve_managed_home(args.hermes_home.as_deref())
+        .map_err(anyhow::Error::msg)?;
+    let managed_home_string = managed_home.to_string_lossy().into_owned();
 
     let pin = Pin {
-        commit: args.commit.or_else(|| option_env_string("BUILD_PIN_COMMIT")),
-        branch: args.branch.or_else(|| option_env_string("BUILD_PIN_BRANCH")),
+        commit: args
+            .commit
+            .or_else(|| option_env_string("BUILD_PIN_COMMIT")),
+        branch: args
+            .branch
+            .or_else(|| option_env_string("BUILD_PIN_BRANCH")),
     };
 
     tracing::info!(
@@ -498,7 +627,6 @@ async fn run_bootstrap(
 
     let source_note = match &script.source {
         ScriptSource::DevCheckout => "dev checkout",
-        ScriptSource::Bundled => "bundled",
         ScriptSource::Cached => "cached",
         ScriptSource::Downloaded => "downloaded",
     };
@@ -527,7 +655,7 @@ async fn run_bootstrap(
         &app,
         &script.path,
         &manifest_args_full,
-        args.hermes_home.as_deref(),
+        Some(&managed_home_string),
         &mut manifest_cancel_rx,
         Some("__manifest__".to_string()),
     )
@@ -549,20 +677,21 @@ async fn run_bootstrap(
         return Err(anyhow!(err));
     }
 
-    let manifest: Manifest = powershell::parse_manifest(&manifest_result.stdout).ok_or_else(|| {
-        let err = format!(
-            "install.ps1 -Manifest produced no parseable JSON payload\n{}",
-            truncate(&manifest_result.stdout, 4000)
-        );
-        emit_event(
-            &app,
-            BootstrapEvent::Failed {
-                stage: None,
-                error: err.clone(),
-            },
-        );
-        anyhow!(err)
-    })?;
+    let manifest: Manifest =
+        powershell::parse_manifest(&manifest_result.stdout).ok_or_else(|| {
+            let err = format!(
+                "install.ps1 -Manifest produced no parseable JSON payload\n{}",
+                truncate(&manifest_result.stdout, 4000)
+            );
+            emit_event(
+                &app,
+                BootstrapEvent::Failed {
+                    stage: None,
+                    error: err.clone(),
+                },
+            );
+            anyhow!(err)
+        })?;
 
     emit_event(
         &app,
@@ -639,7 +768,7 @@ async fn run_bootstrap(
                 &app,
                 &script.path,
                 &stage_args,
-                args.hermes_home.as_deref(),
+                Some(&managed_home_string),
                 &mut local_cancel_rx,
                 Some(stage.name.clone()),
             )
@@ -781,11 +910,7 @@ async fn run_bootstrap(
     // 4. Resolve install_root. install.ps1 doesn't (yet) report this back
     // explicitly; we infer it from $HermesHome which Stage-Repository clones
     // the repo INTO at $HermesHome\hermes-agent. Mirrors hermes_constants.
-    let hermes_home = args
-        .hermes_home
-        .clone()
-        .unwrap_or_else(|| crate::paths::hermes_home().to_string_lossy().into_owned());
-    let install_root = PathBuf::from(&hermes_home).join("hermes-agent");
+    let install_root = managed_home.join("hermes-agent");
 
     // Marker publish is terminal for this run: a write failure must emit Failed
     // so the UI leaves the progress state (it does not poll get_bootstrap_status).
@@ -810,7 +935,10 @@ async fn run_bootstrap(
     // we're already running from that path. Best-effort — a failure here must
     // not fail an otherwise-successful install.
     if let Err(err) = crate::paths::copy_self_to_hermes_home() {
-        tracing::warn!(?err, "failed to copy installer into HERMES_HOME (non-fatal)");
+        tracing::warn!(
+            ?err,
+            "failed to copy installer into HERMES_HOME (non-fatal)"
+        );
         emit_log(&format!(
             "[bootstrap] warning: could not stage updater binary: {err}"
         ));
@@ -827,11 +955,7 @@ async fn run_bootstrap(
     Ok(install_root.to_string_lossy().into_owned())
 }
 
-fn should_retry_missing_stage_frame(
-    exit_code: Option<i32>,
-    killed: bool,
-    attempt: usize,
-) -> bool {
+fn should_retry_missing_stage_frame(exit_code: Option<i32>, killed: bool, attempt: usize) -> bool {
     !killed && exit_code == Some(-1) && attempt < MAX_STAGE_ATTEMPTS
 }
 
@@ -1003,8 +1127,8 @@ fn truncate(s: &str, max: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
     use std::path::Path;
+    use std::path::PathBuf;
 
     fn unique_tmp_dir(tag: &str) -> PathBuf {
         let base = std::env::temp_dir().join(format!(
@@ -1030,18 +1154,18 @@ mod tests {
                 .join("Contents")
                 .join("MacOS");
             std::fs::create_dir_all(&macos_dir).unwrap();
-            std::fs::write(macos_dir.join("Hermes"), b"#!/bin/sh\n").unwrap();
+            std::fs::write(macos_dir.join("My King"), b"#!/bin/sh\n").unwrap();
             macos_dir.parent().unwrap().parent().unwrap().to_path_buf() // .../My King.app
         } else if cfg!(target_os = "windows") {
             let dir = release.join("win-unpacked");
             std::fs::create_dir_all(&dir).unwrap();
-            let exe = dir.join("Hermes.exe");
+            let exe = dir.join("My-King.exe");
             std::fs::write(&exe, b"stub").unwrap();
             exe
         } else {
             let dir = release.join("linux-unpacked");
             std::fs::create_dir_all(&dir).unwrap();
-            let exe = dir.join("hermes");
+            let exe = dir.join("my-king");
             std::fs::write(&exe, b"stub").unwrap();
             exe
         }
@@ -1049,7 +1173,7 @@ mod tests {
 
     // The relaunch / install target is derived from the rebuilt desktop app.
     // On macOS this MUST resolve to the .app bundle (what `open` relaunches and
-    // what the updater ditto's over /Applications/Hermes.app). A regression in
+    // what the updater ditto's over /Applications/My King.app). A regression in
     // this derivation breaks the post-update auto-relaunch, so guard it.
     #[test]
     fn resolve_hermes_desktop_app_finds_built_bundle() {
@@ -1067,11 +1191,283 @@ mod tests {
                 Some("app"),
                 "relaunch target must be a .app bundle on macOS"
             );
+            assert_eq!(
+                resolve_hermes_desktop_exe(&root),
+                Some(
+                    root.join("apps")
+                        .join("desktop")
+                        .join("release")
+                        .join("mac-arm64")
+                        .join("My King.app")
+                        .join("Contents")
+                        .join("MacOS")
+                        .join("My King")
+                ),
+                "only My King's macOS executable is launchable"
+            );
         }
         #[cfg(not(target_os = "macos"))]
         {
             assert_eq!(resolved, expected);
         }
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn resolve_hermes_desktop_exe_refuses_hermes_bundle() {
+        let root = unique_tmp_dir("hermes-bundle");
+        let hermes_macos_dir = root
+            .join("apps")
+            .join("desktop")
+            .join("release")
+            .join("mac")
+            .join("Hermes.app")
+            .join("Contents")
+            .join("MacOS");
+        std::fs::create_dir_all(&hermes_macos_dir).unwrap();
+        std::fs::write(hermes_macos_dir.join("Hermes"), b"#!/bin/sh\n").unwrap();
+
+        assert!(
+            resolve_hermes_desktop_exe(&root).is_none(),
+            "Hermes.app must never be selected as the My King desktop"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn resolve_hermes_desktop_exe_refuses_my_king_bundle_symlinked_to_hermes() {
+        use std::os::unix::fs::symlink;
+
+        // Given a release tree whose My King-named bundle is a symlink to
+        // Hermes. The target must never be treated as our desktop merely
+        // because its link name looks correct.
+        let root = unique_tmp_dir("my-king-symlink-to-hermes");
+        let mac_dir = root
+            .join("apps")
+            .join("desktop")
+            .join("release")
+            .join("mac");
+        let hermes_macos_dir = mac_dir.join("Hermes.app").join("Contents").join("MacOS");
+        std::fs::create_dir_all(&hermes_macos_dir).unwrap();
+        std::fs::write(hermes_macos_dir.join("My King"), b"#!/bin/sh\n").unwrap();
+        symlink("Hermes.app", mac_dir.join("My King.app")).unwrap();
+
+        // When the resolver walks the built desktop output.
+        let resolved = resolve_hermes_desktop_exe(&root);
+
+        // Then the Hermes bundle cannot be launched through a My King alias.
+        assert_eq!(resolved, None);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn resolve_hermes_desktop_exe_refuses_symlinked_my_king_executable() {
+        use std::os::unix::fs::symlink;
+
+        // Given a real My King-named bundle whose executable is substituted
+        // with a symlink to Hermes.
+        let root = unique_tmp_dir("my-king-exe-symlink-to-hermes");
+        let release = root
+            .join("apps")
+            .join("desktop")
+            .join("release")
+            .join("mac");
+        let my_king_macos_dir = release.join("My King.app").join("Contents").join("MacOS");
+        let hermes_macos_dir = release.join("Hermes.app").join("Contents").join("MacOS");
+        std::fs::create_dir_all(&my_king_macos_dir).unwrap();
+        std::fs::create_dir_all(&hermes_macos_dir).unwrap();
+        std::fs::write(hermes_macos_dir.join("Hermes"), b"#!/bin/sh\n").unwrap();
+        symlink(
+            "../../../Hermes.app/Contents/MacOS/Hermes",
+            my_king_macos_dir.join("My King"),
+        )
+        .unwrap();
+
+        // When the resolver walks the built desktop output.
+        let resolved = resolve_hermes_desktop_exe(&root);
+
+        // Then the substituted executable is rejected before launch.
+        assert_eq!(resolved, None);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn launch_refuses_bundle_exchanged_after_validation() {
+        use std::os::unix::fs::symlink;
+
+        // Given a valid My King bundle and a separate Hermes bundle with a
+        // deliberately look-alike executable layout.
+        let root = unique_tmp_dir("launch-bundle-exchange");
+        let my_king = root.join("My King.app");
+        let my_king_macos = my_king.join("Contents").join("MacOS");
+        std::fs::create_dir_all(&my_king_macos).unwrap();
+        std::fs::write(my_king_macos.join("My King"), b"my-king").unwrap();
+        let hermes = root.join("Hermes.app");
+        let hermes_macos = hermes.join("Contents").join("MacOS");
+        std::fs::create_dir_all(&hermes_macos).unwrap();
+        std::fs::write(hermes_macos.join("My King"), b"hermes").unwrap();
+        let parked = root.join("My King.original.app");
+
+        // When the checked bundle is exchanged for a Hermes alias at the
+        // deterministic post-validation seam.
+        let mut launched = false;
+        let result = launch_macos_app_after_identity_check(
+            &my_king,
+            || {
+                std::fs::rename(&my_king, &parked).unwrap();
+                symlink(&hermes, &my_king).unwrap();
+            },
+            |_| {
+                launched = true;
+                Ok(())
+            },
+        );
+
+        // Then launch is rejected before /usr/bin/open can resolve the alias.
+        assert_eq!(result.unwrap_err().kind(), std::io::ErrorKind::InvalidInput);
+        assert!(!launched);
+        assert_eq!(
+            std::fs::read(hermes_macos.join("My King")).unwrap(),
+            b"hermes"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn launch_refuses_executable_exchanged_after_validation() {
+        use std::os::unix::fs::symlink;
+
+        // Given a valid My King bundle and an unrelated Hermes executable.
+        let root = unique_tmp_dir("launch-executable-exchange");
+        let my_king = root.join("My King.app");
+        let my_king_exe = my_king.join("Contents").join("MacOS").join("My King");
+        std::fs::create_dir_all(my_king_exe.parent().unwrap()).unwrap();
+        std::fs::write(&my_king_exe, b"my-king").unwrap();
+        let hermes_exe = root.join("Hermes.app/Contents/MacOS/Hermes");
+        std::fs::create_dir_all(hermes_exe.parent().unwrap()).unwrap();
+        std::fs::write(&hermes_exe, b"hermes").unwrap();
+        let parked = my_king_exe.with_file_name("My King.original");
+
+        // When the executable is exchanged after the bundle identity check.
+        let mut launched = false;
+        let result = launch_macos_app_after_identity_check(
+            &my_king,
+            || {
+                std::fs::rename(&my_king_exe, &parked).unwrap();
+                symlink(&hermes_exe, &my_king_exe).unwrap();
+            },
+            |_| {
+                launched = true;
+                Ok(())
+            },
+        );
+
+        // Then no launch occurs through the substituted executable.
+        assert_eq!(result.unwrap_err().kind(), std::io::ErrorKind::InvalidInput);
+        assert!(!launched);
+        assert_eq!(std::fs::read(&hermes_exe).unwrap(), b"hermes");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn launch_refuses_parent_alias_exchanged_after_validation() {
+        use std::os::unix::fs::symlink;
+
+        // Given a valid My King bundle reached through a parent alias and a
+        // hostile look-alike tree containing Hermes bytes.
+        let root = unique_tmp_dir("launch-parent-exchange");
+        let safe_parent = root.join("safe");
+        let safe_app = safe_parent.join("My King.app");
+        let safe_exe = safe_app.join("Contents/MacOS/My King");
+        std::fs::create_dir_all(safe_exe.parent().unwrap()).unwrap();
+        std::fs::write(&safe_exe, b"my-king").unwrap();
+        let hostile_parent = root.join("hostile");
+        let hostile_app = hostile_parent.join("My King.app");
+        let hostile_exe = hostile_app.join("Contents/MacOS/My King");
+        std::fs::create_dir_all(hostile_exe.parent().unwrap()).unwrap();
+        std::fs::write(&hostile_exe, b"hermes").unwrap();
+        let alias = root.join("current");
+        symlink(&safe_parent, &alias).unwrap();
+        let launch_path = alias.join("My King.app");
+
+        // When the parent alias is redirected after validation.
+        let mut launched = false;
+        let result = launch_macos_app_after_identity_check(
+            &launch_path,
+            || {
+                std::fs::remove_file(&alias).unwrap();
+                symlink(&hostile_parent, &alias).unwrap();
+            },
+            |_| {
+                launched = true;
+                Ok(())
+            },
+        );
+
+        // Then the changed directory identity prevents LaunchServices use.
+        assert_eq!(result.unwrap_err().kind(), std::io::ErrorKind::InvalidInput);
+        assert!(!launched);
+        assert_eq!(std::fs::read(&hostile_exe).unwrap(), b"hermes");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn automatic_launch_preserves_function_after_identity_check() {
+        use std::os::unix::fs::PermissionsExt;
+
+        // Given a minimal My King app whose executable leaves a marker and
+        // exits, plus its captured filesystem identity.
+        let root = unique_tmp_dir("launchservices-fd-probe");
+        let app = root.join("My King.app");
+        let contents = app.join("Contents");
+        let executable = contents.join("MacOS").join("My King");
+        let marker = root.join("launched.marker");
+        std::fs::create_dir_all(executable.parent().unwrap()).unwrap();
+        std::fs::write(
+            contents.join("Info.plist"),
+            br#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleExecutable</key><string>My King</string>
+<key>CFBundleIdentifier</key><string>com.myking.bootstrap.fd-probe</string>
+<key>CFBundleName</key><string>My King</string>
+<key>CFBundlePackageType</key><string>APPL</string>
+</dict></plist>
+"#,
+        )
+        .unwrap();
+        std::fs::write(
+            &executable,
+            format!("#!/bin/sh\n/usr/bin/touch '{}'\n", marker.display()),
+        )
+        .unwrap();
+        std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o755)).unwrap();
+        // When automatic launch reaches the final boundary with an unchanged
+        // identity, the LaunchServices seam is invoked exactly once.
+        let mut launched = false;
+        launch_macos_app_after_identity_check(
+            &app,
+            || {},
+            |launch_path| {
+                assert_eq!(launch_path, app);
+                launched = true;
+                Ok(())
+            },
+        )
+        .unwrap();
+
+        assert!(launched);
+        assert!(
+            !marker.exists(),
+            "the unit test must not execute the fixture app"
+        );
         let _ = std::fs::remove_dir_all(&root);
     }
 

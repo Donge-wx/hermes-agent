@@ -71,6 +71,7 @@ import {
 import { useSystemActions } from "@/contexts/useSystemActions";
 import { useToast } from "@nous-research/ui/hooks/use-toast";
 import { useI18n } from "@/i18n";
+import { getSessionsCopy } from "@/i18n/sessions-copy";
 import { usePageHeader } from "@/contexts/usePageHeader";
 import { PluginSlot } from "@/plugins";
 import { isDashboardEmbeddedChatEnabled } from "@/lib/dashboard-flags";
@@ -152,7 +153,7 @@ function sourceLabel(source: string): string {
     case "tool":
       return "Tool";
     case "hermes_flow":
-      return "Hermes Flow";
+      return "My King Flow";
     case "vulcan_delegate":
       return "Vulcan delegate";
     case "webhook":
@@ -480,7 +481,8 @@ function SessionRow({
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(session.title ?? "");
   const [renameSaving, setRenameSaving] = useState(false);
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
+  const copy = getSessionsCopy(locale);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -525,7 +527,7 @@ function SessionRow({
     <>
       <Badge tone="outline" className="text-xs">
         <SourceIcon className={`mr-1 h-3 w-3 ${sourceInfo.color}`} />
-        {session.source ? sourceLabel(session.source) : "local"}
+        {session.source ? sourceLabel(session.source) : copy.local}
       </Badge>
 
       {resumeInChatEnabled && (
@@ -548,8 +550,8 @@ function SessionRow({
         ghost
         size="icon"
         className="text-muted-foreground hover:text-foreground"
-        aria-label="Rename session"
-        title="Rename session"
+        aria-label={copy.renameSession}
+        title={copy.renameSession}
         onClick={(e) => {
           e.stopPropagation();
           setRenameValue(
@@ -567,8 +569,8 @@ function SessionRow({
         ghost
         size="icon"
         className="text-muted-foreground hover:text-foreground"
-        aria-label="Export session"
-        title="Export session JSON"
+        aria-label={copy.exportSession}
+        title={copy.exportSessionJson}
         onClick={(e) => {
           e.stopPropagation();
           onExport(session.id);
@@ -650,7 +652,7 @@ function SessionRow({
                         if (e.key === "Enter") void submitRename();
                         else if (e.key === "Escape") setRenaming(false);
                       }}
-                      placeholder="Session title"
+                      placeholder={copy.sessionTitle}
                       className="h-7 min-w-0 flex-1 py-0 text-sm"
                       disabled={renameSaving}
                     />
@@ -658,8 +660,8 @@ function SessionRow({
                       ghost
                       size="icon"
                       className="text-muted-foreground hover:text-success"
-                      aria-label="Save title"
-                      title="Save title"
+                      aria-label={copy.saveTitle}
+                      title={copy.saveTitle}
                       disabled={renameSaving}
                       onClick={() => void submitRename()}
                     >
@@ -673,8 +675,8 @@ function SessionRow({
                       ghost
                       size="icon"
                       className="text-muted-foreground hover:text-foreground"
-                      aria-label="Cancel rename"
-                      title="Cancel rename"
+                      aria-label={copy.cancelRename}
+                      title={copy.cancelRename}
                       disabled={renameSaving}
                       onClick={() => setRenaming(false)}
                     >
@@ -870,7 +872,8 @@ export default function SessionsPage() {
   const [pruning, setPruning] = useState(false);
   const [importingSessions, setImportingSessions] = useState(false);
   const { toast, showToast } = useToast();
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
+  const copy = getSessionsCopy(locale);
   const { setAfterTitle, setEnd } = usePageHeader();
   const { activeAction, actionStatus, dismissLog } = useSystemActions();
   const resumeInChatEnabled = isDashboardEmbeddedChatEnabled();
@@ -956,29 +959,40 @@ export default function SessionsPage() {
   );
 
   const defaultSourceFilterLabel = useMemo(() => {
-    if (sessionCategory === "chats") return "Any chat source";
-    if (sessionCategory === "automation") return "Any automation source";
+    if (sessionCategory === "chats") {
+      return t.sessions.anyChatSource ?? "Any chat source";
+    }
+    if (sessionCategory === "automation") {
+      return t.sessions.anyAutomationSource ?? "Any automation source";
+    }
     return t.sessions.anySource;
-  }, [sessionCategory, t.sessions.anySource]);
+  }, [sessionCategory, t.sessions]);
 
   const sourceMenuTitle = useMemo(() => {
-    if (sessionCategory === "chats") return "Chat sources";
-    if (sessionCategory === "automation") return "Automation sources";
+    if (sessionCategory === "chats") {
+      return t.sessions.chatSources ?? "Chat sources";
+    }
+    if (sessionCategory === "automation") {
+      return t.sessions.automationSources ?? "Automation sources";
+    }
     return t.sessions.sourceFilter;
-  }, [sessionCategory, t.sessions.sourceFilter]);
+  }, [sessionCategory, t.sessions]);
 
   const sourceFilterLabel = useMemo(() => {
     if (selectedSources === null) {
       return defaultSourceFilterLabel;
     }
     if (selectedSources.length === 0) {
-      return "No sources";
+      return t.sessions.noSources ?? "No sources";
     }
     if (selectedSources.length === 1) {
       return sourceLabel(selectedSources[0]);
     }
-    return `${selectedSources.length} sources`;
-  }, [defaultSourceFilterLabel, selectedSources]);
+    return (t.sessions.selectedSources ?? "{count} sources").replace(
+      "{count}",
+      String(selectedSources.length),
+    );
+  }, [defaultSourceFilterLabel, selectedSources, t.sessions]);
 
   const refreshEmptyCount = useCallback(() => {
     api
@@ -1015,13 +1029,13 @@ export default function SessionsPage() {
         onClick={() => setPruneOpen(true)}
         prefix={<Archive />}
       >
-        Prune old sessions
+        {t.sessions.pruneOld ?? "Prune old sessions"}
       </Button>,
     );
     return () => {
       setEnd(null);
     };
-  }, [setEnd]);
+  }, [setEnd, t.sessions.pruneOld]);
 
   useEffect(() => {
     if (!sourceMenuOpen) return;
@@ -1456,13 +1470,13 @@ export default function SessionsPage() {
         setOverviewSessions((prev) =>
           prev.map((s) => (s.id === id ? { ...s, title } : s)),
         );
-        showToast("Session renamed", "success");
+        showToast(copy.renamed, "success");
         loadStats();
       } catch {
-        showToast("Failed to rename session", "error");
+        showToast(copy.renameFailed, "error");
       }
     },
-    [showToast, loadStats],
+    [copy.renameFailed, copy.renamed, showToast, loadStats],
   );
 
   const handleExport = useCallback(
@@ -1485,16 +1499,16 @@ export default function SessionsPage() {
         a.click();
         URL.revokeObjectURL(url);
       } catch {
-        showToast("Failed to export session", "error");
+        showToast(copy.exportFailed, "error");
       }
     },
-    [showToast],
+    [copy.exportFailed, showToast],
   );
 
   const handlePrune = useCallback(async () => {
     const days = parseInt(pruneDays, 10);
     if (!Number.isFinite(days) || days < 0) {
-      showToast("Enter a valid number of days", "error");
+      showToast(copy.validDays, "error");
       return;
     }
     setPruning(true);
@@ -1506,11 +1520,11 @@ export default function SessionsPage() {
       setPage(0);
       loadStats();
     } catch {
-      showToast("Failed to prune sessions", "error");
+      showToast(copy.pruneFailed, "error");
     } finally {
       setPruning(false);
     }
-  }, [pruneDays, showToast, loadSessions, loadStats]);
+  }, [copy.pruneFailed, copy.validDays, pruneDays, showToast, loadSessions, loadStats]);
 
   const pendingSession = sessionDelete.pendingId
     ? sessions.find((s) => s.id === sessionDelete.pendingId)
@@ -1631,10 +1645,10 @@ export default function SessionsPage() {
       >
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Prune old sessions</DialogTitle>
+            <DialogTitle>{t.sessions.pruneOld ?? "Prune old sessions"}</DialogTitle>
             <DialogDescription>
-              Permanently remove archived sessions whose last activity is older
-              than the given number of days. Active sessions are never pruned.
+              {t.sessions.pruneDescription ??
+                "Permanently remove archived sessions whose last activity is older than the given number of days. Active sessions are never pruned."}
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-1.5">
@@ -1642,7 +1656,7 @@ export default function SessionsPage() {
               htmlFor="prune-days"
               className="text-xs font-medium text-muted-foreground"
             >
-              Older than (days)
+              {t.sessions.olderThanDays ?? "Older than (days)"}
             </label>
             <Input
               id="prune-days"
@@ -1671,7 +1685,7 @@ export default function SessionsPage() {
               className="gap-1.5"
             >
               {pruning && <Spinner className="text-sm" />}
-              Prune
+              {t.sessions.prune ?? "Prune"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1683,32 +1697,42 @@ export default function SessionsPage() {
             <span className="text-lg font-semibold tabular-nums leading-none">
               {stats.total}
             </span>
-            <span className="text-xs text-muted-foreground">Total</span>
+            <span className="text-xs text-muted-foreground">
+              {t.sessions.statsTotal ?? "Total"}
+            </span>
           </div>
           <div className="flex flex-col">
             <span className="text-lg font-semibold tabular-nums leading-none text-success">
               {stats.active_store}
             </span>
-            <span className="text-xs text-muted-foreground">Active in store</span>
+            <span className="text-xs text-muted-foreground">
+              {t.sessions.statsActive ?? "Active in store"}
+            </span>
           </div>
           <div className="flex flex-col">
             <span className="text-lg font-semibold tabular-nums leading-none">
               {stats.archived}
             </span>
-            <span className="text-xs text-muted-foreground">Archived</span>
+            <span className="text-xs text-muted-foreground">
+              {t.sessions.statsArchived ?? "Archived"}
+            </span>
           </div>
           <div className="flex flex-col">
             <span className="text-lg font-semibold tabular-nums leading-none">
               {stats.messages}
             </span>
-            <span className="text-xs text-muted-foreground">Messages</span>
+            <span className="text-xs text-muted-foreground">
+              {t.sessions.statsMessages ?? "Messages"}
+            </span>
           </div>
           {Object.keys(stats.by_source).length > 0 && (
             <div className="flex flex-col">
               <span className="text-lg font-semibold tabular-nums leading-none">
                 {Object.keys(stats.by_source).length}
               </span>
-              <span className="text-xs text-muted-foreground">Sources</span>
+              <span className="text-xs text-muted-foreground">
+                {t.sessions.statsSources ?? "Sources"}
+              </span>
             </div>
           )}
         </div>
@@ -1963,12 +1987,12 @@ export default function SessionsPage() {
                 className="shrink-0"
                 disabled={importingSessions}
                 onClick={() => importInputRef.current?.click()}
-                aria-label="Import exported sessions"
-                title="Import exported session JSON or JSONL"
+                aria-label={t.sessions.importSessionsLabel ?? "Import exported sessions"}
+                title={t.sessions.importSessionsTitle ?? "Import exported session JSON or JSONL"}
                 prefix={importingSessions ? <Spinner /> : <Upload />}
               >
                 <span className="font-mondwest normal-case text-xs">
-                  Import sessions
+                  {t.sessions.importSessions ?? "Import sessions"}
                 </span>
               </Button>
             )}

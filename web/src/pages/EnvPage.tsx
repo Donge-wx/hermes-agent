@@ -36,6 +36,7 @@ import { Badge } from "@nous-research/ui/ui/components/badge";
 import { Input } from "@nous-research/ui/ui/components/input";
 import { Label } from "@nous-research/ui/ui/components/label";
 import { useI18n } from "@/i18n";
+import { getEnvCopy } from "@/i18n/env-copy";
 import { usePageHeader } from "@/contexts/usePageHeader";
 import { PluginSlot } from "@/plugins";
 
@@ -45,8 +46,8 @@ import { PluginSlot } from "@/plugins";
 
 /** Map env-var key prefixes to a human-friendly provider name + ordering. */
 const PROVIDER_GROUPS: { prefix: string; name: string; priority: number }[] = [
-  // Nous Portal first
-  { prefix: "NOUS_", name: "Nous Portal", priority: 0 },
+  // My King account provider first. The NOUS_ prefix remains a backend compatibility key.
+  { prefix: "NOUS_", name: "My King account", priority: 0 },
   // Then alphabetical by display name
   { prefix: "ANTHROPIC_", name: "Anthropic", priority: 1 },
   { prefix: "DASHSCOPE_", name: "DashScope (Qwen)", priority: 2 },
@@ -359,7 +360,8 @@ function ProviderGroupCard({
   clearDialogOpen?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
+  const copy = getEnvCopy(locale);
 
   // Separate API keys from base URLs and other settings
   const apiKeys = group.entries.filter(
@@ -395,7 +397,11 @@ function ProviderGroupCard({
             <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
           )}
           <span className="font-semibold text-sm tracking-wide">
-            {group.name === "Other" ? t.common.other : group.name}
+            {group.name === "Other"
+              ? t.common.other
+              : group.name === "My King account"
+                ? copy.myKingAccount
+                : group.name}
           </span>
           {hasAnyConfigured && (
             <Badge tone="success" className="text-xs">
@@ -613,7 +619,8 @@ export default function EnvPage() {
   const [saving, setSaving] = useState<string | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(true); // Show all providers by default
   const { toast, showToast } = useToast();
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
+  const copy = getEnvCopy(locale);
   const { setAfterTitle } = usePageHeader();
 
   useEffect(() => {
@@ -626,15 +633,15 @@ export default function EnvPage() {
   // Scroll-to sub-nav in the page header
   const sections = useMemo(() => {
     const items: { id: string; label: string }[] = [
-      { id: "section-oauth", label: "OAuth" },
-      { id: "section-providers", label: "Providers" },
+      { id: "section-oauth", label: copy.oauth },
+      { id: "section-providers", label: copy.providers },
     ];
     if (vars) {
       const categories = ["tool", "messaging", "setting"];
       const CATEGORY_LABELS: Record<string, string> = {
-        tool: "Tools",
-        messaging: t.common.gateway ?? "Gateway",
-        setting: "Settings",
+        tool: copy.tools,
+        messaging: copy.messaging,
+        setting: copy.settings,
       };
       for (const cat of categories) {
         const hasEntries = Object.values(vars).some(
@@ -648,7 +655,7 @@ export default function EnvPage() {
       items.push({ id: "section-custom", label: t.env.customTitle });
     }
     return items;
-  }, [vars, t]);
+  }, [copy, vars, t.env.customTitle]);
 
   useLayoutEffect(() => {
     if (!vars) {
@@ -661,7 +668,7 @@ export default function EnvPage() {
     setAfterTitle(
       <nav
         className="flex shrink-0 flex-nowrap items-center gap-1"
-        aria-label="Jump to section"
+        aria-label={copy.jumpToSection}
       >
         {sections.map((s) => (
           <button
@@ -678,7 +685,7 @@ export default function EnvPage() {
     return () => {
       setAfterTitle(null);
     };
-  }, [vars, sections, setAfterTitle]);
+  }, [copy.jumpToSection, vars, sections, setAfterTitle]);
 
   const handleSave = async (key: string) => {
     const value = edits[key];

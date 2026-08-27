@@ -18,6 +18,7 @@ Two invariants, each of which has been broken before:
 
 import json
 import os
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -104,3 +105,57 @@ def test_fast_version_reports_install_method_stamp(tmp_path):
     result = _run_version({"HERMES_HOME": str(home), "TERMUX_VERSION": ""})
     assert result.returncode == 0, result.stderr
     assert "Install method: git" in result.stdout
+
+
+def test_myking_fast_version_command_never_runs_git_fetch(tmp_path):
+    """The managed `--version` command is version-only, with no update fetch."""
+    home = Path.home() / ".myking"
+    home.mkdir(exist_ok=True)
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    git_log = tmp_path / "git-invocations.log"
+    fake_git = fake_bin / "git"
+    fake_git.write_text(
+        "#!/bin/sh\n"
+        f"printf '%s\\n' \"$*\" >> {shlex.quote(str(git_log))}\n"
+        "exit 0\n",
+        encoding="utf-8",
+    )
+    fake_git.chmod(0o755)
+
+    result = _run_version(
+        {
+            "HERMES_HOME": str(home),
+            "PATH": f"{fake_bin}{os.pathsep}{os.environ['PATH']}",
+            "TERMUX_VERSION": "",
+        }
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "Update available" not in result.stdout
+    assert "run 'hermes update'" not in result.stdout
+    commands = git_log.read_text(encoding="utf-8") if git_log.exists() else ""
+    assert "fetch origin main" not in commands
+
+
+def test_myking_fast_version_uses_managed_backend_brand(tmp_path):
+    """Managed ``--version`` identifies the employee-facing My King backend."""
+    home = Path.home() / ".myking"
+    home.mkdir(exist_ok=True)
+
+    result = _run_version({"HERMES_HOME": str(home), "TERMUX_VERSION": ""})
+
+    assert result.returncode == 0, result.stderr
+    assert "My King backend v" in result.stdout
+    assert "Hermes Agent v" not in result.stdout
+
+
+def test_standard_fast_version_keeps_hermes_brand(tmp_path):
+    """Ordinary Hermes installations retain their existing version identity."""
+    home = tmp_path / ".hermes"
+    home.mkdir()
+
+    result = _run_version({"HERMES_HOME": str(home), "TERMUX_VERSION": ""})
+
+    assert result.returncode == 0, result.stderr
+    assert "Hermes Agent v" in result.stdout

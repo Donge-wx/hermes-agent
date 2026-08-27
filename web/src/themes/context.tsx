@@ -40,21 +40,6 @@ const STORAGE_KEY = "hermes-dashboard-theme";
  *  the React tree mounts (see `main.tsx`) to avoid a font flash. */
 const FONT_STORAGE_KEY = "hermes-dashboard-font";
 
-/** Renames of built-in theme keys we've shipped previously. Without this,
- *  users who saved one of the old names in localStorage (or had it
- *  persisted server-side) would silently fall back to `defaultTheme`
- *  because the lookup in `resolveTheme` no longer finds the stale key.
- *  Keep entries here until enough release cycles have passed that we can
- *  reasonably assume nobody still has the old value persisted. */
-const THEME_NAME_ALIASES: Record<string, string> = {
-  // Renamed during the LENS_5I port + Nous-blue rebrand.
-  "lens-5i": "nous-blue",
-};
-
-function migrateThemeName(name: string): string {
-  return THEME_NAME_ALIASES[name] ?? name;
-}
-
 /** Tracks fontUrls we've already injected so multiple theme switches don't
  *  pile up <link> tags. Keyed by URL. */
 const INJECTED_FONT_URLS = new Set<string>();
@@ -411,20 +396,13 @@ function applyTheme(theme: DashboardTheme) {
 export function ThemeProvider({ children }: { children: ReactNode }) {
   /** Name of the currently active theme (built-in id or user YAML name). */
   const [themeName, setThemeName] = useState<string>(() => {
-    if (typeof window === "undefined") return "default";
-    const stored = window.localStorage.getItem(STORAGE_KEY) ?? "default";
-    const migrated = migrateThemeName(stored);
-    // Write the migrated name back so future reads converge on the new
-    // key and we eventually retire the alias entry.
-    if (migrated !== stored) {
-      window.localStorage.setItem(STORAGE_KEY, migrated);
-    }
-    return migrated;
+    if (typeof window !== "undefined") window.localStorage.setItem(STORAGE_KEY, "default");
+    return "default";
   });
 
   /** All selectable themes (shown in the picker). Starts with just the
    *  built-ins; the API call below merges in user themes. */
-  const [availableThemes, setAvailableThemes] = useState<ThemeListEntry[]>(() =>
+  const [availableThemes] = useState<ThemeListEntry[]>(() =>
     Object.values(BUILTIN_THEMES).map((t) => ({
       name: t.name,
       label: t.label,
@@ -434,7 +412,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   /** Full definitions for user themes keyed by name — the API provides
    *  these so custom YAMLs apply without a client-side stub. */
-  const [userThemeDefs, setUserThemeDefs] = useState<
+  const [userThemeDefs] = useState<
     Record<string, DashboardTheme>
   >({});
 
@@ -470,50 +448,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     applyTheme(resolveTheme(themeName));
   }, [themeName, resolveTheme, fontId]);
 
-  // Load server-side themes (built-ins + user YAMLs) once on mount.
+  // Keep upstream theme data intact on disk while enforcing the managed skin.
   useEffect(() => {
-    let cancelled = false;
-    api
-      .getThemes()
-      .then((resp) => {
-        if (cancelled) return;
-        if (resp.themes?.length) {
-          setAvailableThemes(
-            resp.themes.map((t) => ({
-              name: t.name,
-              label: t.label,
-              description: t.description,
-              definition: t.definition,
-            })),
-          );
-          // Index any definitions the server shipped (user themes).
-          const defs: Record<string, DashboardTheme> = {};
-          for (const entry of resp.themes) {
-            if (entry.definition) {
-              defs[entry.name] = entry.definition;
-            }
-          }
-          if (Object.keys(defs).length > 0) setUserThemeDefs(defs);
-        }
-        if (resp.active) {
-          const migratedActive = migrateThemeName(resp.active);
-          if (migratedActive !== themeName) {
-            setThemeName(migratedActive);
-            window.localStorage.setItem(STORAGE_KEY, migratedActive);
-          }
-          // If the server is still persisting the stale key, push the
-          // migrated value back so it converges too — otherwise every
-          // future page load would re-trigger this branch.
-          if (migratedActive !== resp.active) {
-            api.setTheme(migratedActive).catch(() => {});
-          }
-        }
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    api.setTheme("default").catch(() => {});
   }, []);
 
   // Load the server-persisted font override once on mount. The server is

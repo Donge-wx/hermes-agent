@@ -115,7 +115,12 @@ export function PageSearchShell({
         )}
         {filters ? <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-3 pb-2">{filters}</div> : null}
       </div>
-      <div className="min-h-0 flex-1 overflow-hidden bg-(--ui-chat-surface-background)">{children}</div>
+      <div
+        className="flex min-h-0 flex-1 flex-col overflow-hidden bg-(--ui-chat-surface-background)"
+        data-slot="page-shell-content"
+      >
+        {children}
+      </div>
     </section>
   )
 }

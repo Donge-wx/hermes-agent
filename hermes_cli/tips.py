@@ -29,7 +29,7 @@ TIPS = [
     "/model --global changes your default model permanently.",
     "/personality pirate sets a fun personality — 14 built-in options from kawaii to shakespeare.",
     "/skin changes the CLI theme — try ares, mono, slate, poseidon, or charizard.",
-    "/statusbar toggles a persistent bar showing model, tokens, context fill %, cost, and duration.",
+    "/statusbar toggles a persistent bar showing model, token, context fill %, cost, and duration.",
     "/tools disable browser temporarily removes browser tools for the current session.",
     "/browser connect attaches browser tools to your running Chromium-family browser via CDP.",
     "/plugins lists installed plugins and their status.",
@@ -106,7 +106,7 @@ TIPS = [
 
     # --- Configuration ---
     "Set display.bell_on_complete: true in config.yaml to hear a bell when long tasks finish.",
-    "Set display.streaming: true to see tokens appear in real time as the model generates.",
+    "Set display.streaming: true to see token appear in real time as the model generates.",
     "Set display.show_reasoning: true to watch the model's chain-of-thought reasoning.",
     "Set display.compact: true to reduce whitespace in output for denser information.",
     "Set display.busy_input_mode: queue to queue messages instead of interrupting the agent, or steer to inject them mid-run via /steer.",
@@ -354,7 +354,7 @@ TIPS = [
     '/reload reloads ~/.hermes/.env into the running session — pick up new API keys without restarting.',
 
     # --- Cron (no-agent & scripts) ---
-    'cronjob with no_agent=True runs a script on schedule and sends its stdout directly — zero tokens, zero LLM.',
+    'cronjob with no_agent=True runs a script on schedule and sends its stdout directly — zero token, zero LLM.',
     'An empty cron script stdout means silent tick — nothing is delivered, perfect for threshold watchdogs.',
     "HERMES_CRON_MAX_PARALLEL (default 4) caps how many cron jobs run per tick so bursts don't saturate your keys.",
 

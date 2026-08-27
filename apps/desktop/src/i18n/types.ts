@@ -1132,6 +1132,9 @@ export interface Translations {
     visionModelHint: string
     visionModelLink: string
     toolsetsEnabled: (enabled: number, total: number) => string
+    toolsCount: (count: number) => string
+    includedTools: string
+    metadataLabels: Record<string, string>
     configureToolset: (label: string) => string
     toggleToolset: (label: string, enabled: boolean) => string
     skillsLoadFailed: string
@@ -1361,6 +1364,7 @@ export interface Translations {
     unpinSession: string
     exportSession: string
     deleteSession: string
+    noSessionsTitle: string
     noSessions: string
     gatewayRunning: string
     gatewayStopped: string
@@ -1469,6 +1473,7 @@ export interface Translations {
     saveChanges: string
     saved: string
     replaceValue: string
+    fieldPlaceholder: (label: string) => string
     openDocs: string
     clearField: (key: string) => string
     enableAria: (name: string) => string
@@ -1818,6 +1823,7 @@ export interface Translations {
     results: string
     pinned: string
     sessions: string
+    bots: string
     cronJobs: string
     groupAriaGrouped: string
     groupAriaUngrouped: string
@@ -2186,6 +2192,7 @@ export interface Translations {
     guiSkewTitle: string
     guiSkewBody: string
     copy: string
+    copyCommand: string
     copied: string
     done: string
     applyingBody: string
@@ -2302,7 +2309,7 @@ export interface Translations {
     featuredPitch: string
     fireworksPitch: string
     openRouterPitch: string
-    apiKeyOptions: Record<string, { short: string; description: string }>
+    apiKeyOptions: Record<string, { title?: string; short: string; description: string }>
     backToSignIn: string
     getKey: string
     replaceCurrent: string

@@ -2,6 +2,8 @@ import { Select, SelectOption } from "@nous-research/ui/ui/components/select";
 import { Switch } from "@nous-research/ui/ui/components/switch";
 import { Input } from "@nous-research/ui/ui/components/input";
 import { Label } from "@nous-research/ui/ui/components/label";
+import { useI18n } from "@/i18n";
+import { getConfigFieldCopy } from "@/i18n/config-field-copy";
 
 function FieldHint({ schema, schemaKey }: { schema: Record<string, unknown>; schemaKey: string }) {
   const keyPath = schemaKey.includes(".") ? schemaKey : "";
@@ -37,6 +39,8 @@ function NestedValueEditor({
   value: unknown;
   onChange: (v: unknown) => void;
 }) {
+  const { locale } = useI18n();
+  const copy = getConfigFieldCopy(locale);
   if (isRecord(value)) {
     return (
       <div className="grid gap-2 border border-border p-2">
@@ -59,7 +63,7 @@ function NestedValueEditor({
       <div className="grid gap-2">
         {value.map((item, index) => (
           <div key={`${fieldKey}.${index}`} className="grid gap-1">
-            <Label className="text-xs text-muted-foreground">Item {index + 1}</Label>
+            <Label className="text-xs text-muted-foreground">{copy.item(index + 1)}</Label>
             <NestedValueEditor
               fieldKey={`${fieldKey}.${index}`}
               value={item}
@@ -88,6 +92,8 @@ export function AutoField({
   value,
   onChange,
 }: AutoFieldProps) {
+  const { locale } = useI18n();
+  const copy = getConfigFieldCopy(locale);
   const rawLabel = schemaKey.split(".").pop() ?? schemaKey;
   const label = rawLabel.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
@@ -122,7 +128,7 @@ export function AutoField({
         <Select value={String(value ?? "")} onValueChange={(v) => onChange(v)}>
           {options.map((opt) => (
             <SelectOption key={opt} value={opt}>
-              {opt || "(none)"}
+              {opt || `(${copy.none})`}
             </SelectOption>
           ))}
         </Select>
@@ -183,7 +189,7 @@ export function AutoField({
                 .filter(Boolean),
             )
           }
-          placeholder="comma-separated values"
+          placeholder={copy.commaSeparatedValues}
         />
       </div>
     );

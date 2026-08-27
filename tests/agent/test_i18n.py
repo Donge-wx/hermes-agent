@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -120,6 +121,31 @@ def test_t_missing_key_in_non_english_falls_back_to_english(tmp_path, monkeypatc
         i18n.reset_language_cache()
 
 
+@pytest.mark.parametrize("lang", i18n.SUPPORTED_LANGUAGES)
+def test_llm_usage_units_render_as_lowercase_singular_token(lang: str):
+    """Every locale renders LLM usage quantities with the shared token unit."""
+    rendered_labels = (
+        i18n.t("gateway.model.context_label", lang=lang, tokens=42),
+        i18n.t("gateway.model.max_output_label", lang=lang, tokens=42),
+        i18n.t("gateway.context.window", lang=lang, total=128000),
+        i18n.t("gateway.context.headroom", lang=lang, headroom=4096),
+        i18n.t("gateway.context.estimated", lang=lang, count=128000, messages=7),
+        i18n.t("gateway.status.context_used", lang=lang, used=128000),
+        i18n.t("gateway.status.tokens", lang=lang, tokens=128000),
+        i18n.t("gateway.usage.header_session", lang=lang),
+        i18n.t("gateway.usage.label_input_tokens", lang=lang, count=42),
+        i18n.t("gateway.usage.label_cache_read", lang=lang, count=42),
+        i18n.t("gateway.usage.label_cache_write", lang=lang, count=42),
+        i18n.t("gateway.usage.label_output_tokens", lang=lang, count=42),
+        i18n.t("gateway.usage.label_estimated_context", lang=lang, count=128000),
+    )
+    token_unit = re.compile(r"(?<![A-Za-z])token(?![A-Za-z'])")
+
+    assert all("{" not in label and "}" not in label for label in rendered_labels)
+    assert all(token_unit.search(label) for label in rendered_labels)
+    assert not any("tokens" in label or "Token" in label for label in rendered_labels)
+
+
 
 
 # ---------------------------------------------------------------------------
@@ -138,5 +164,3 @@ def test_locales_dir_env_override_ignored_when_missing(tmp_path, monkeypatch):
     assert result != tmp_path / "does-not-exist"
     # In a source checkout this is the repo-root locales dir.
     assert result.name == "locales"
-
-

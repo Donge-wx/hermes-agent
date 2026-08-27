@@ -2,17 +2,21 @@ import { describe, expect, it, vi } from 'vitest'
 
 import {
   completeMyKingEmployeeEnrollment,
+  mintMyKingEmployeeGatewaySession,
   parseMyKingEmployeeEnrollmentCode,
   parseMyKingEmployeeRedeemResponse,
   redactMyKingEmployeeSecrets,
-  redeemMyKingEmployeeInvitation
+  redeemMyKingEmployeeInvitation,
+  revokeMyKingEmployeeEnrollment
 } from './employee-enrollment-contract'
 
 const redeemResponse = {
+  challenge: 'challenge_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789',
+  challengeExpiresAt: '2099-08-27T01:00:00.000Z',
   enrollmentId: 'enrollment-1',
   employeeId: 'employee-1',
   employeeName: '测试员工',
-  remoteGateway: { url: 'https://gateway.myking.test/' },
+  remoteGateway: { url: 'https://gateway.myking.com/' },
   relay: {
     host: 'relay.myking.test',
     port: 32222,
@@ -40,7 +44,7 @@ describe('employee enrollment contract', () => {
     await expect(
       redeemMyKingEmployeeInvitation(
         {
-          baseUrl: 'https://enroll.myking.test',
+          baseUrl: 'https://enroll.myking.com',
           code: 'bad code',
           device,
           relayPublicKey: `ssh-ed25519 ${'A'.repeat(44)}`
@@ -56,7 +60,7 @@ describe('employee enrollment contract', () => {
 
     const result = await redeemMyKingEmployeeInvitation(
       {
-        baseUrl: 'https://enroll.myking.test',
+        baseUrl: 'https://enroll.myking.com',
         code: 'ABCD-2345-EFGH',
         device,
         relayPublicKey: `ssh-ed25519 ${'A'.repeat(44)}`
@@ -65,7 +69,7 @@ describe('employee enrollment contract', () => {
     )
 
     expect(postJson).toHaveBeenCalledWith({
-      url: 'https://enroll.myking.test/api/employee-enrollments/redeem',
+      url: 'https://enroll.myking.com/api/employee-enrollments/redeem',
       timeoutMs: 15_000,
       body: { code: 'ABCD-2345-EFGH', device, relayPublicKey: `ssh-ed25519 ${'A'.repeat(44)}` }
     })
@@ -75,17 +79,19 @@ describe('employee enrollment contract', () => {
   it('posts the Nora completion contract and requires status ready', async () => {
     const postJson = vi.fn().mockResolvedValue({
       status: 'ready',
+      gatewayAuth: { type: 'bearer', token: 'employee-gateway-token' },
       employeeId: 'employee-1',
-      remoteGatewayUrl: 'https://gateway.myking.test',
+      remoteGatewayUrl: 'https://gateway.myking.com',
       message: '已连接公司智能体'
     })
 
     await expect(
       completeMyKingEmployeeEnrollment(
         {
-          baseUrl: 'https://enroll.myking.test',
+          baseUrl: 'https://enroll.myking.com',
           enrollmentId: 'enrollment-1',
           completionToken: 'short-lived-completion-token',
+          challengeSignature: '-----BEGIN SSH SIGNATURE-----\nU1NIU0lH\n-----END SSH SIGNATURE-----',
           deviceId: device.deviceId,
           sshHostPublicKeys: [`ssh-ed25519 ${'B'.repeat(44)} host`]
         },
@@ -97,9 +103,10 @@ describe('employee enrollment contract', () => {
     await expect(
       completeMyKingEmployeeEnrollment(
         {
-          baseUrl: 'https://enroll.myking.test',
+          baseUrl: 'https://enroll.myking.com',
           enrollmentId: 'enrollment-1',
           completionToken: 'short-lived-completion-token',
+          challengeSignature: '-----BEGIN SSH SIGNATURE-----\nU1NIU0lH\n-----END SSH SIGNATURE-----',
           deviceId: device.deviceId,
           sshHostPublicKeys: [`ssh-ed25519 ${'B'.repeat(44)} host`]
         },
@@ -115,6 +122,63 @@ describe('employee enrollment contract', () => {
         remoteGateway: { url: 'http://gateway.myking.test' }
       })
     ).toThrow()
+  })
+
+  it('rejects an expired enrollment challenge returned by Nora', () => {
+    expect(() =>
+      parseMyKingEmployeeRedeemResponse({
+        ...redeemResponse,
+        challengeExpiresAt: '2020-01-01T00:00:00.000Z'
+      })
+    ).toThrow()
+  })
+
+  it('revokes the exact enrollment with its device-scoped gateway credential', async () => {
+    const postJson = vi.fn().mockResolvedValue({ status: 'revoked' })
+
+    await revokeMyKingEmployeeEnrollment(
+      {
+        baseUrl: 'https://enroll.myking.com',
+        enrollmentId: 'enrollment-1',
+        deviceId: device.deviceId,
+        gatewayToken: 'employee-gateway-token'
+      },
+      postJson
+    )
+
+    expect(postJson).toHaveBeenCalledWith({
+      url: 'https://enroll.myking.com/api/employee-enrollments/enrollment-1/revoke',
+      authorization: 'Bearer employee-gateway-token',
+      timeoutMs: 15_000,
+      body: { deviceId: device.deviceId }
+    })
+  })
+
+  it('exchanges the device credential for a short-lived gateway access token', async () => {
+    const postJson = vi.fn().mockResolvedValue({
+      accessToken: 'short-lived-gateway-token',
+      expiresAt: '2099-08-27T01:00:00.000Z',
+      tokenType: 'Bearer'
+    })
+
+    await expect(
+      mintMyKingEmployeeGatewaySession(
+        {
+          baseUrl: 'https://enroll.myking.com',
+          enrollmentId: 'enrollment-1',
+          deviceId: device.deviceId,
+          gatewayToken: 'employee-gateway-token'
+        },
+        postJson
+      )
+    ).resolves.toMatchObject({ accessToken: 'short-lived-gateway-token', tokenType: 'Bearer' })
+
+    expect(postJson).toHaveBeenCalledWith({
+      url: 'https://enroll.myking.com/api/employee-enrollments/enrollment-1/gateway-session',
+      authorization: 'Bearer employee-gateway-token',
+      timeoutMs: 15_000,
+      body: { deviceId: device.deviceId }
+    })
   })
 })
 

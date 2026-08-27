@@ -29,6 +29,7 @@
 import { mkdirSync, writeFileSync } from "fs"
 import { resolve, join, relative } from "path"
 import { execSync } from "child_process"
+import net from "node:net"
 
 import { isMain } from "./utils.mjs"
 
@@ -130,13 +131,42 @@ export function parseBuildHttpsUrl(rawValue, variableName) {
   }
 
   const hostname = parsed.hostname.toLowerCase().replace(/^\[|\]$/g, "")
+  const address = hostname.startsWith("::ffff:") ? hostname.slice("::ffff:".length) : hostname
+  const ipVersion = net.isIP(address)
+  const octets = ipVersion === 4 ? address.split(".").map(Number) : []
+  const first = octets[0] ?? -1
+  const second = octets[1] ?? -1
+  const firstGroup = ipVersion === 6 ? Number.parseInt(address.split(":")[0] ?? "", 16) : -1
+  const reservedHostname = [".example", ".invalid", ".localhost", ".test"].some(
+    suffix => hostname === suffix.slice(1) || hostname.endsWith(suffix)
+  )
+  const nonPublicIp =
+    (ipVersion === 4 &&
+      (first === 0 ||
+        first === 10 ||
+        first === 127 ||
+        (first === 100 && second >= 64 && second <= 127) ||
+        (first === 169 && second === 254) ||
+        (first === 172 && second >= 16 && second <= 31) ||
+        (first === 192 && second === 0) ||
+        (first === 192 && second === 168) ||
+        (first === 198 && (second === 18 || second === 19 || second === 51)) ||
+        (first === 203 && second === 0) ||
+        first >= 224)) ||
+    (ipVersion === 6 &&
+      (address === "::" ||
+        address === "::1" ||
+        (firstGroup & 0xfe00) === 0xfc00 ||
+        (firstGroup & 0xffc0) === 0xfe80 ||
+        (firstGroup & 0xff00) === 0xff00 ||
+        address.startsWith("2001:db8:")))
 
   if (
     parsed.protocol !== "https:" ||
     parsed.username ||
     parsed.password ||
-    hostname === "localhost" ||
-    hostname === "::1" ||
+    reservedHostname ||
+    nonPublicIp ||
     LOCAL_IPV4_RE.test(hostname)
   ) {
     throw new Error(`${variableName} must be a public HTTPS URL.`)

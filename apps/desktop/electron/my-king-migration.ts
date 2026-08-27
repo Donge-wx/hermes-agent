@@ -39,6 +39,7 @@ function copyDirectoryIfTargetMissing(
 
   fs.mkdirSync(path.dirname(target), { recursive: true })
   fs.cpSync(source, target, { recursive: true, filter })
+
   return true
 }
 

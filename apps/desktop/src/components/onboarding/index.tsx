@@ -31,6 +31,7 @@ import {
 } from '@/store/onboarding'
 import type { ModelOptionProvider, OAuthProvider } from '@/types/hermes'
 
+import { apiKeyOptionName } from './api-key-option-copy'
 import { DocsLink, FlowPanel, Status } from './flow'
 import {
   FeaturedProviderRow,
@@ -637,6 +638,7 @@ export function ApiKeyForm({
   // or unusual key can't block the user from continuing.
   const canSave = value.trim().length >= 1
   const optionCopy = t.onboarding.apiKeyOptions[option.id]
+  const optionName = apiKeyOptionName(option, t)
   const optionDescription = optionCopy?.description ?? option.description
 
   const submit = async () => {
@@ -646,7 +648,7 @@ export function ApiKeyForm({
 
     setSaving(true)
     setError(null)
-    const result = await onSave(option.envKey, value, option.name, isLocal ? localKey : undefined)
+    const result = await onSave(option.envKey, value, optionName, isLocal ? localKey : undefined)
 
     if (result.ok) {
       setValue('')
@@ -681,7 +683,7 @@ export function ApiKeyForm({
             type="button"
           >
             <div className="flex items-center justify-between gap-2">
-              <span className="text-sm font-medium">{o.name}</span>
+              <span className="text-sm font-medium">{apiKeyOptionName(o, t)}</span>
               {isSet?.(o.envKey) ? <Check className="size-3.5 text-muted-foreground" /> : null}
             </div>
             {(t.onboarding.apiKeyOptions[o.id]?.short ?? o.short) ? (

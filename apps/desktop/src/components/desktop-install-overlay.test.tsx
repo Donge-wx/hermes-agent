@@ -260,7 +260,7 @@ describe('DesktopInstallOverlay first-run setup', () => {
     render(<DesktopInstallOverlay />)
 
     fireEvent.click(await screen.findByText('Connect to existing My King'))
-    fireEvent.change(await screen.findByPlaceholderText('https://gateway.example.com/hermes'), {
+    fireEvent.change(await screen.findByPlaceholderText('https://gateway.example.com/myking'), {
       target: { value: 'https://gateway.example.com/hermes' }
     })
 
@@ -319,7 +319,7 @@ describe('DesktopInstallOverlay first-run setup', () => {
     render(<DesktopInstallOverlay />)
 
     fireEvent.click(await screen.findByText('Connect to existing My King'))
-    const urlInput = await screen.findByPlaceholderText('https://gateway.example.com/hermes')
+    const urlInput = await screen.findByPlaceholderText('https://gateway.example.com/myking')
     fireEvent.change(urlInput, { target: { value: 'https://gateway.example.com/hermes' } })
 
     await act(async () => {
@@ -372,7 +372,7 @@ describe('DesktopInstallOverlay first-run setup', () => {
     render(<DesktopInstallOverlay />)
 
     fireEvent.click(await screen.findByText('Connect to existing My King'))
-    fireEvent.change(await screen.findByPlaceholderText('https://gateway.example.com/hermes'), {
+    fireEvent.change(await screen.findByPlaceholderText('https://gateway.example.com/myking'), {
       target: { value: 'https://gateway.example.com/hermes' }
     })
 
@@ -423,7 +423,7 @@ describe('DesktopInstallOverlay first-run setup', () => {
     render(<DesktopInstallOverlay />)
 
     fireEvent.click(await screen.findByText('Connect to existing My King'))
-    fireEvent.change(await screen.findByPlaceholderText('https://gateway.example.com/hermes'), {
+    fireEvent.change(await screen.findByPlaceholderText('https://gateway.example.com/myking'), {
       target: { value: 'https://gateway.example.com/hermes' }
     })
 
@@ -475,7 +475,7 @@ describe('DesktopInstallOverlay first-run setup', () => {
     render(<DesktopInstallOverlay />)
 
     fireEvent.click(await screen.findByText('Connect to existing My King'))
-    fireEvent.change(await screen.findByPlaceholderText('https://gateway.example.com/hermes'), {
+    fireEvent.change(await screen.findByPlaceholderText('https://gateway.example.com/myking'), {
       target: { value: 'https://gateway.example.com/hermes' }
     })
 
@@ -555,7 +555,7 @@ describe('DesktopInstallOverlay first-run setup', () => {
       return { mode: 'remote' }
     })
 
-    fireEvent.change(screen.getByPlaceholderText('https://gateway.example.com/hermes'), {
+    fireEvent.change(screen.getByPlaceholderText('https://gateway.example.com/myking'), {
       target: { value: 'https://gateway.example.com/hermes' }
     })
 

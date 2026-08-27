@@ -3,6 +3,10 @@ import { describe, expect, it } from 'vitest'
 import { DEFAULT_LOCALE, isLocale, isSupportedLocaleValue, localeConfigValue, normalizeLocale } from './languages'
 
 describe('desktop i18n languages', () => {
+  it('defaults every new managed My King installation to Simplified Chinese', () => {
+    expect(DEFAULT_LOCALE).toBe('zh')
+  })
+
   it('normalizes supported locale aliases', () => {
     expect(normalizeLocale('en')).toBe('en')
     expect(normalizeLocale('EN-US')).toBe('en')
@@ -20,7 +24,7 @@ describe('desktop i18n languages', () => {
     expect(normalizeLocale(' ar_eg ')).toBe('ar')
   })
 
-  it('falls back to English for empty or unsupported values', () => {
+  it('falls back to the managed Simplified Chinese default for empty or unsupported values', () => {
     expect(normalizeLocale(null)).toBe(DEFAULT_LOCALE)
     expect(normalizeLocale('')).toBe(DEFAULT_LOCALE)
     expect(normalizeLocale('de')).toBe(DEFAULT_LOCALE)

@@ -194,7 +194,12 @@ export function MyKingEmployeeEnrollmentAssistant({ placement = 'settings' }: { 
               </div>
               <ol>
                 {ACTIVE_STAGES.map((stage, index) => (
-                  <li data-state={index < activeStageIndex ? 'complete' : index === activeStageIndex ? 'active' : 'pending'} key={stage}>
+                  <li
+                    data-state={
+                      index < activeStageIndex ? 'complete' : index === activeStageIndex ? 'active' : 'pending'
+                    }
+                    key={stage}
+                  >
                     <span>{index < activeStageIndex ? <Check aria-hidden="true" /> : index + 1}</span>
                     {index < activeStageIndex
                       ? (copy.completedStages[stage] ?? copy.stages[stage])

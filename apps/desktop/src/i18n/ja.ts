@@ -225,8 +225,7 @@ export const ja = defineLocale({
     doneDescription:
       'バンドルは非公開でアップロードされました。サポートスレッドで以下のリンクを共有すると、チームがログを確認できます。',
     failedTitle: 'アップロードに失敗しました',
-    failedHint:
-      'ターミナルから `hermes debug share --nous` を実行するか、`hermes debug share --local` でアップロードせずにレポートを表示することもできます。',
+    failedHint: '「設定 → ゲートウェイ」からローカルログを開き、診断の詳細をサポートスレッドに添付することもできます。',
     handoffLead: '続きは次の場所で:',
     links: {
       github: 'GitHub Issues',
@@ -709,7 +708,7 @@ export const ja = defineLocale({
     about: {
       heading: 'My King Desktop',
       desktopPackageVersion: value => `デスクトップ UI ${value}`,
-      backendRuntimeVersion: value => `バックエンド ${value}`,
+      backendRuntimeVersion: value => `My King backend v${value.replace(/^v/i, '')}`,
       versionUnavailable: 'バージョンを取得できません',
       bundleOutOfSync: 'アプリのビルドが古くなっています',
       bundleOutOfSyncDesc:
@@ -822,10 +821,10 @@ export const ja = defineLocale({
     },
     gateway: {
       employeeEnrollment: {
-        title: '会社のエージェントに接続',
+        title: 'AI Work OS に接続',
         description: '管理者から届いた招待リンクを開くか、1 回限りの登録コードを入力してください。',
         codePlaceholder: '1 回限りの登録コード',
-        connect: '会社に接続',
+        connect: '接続',
         check: '接続を確認',
         diagnostics: '診断情報を表示',
         connectedTitle: 'My King は接続済みです',
@@ -882,6 +881,9 @@ export const ja = defineLocale({
           'secure-connection-failed': '安全な接続を開始できません。もう一度接続してください。',
           'gateway-unreachable': '会社のゲートウェイに接続できません。ネットワークを確認して再試行してください。',
           'gateway-auth-required': '会社ゲートウェイの管理対象セッションがありません。管理者に連絡してください。',
+          'gateway-ws-unreachable': '会社ゲートウェイのリアルタイム接続を確認できませんでした。',
+          'secure-storage-required': 'OS の安全な資格情報ストレージを利用できません。',
+          'revocation-failed': '会社サーバーが失効を確認できませんでした。ローカルの関連付けは保持されています。',
           'company-unavailable': '会社サーバーは一時的に利用できません。後でもう一度お試しください。',
           'invalid-server-response': '会社サーバーから無効な応答が返されました。再試行するか管理者に連絡してください。',
           'not-ready': '会社側でこのデバイスの準備完了が確認されていません。しばらくしてから再試行してください。',
@@ -900,7 +902,7 @@ export const ja = defineLocale({
         'My King Desktop はデフォルトで独自のローカルゲートウェイを起動します。別のマシンや信頼できるプロキシの背後で既に動作している My King バックエンドをこのアプリで制御する場合は、リモートゲートウェイを使用してください。ゲートウェイ接続はマシン単位の設定で、プロファイルは接続したゲートウェイから検出されます。',
       envOverrideTitle: '環境変数がこのデスクトップセッションを制御しています。',
       envOverrideDesc:
-        '保存された設定を使用するには HERMES_DESKTOP_REMOTE_URL と HERMES_DESKTOP_REMOTE_TOKEN の設定を解除してください。',
+        '保存された設定を使用するには、デスクトップのリモート URL とトークンの環境オーバーライドを削除してください。',
       localTitle: 'ローカルゲートウェイ',
       localDesc:
         'ローカルホストでプライベートな My King バックエンドを起動します。これがデフォルトで、オフラインでも動作します。',
@@ -909,7 +911,7 @@ export const ja = defineLocale({
         'このデスクトップシェルをリモートの My King バックエンドに接続します。ホスト型ゲートウェイは OAuth またはユーザー名とパスワードを使用します。自己ホスト型はセッショントークンを使用する場合があります。',
       remoteUrlTitle: 'リモート URL',
       remoteUrlDesc:
-        'リモートダッシュボードバックエンドのベース URL。/hermes などのパスプレフィックスもサポートしています。',
+        'リモートダッシュボードバックエンドのベース URL。/myking などのパスプレフィックスもサポートしています。',
       probing: 'このゲートウェイの認証方法を確認中…',
       probeError: 'このゲートウェイにまだ到達できません。URL を確認してください。応答後に認証方法が表示されます。',
       signedIn: 'サインイン済み',
@@ -982,7 +984,7 @@ export const ja = defineLocale({
       sshKeyTitle: '鍵ファイル',
       sshKeyDesc: '秘密鍵のパス。空欄 = ssh-agent または ~/.ssh/config。',
       sshHermesPathTitle: 'My King パス（任意）',
-      sshHermesPathDesc: 'リモートの hermes バイナリへのフルパス。空欄 = 自動検出。',
+      sshHermesPathDesc: 'リモートの My King 互換エージェント実行ファイルへのフルパス。空欄 = 自動検出。',
       sshHermesPathPlaceholder: '自動検出',
       sshTestConnection: 'SSH をテスト',
       sshConnect: '接続',
@@ -995,7 +997,7 @@ export const ja = defineLocale({
       sshErrHostKey:
         '前回の接続以降、ホスト鍵が変更されています。想定どおりか確認し、ssh-keygen -R <host> を実行してから再接続してください。',
       sshErrNotInstalled:
-        'リモートホストに My King がインストールされていません。リモートでインストールする（curl -fsSL https://hermes-agent.nousresearch.com/install.sh | sh）か、My King パスを設定してください。',
+        'リモートホストに My King がインストールされていません。公式インストーラで互換エージェントランタイムをインストールするか、My King パスを設定してください。',
       sshErrPlatform:
         'サポートされていないリモートプラットフォームです。My King Desktop の SSH モードは Linux、macOS、Windows のリモートホストに対応しています。',
       sshErrTimeout: 'SSH 接続がタイムアウトしました。ホストが到達不能、またはスリープ中の可能性があります。',
@@ -1044,7 +1046,7 @@ export const ja = defineLocale({
       saveServer: 'サーバーを保存',
       capabilitySummary: (tools, prompts, resources) =>
         `${[`ツール ${tools} 個`, ...(prompts ? [`プロンプト ${prompts} 個`] : []), ...(resources ? [`リソース ${resources} 個`] : [])].join('、')} を有効化`,
-      costTokens: tokens => `1 呼び出しあたり約 ${tokens} トークン`,
+      costTokens: tokens => `1 呼び出しあたり約 ${tokens} token`,
       usage30d: uses => `過去 30 日で ${uses} 回使用`,
       unusedPill: '未使用',
       statusConnecting: '接続中…',
@@ -1258,6 +1260,16 @@ export const ja = defineLocale({
       'ビジョンは補助モデル設定を使用します。画像対応モデルはそこで選択され、ここでプロバイダーごとに選ぶものではありません。',
     visionModelLink: '設定 → モデル でビジョンモデルを選択',
     toolsetsEnabled: (enabled, total) => `${enabled}/${total} ツールセットが有効`,
+    toolsCount: count => `${count} 個のツール`,
+    includedTools: '含まれるツール',
+    metadataLabels: {
+      name: '名前',
+      description: '説明',
+      version: 'バージョン',
+      author: '作者',
+      license: 'ライセンス',
+      platforms: '対応プラットフォーム'
+    },
     configureToolset: label => `${label} を設定`,
     toggleToolset: (label, enabled) => `${label} ツールセットを${enabled ? 'オン' : 'オフ'}にする`,
     skillsLoadFailed: 'スキルの読み込みに失敗しました',
@@ -1291,7 +1303,7 @@ export const ja = defineLocale({
     edit: '編集',
     archive: 'アーカイブ',
     skillArchivedTitle: 'スキルをアーカイブしました',
-    skillArchivedMessage: 'hermes curator restore で復元できます。'
+    skillArchivedMessage: 'アーカイブ済みスキルの画面から復元できます。'
   },
 
   starmap: {
@@ -1337,7 +1349,7 @@ export const ja = defineLocale({
     ageDays: days => `${days}日前`,
     durationSeconds: seconds => `${seconds}秒`,
     durationMinutes: (minutes, seconds) => `${minutes}分 ${seconds}秒`,
-    tokens: value => `${value} トーク`
+    tokens: value => `${value} token`
   },
 
   commandCenter: {
@@ -1417,7 +1429,7 @@ export const ja = defineLocale({
     sectionDescriptions: {
       sessions: 'セッションの検索と管理',
       system: 'ステータス、ログ、システムアクション',
-      usage: 'トークン、コスト、スキルの活動履歴'
+      usage: 'token、コスト、スキルの活動履歴'
     },
     nav: {
       newChat: { title: '新しいセッション', detail: '新しいセッションを開始' },
@@ -1428,8 +1440,8 @@ export const ja = defineLocale({
     },
     sectionEntries: {
       sessions: { title: 'セッションパネル', detail: 'セッションの検索、ピン留め、管理' },
-      system: { title: 'システムパネル', detail: 'ゲートウェイのステータス、ログ、再起動/更新' },
-      usage: { title: '使用状況パネル', detail: 'トークン、コスト、スキルの活動' }
+      system: { title: 'システムパネル', detail: 'ゲートウェイのステータス、ログ、再起動' },
+      usage: { title: '使用状況パネル', detail: 'token、コスト、スキルの活動' }
     },
     providerNavigate: 'ナビゲート',
     providerSessions: 'セッション',
@@ -1440,7 +1452,8 @@ export const ja = defineLocale({
     unpinSession: 'セッションのピン留めを解除',
     exportSession: 'セッションをエクスポート',
     deleteSession: 'セッションを削除',
-    noSessions: 'セッションはまだありません。',
+    noSessionsTitle: 'セッションはまだありません',
+    noSessions: '会話を開始すると、ここにセッションが表示されます。',
     gatewayRunning: 'メッセージングゲートウェイが実行中',
     gatewayStopped: 'メッセージングゲートウェイが停止中',
     hermesActiveSessions: (version, count) => `My King ${version} · アクティブセッション ${count}`,
@@ -1459,13 +1472,13 @@ export const ja = defineLocale({
     days: count => `${count}日`,
     statSessions: 'セッション',
     statApiCalls: 'API コール',
-    statTokens: 'トークン入力/出力',
+    statTokens: '入力/出力 token',
     statCost: '推定コスト',
     actualCost: cost => `実際 ${cost}`,
     loadingUsage: '使用状況を読み込み中...',
     noUsage: period => `過去 ${period} 日間に使用履歴がありません。`,
     retry: '再試行',
-    dailyTokens: '日別トークン',
+    dailyTokens: '日別 token',
     input: '入力',
     output: '出力',
     noDailyActivity: '日別アクティビティがありません。',
@@ -1512,6 +1525,7 @@ export const ja = defineLocale({
     saveChanges: '変更を保存',
     saved: '保存しました',
     replaceValue: '現在の値を置き換え',
+    fieldPlaceholder: label => `${label}を入力`,
     openDocs: 'ドキュメントを開く',
     clearField: key => `${key} をクリア`,
     enableAria: name => `${name} を有効にする`,
@@ -1527,6 +1541,54 @@ export const ja = defineLocale({
     failedSave: name => `${name} の保存に失敗しました`,
     failedClear: key => `${key} のクリアに失敗しました`,
     fieldCopy: {
+      DINGTALK_CLIENT_ID: { label: 'アプリ Client ID', help: 'DingTalk 開発者コンソールの AppKey。' },
+      DINGTALK_CLIENT_SECRET: { label: 'アプリ Client Secret', help: 'DingTalk AppKey と対応する AppSecret。' },
+      DINGTALK_WEBHOOK_URL: {
+        label: 'ロボット Webhook URL',
+        help: 'スケジュール実行とクロスプラットフォーム通知用の静的ロボット URL。'
+      },
+      DINGTALK_ALLOWED_USERS: {
+        label: '許可するメンバー ID',
+        help: 'ボットと会話できる社員または送信者 ID をカンマ区切りで指定します。'
+      },
+      DINGTALK_HOME_CHANNEL: { label: '既定の会話 ID', help: 'スケジュール実行と通知の既定の配信先。' },
+      DINGTALK_HOME_CHANNEL_NAME: { label: '既定の会話名', help: 'ログとステータスに表示する既定会話の名前。' },
+      FEISHU_APP_ID: { label: 'アプリ App ID', help: 'Feishu 開発者コンソールのボットアプリ ID。' },
+      FEISHU_APP_SECRET: { label: 'アプリ App Secret', help: 'Feishu App ID と対応するアプリシークレット。' },
+      FEISHU_ENCRYPT_KEY: { label: 'イベント暗号化キー', help: 'Feishu イベントコールバックを復号します。' },
+      FEISHU_VERIFICATION_TOKEN: {
+        label: 'イベント検証トークン',
+        help: 'Feishu イベントコールバックの送信元を検証します。'
+      },
+      FEISHU_DOMAIN: { label: 'サービス地域', help: '中国向けは feishu、国際版 Lark は lark。', placeholder: 'feishu' },
+      FEISHU_ALLOWED_USERS: {
+        label: '許可するユーザー ID',
+        help: 'ボットと会話できる Feishu ユーザー ID をカンマ区切りで指定します。'
+      },
+      FEISHU_ALLOW_ALL_USERS: {
+        label: 'すべてのユーザーを許可',
+        help: 'テスト専用。有効にするとすべての Feishu ユーザーが会話を開始できます。'
+      },
+      FEISHU_HOME_CHANNEL: { label: '既定のチャット ID', help: 'スケジュール実行と通知の既定の配信先。' },
+      FEISHU_HOME_CHANNEL_NAME: { label: '既定のチャット名', help: 'ログとステータスに表示する既定チャットの名前。' },
+      WECOM_CALLBACK_CORP_ID: { label: '企業 ID', help: 'WeCom 管理コンソールの Corp ID。' },
+      WECOM_CALLBACK_CORP_SECRET: { label: 'アプリ Secret', help: 'WeCom カスタムアプリの Secret。' },
+      WECOM_CALLBACK_AGENT_ID: { label: 'アプリ Agent ID', help: 'WeCom カスタムアプリの Agent ID。' },
+      WECOM_CALLBACK_TOKEN: { label: 'コールバック検証トークン', help: 'WeCom コールバック設定の検証トークン。' },
+      WECOM_CALLBACK_ENCODING_AES_KEY: {
+        label: 'コールバック EncodingAESKey',
+        help: 'WeCom コールバックメッセージの暗号化キー。'
+      },
+      WEIXIN_ACCOUNT_ID: {
+        label: 'WeChat アカウント ID',
+        help: 'QR コードログインで取得した iLink Bot アカウント ID。'
+      },
+      WEIXIN_TOKEN: { label: 'WeChat ログイントークン', help: 'QR コードログインで取得した iLink Bot 認証トークン。' },
+      WEIXIN_BASE_URL: {
+        label: 'iLink API アドレス',
+        help: 'QR コードログイン時に保存された iLink API ベースアドレス。',
+        placeholder: 'https://ilinkai.weixin.qq.com'
+      },
       TELEGRAM_BOT_TOKEN: {
         label: 'ボットトークン',
         help: '@BotFather でボットを作成し、表示されたトークンを貼り付けてください。',
@@ -1590,7 +1652,7 @@ export const ja = defineLocale({
       },
       MATRIX_HOMESERVER: { label: 'ホームサーバー URL', placeholder: 'https://matrix.org' },
       MATRIX_ACCESS_TOKEN: { label: 'アクセストークン' },
-      MATRIX_USER_ID: { label: 'ボットユーザー ID', placeholder: '@hermes:example.org' },
+      MATRIX_USER_ID: { label: 'ボットユーザー ID', placeholder: '@myking:example.org' },
       MATRIX_ALLOWED_USERS: {
         label: '許可する Matrix ユーザー ID',
         help: '推奨。@user:server 形式のカンマ区切りユーザー ID。'
@@ -1920,6 +1982,7 @@ export const ja = defineLocale({
     results: '結果',
     pinned: 'ピン留め',
     sessions: 'セッション',
+    bots: 'ボット',
     cronJobs: 'Cronジョブ',
     groupAriaGrouped: 'セッションを単一リストとして表示',
     groupAriaUngrouped: 'ワークスペースごとにセッションをグループ化',
@@ -2300,12 +2363,13 @@ export const ja = defineLocale({
     moreChanges: count => `さらに ${count} 件の変更が含まれています。`,
     manualTitle: 'ターミナルから更新',
     manualBody:
-      'My King をコマンドラインからインストールしたため、更新もそこで実行されます。これをターミナルに貼り付けてください:',
+      'My King をコマンドラインからインストールしたため、更新もそこで実行されます。バックエンド更新コマンドをコピーしてターミナルに貼り付けてください:',
     manualPickedUp: 'My King は次回起動時に新しいバージョンを読み込みます。',
     guiSkewTitle: 'デスクトップアプリを更新してください',
     guiSkewBody:
       'バックエンドは更新されましたが、このデスクトップアプリのパッケージは変更されていません。一致させるために My King デスクトップアプリ（AppImage / .deb / .rpm）を更新または再インストールしてください。',
     copy: 'コピー',
+    copyCommand: 'バックエンド更新コマンドをコピー',
     copied: 'コピーしました',
     done: '完了',
     applyingBody:
@@ -2381,7 +2445,7 @@ export const ja = defineLocale({
       'ゲートウェイ URL を入力してください。My King Desktop がトークンとブラウザーサインインのどちらが必要かを検出します。',
     remoteUrlTitle: 'ゲートウェイ URL',
     remoteUrlDesc: 'My King ゲートウェイのベース URL を使用します。リモートの場合は https:// を含めてください。',
-    remoteUrlPlaceholder: 'https://gateway.example.com/hermes',
+    remoteUrlPlaceholder: 'https://gateway.example.com/myking',
     probing: 'ゲートウェイ認証方式を検出中...',
     probeError: 'その My King ゲートウェイに到達できませんでした。',
     identityProvider: 'ID プロバイダー',
@@ -2453,6 +2517,7 @@ export const ja = defineLocale({
       gemini: { short: 'Gemini モデル', description: 'Google Gemini モデルへの直接アクセス。' },
       xai: { short: 'Grok モデル', description: 'xAI Grok モデルへの直接アクセス。' },
       local: {
+        title: 'ローカル / カスタムエンドポイント',
         short: 'セルフホスト',
         description:
           'ローカルまたはセルフホストの OpenAI 互換エンドポイント（vLLM、llama.cpp、Ollama など）に My King を接続。'
@@ -2496,7 +2561,7 @@ export const ja = defineLocale({
     freeTier: '無料プラン',
     pro: 'Pro',
     free: '無料',
-    price: (input, output) => `${input} 入力 / ${output} 出力 per Mtok`,
+    price: (input, output) => `${input} 入力 / ${output} 出力 per million token`,
     change: '変更',
     startChatting: '始める',
     docs: provider => `${provider} ドキュメント`
@@ -2515,7 +2580,7 @@ export const ja = defineLocale({
     proNeedsSubscription: 'Pro モデルには有料の Nous サブスクリプションが必要です。',
     free: '無料',
     freeTier: '無料プラン',
-    priceTitle: '100 万トークンあたりの入力/出力価格',
+    priceTitle: '100 万 token あたりの入力/出力価格',
     wasPrice: '旧価格'
   },
 
@@ -2586,7 +2651,7 @@ export const ja = defineLocale({
       updateInProgress: '更新中',
       commitsBehind: (count, branch) => `${branch} より ${count} コミット遅れています`,
       desktopVersion: version => `My King Desktop v${version}`,
-      backendVersion: version => `バックエンド v${version}`,
+      backendVersion: version => `My King backend v${version}`,
       clientLabel: version => `クライアント v${version}`,
       connectionSsh: host => `SSH: ${host}`,
       connectionRemote: host => `リモート: ${host}`,
@@ -2594,7 +2659,7 @@ export const ja = defineLocale({
       connectionCloudTooltip: host => `My King Cloud · ${host}`,
       connectionSshTooltip: host => `SSH · ${host}`,
       connectionRemoteTooltip: host => `Remote · ${host}`,
-      backendLabel: version => `バックエンド v${version}`,
+      backendLabel: version => `My King backend v${version}`,
       commit: sha => `コミット ${sha}`,
       branch: branch => `ブランチ ${branch}`,
       closeCommandCenter: 'コマンドセンターを閉じる',
@@ -2637,7 +2702,7 @@ export const ja = defineLocale({
         loading: '内訳を読み込み中…',
         percentFull: percent => `${percent}% 使用中`,
         title: 'コンテキスト使用状況',
-        tokenSummary: (used, max) => `${used} / ${max} Tokens`
+        tokenSummary: (used, max) => `${used} / ${max} token`
       },
       session: 'セッション',
       yoloOn: 'YOLO オン — 危険なコマンドを自動承認中。Shift+クリックで全体に切り替え。',
@@ -3139,7 +3204,7 @@ export const ja = defineLocale({
       success: platform => `${platform} に引き継ぎました。いつでもここで再開できます。`,
       systemNote: platform => `↻ ${platform} に引き継ぎました — いつでもここで再開できます。`,
       failed: error => `引き継ぎに失敗しました: ${error}`,
-      timedOut: 'ゲートウェイの待機がタイムアウトしました。`hermes gateway` は起動していますか？'
+      timedOut: 'ゲートウェイの待機がタイムアウトしました。My King バックエンドは起動していますか？'
     }
   },
 

@@ -361,7 +361,7 @@ function Detail({ id, node, t }: { id?: string; node: SubagentNode; t: Theme }) 
         <OverlaySection defaultOpen t={t} title="Budget">
           {localTokens > 0 ? (
             <Field
-              name="tokens"
+              name="token"
               t={t}
               value={
                 <>
@@ -372,7 +372,7 @@ function Detail({ id, node, t }: { id?: string; node: SubagentNode; t: Theme }) 
             />
           ) : null}
 
-          {subtreeTokens > 0 ? <Field name="subtree tokens" t={t} value={`+${fmtTokens(subtreeTokens)}`} /> : null}
+          {subtreeTokens > 0 ? <Field name="subtree token" t={t} value={`+${fmtTokens(subtreeTokens)}`} /> : null}
         </OverlaySection>
       ) : null}
 
@@ -586,7 +586,7 @@ function DiffView({
         <Text color={t.color.text}>
           {diffMetricLine('duration', aTotals.totalDuration, bTotals.totalDuration, n => `${n.toFixed(1)}s`)}
         </Text>
-        <Text color={t.color.text}>{diffMetricLine('tokens', sumTokens(aTotals), sumTokens(bTotals), fmtTokens)}</Text>
+        <Text color={t.color.text}>{diffMetricLine('token', sumTokens(aTotals), sumTokens(bTotals), fmtTokens)}</Text>
       </Box>
     </Box>
   )

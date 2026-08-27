@@ -12,9 +12,21 @@ import { PAGE_INSET_X } from '../layout-constants'
 
 // `bare` drops the page gutters + tall bottom pad for embedding in a tighter
 // surface (e.g. the boot-failure recovery card owns its own padding).
-export function SettingsContent({ children, bare = false }: { children: ReactNode; bare?: boolean }) {
+export function SettingsContent({
+  children,
+  bare = false,
+  loading = false
+}: {
+  children: ReactNode
+  bare?: boolean
+  loading?: boolean
+}) {
   return (
-    <section className="min-h-0 overflow-hidden" data-slot="settings-content">
+    <section
+      className="min-h-0 overflow-hidden"
+      data-loading={loading ? 'true' : undefined}
+      data-slot="settings-content"
+    >
       <div className={cn('h-full min-h-0 overflow-y-auto', bare ? 'px-5 pb-6' : cn('pb-20', PAGE_INSET_X))}>
         {children}
       </div>
@@ -239,7 +251,7 @@ export function SettingsSkeleton({
   sections?: { heading?: boolean; rows: number }[]
 }) {
   return (
-    <SettingsContent>
+    <SettingsContent loading>
       {search && <Skeleton className="mb-3 h-8 w-full" />}
       {sections.map((section, i) => (
         <section className={cn(i > 0 && 'mt-6')} key={i}>

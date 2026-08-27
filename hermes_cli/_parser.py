@@ -83,8 +83,13 @@ For more help on a command:
     hermes <command> --help
 """
 
+_MANAGED_EPILOGUE = _EPILOGUE.replace(
+    "    hermes update                 Update to latest version\n",
+    "",
+)
 
-def build_top_level_parser():
+
+def build_top_level_parser(*, hide_update_help: bool = False):
     """Build the top-level parser, the subparsers action, and the ``chat`` subparser.
 
     Returns ``(parser, subparsers, chat_parser)``. The caller wires
@@ -95,7 +100,7 @@ def build_top_level_parser():
         prog="hermes",
         description="Hermes Agent - AI assistant with tool-calling capabilities",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=_EPILOGUE,
+        epilog=_MANAGED_EPILOGUE if hide_update_help else _EPILOGUE,
     )
 
     parser.add_argument(

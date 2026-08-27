@@ -75,20 +75,22 @@ describe('resolveVersionStatus', () => {
   it('labels the backend target distinctly and never claims a client sha', () => {
     const status = backend({ sha: 'abc1234', version: '0.4.2' })
 
-    expect(status.label).toBe('backend v0.4.2')
+    expect(status.label).toBe('My King backend v0.4.2')
     expect(status.detail).toBeUndefined()
-    expect(status.tooltip).toBe('Backend v0.4.2')
+    expect(status.tooltip).toBe('My King backend v0.4.2')
   })
 
   it('falls back to (update) for a backend that cannot count commits', () => {
     const status = backend({ updateAvailable: true, version: '0.4.2' })
 
-    expect(status.label).toBe('backend v0.4.2 (update)')
+    expect(status.label).toBe('My King backend v0.4.2 (update)')
     expect(status.hasUpdate).toBe(true)
   })
 
   it('prefers the exact commit diff over the generic (update) hint', () => {
-    expect(backend({ behind: 4, updateAvailable: true, version: '0.4.2' }).label).toBe('backend v0.4.2 (+4)')
+    expect(backend({ behind: 4, updateAvailable: true, version: '0.4.2' }).label).toBe(
+      'My King backend v0.4.2 (+4)'
+    )
   })
 
   it('hides a backend row that has no version at all', () => {

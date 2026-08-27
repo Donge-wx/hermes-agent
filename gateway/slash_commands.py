@@ -5875,6 +5875,14 @@ class GatewaySlashCommandsMixin:
         files are written so either the current gateway process or the next one
         can notify the user when the update finishes.
         """
+        from hermes_cli.managed_update_policy import (
+            UPDATES_DISABLED_MESSAGE,
+            managed_updates_disabled,
+        )
+
+        if managed_updates_disabled():
+            return f"✗ {UPDATES_DISABLED_MESSAGE}"
+
         from gateway.run import _hermes_home, _resolve_hermes_bin
         import json
         import shutil

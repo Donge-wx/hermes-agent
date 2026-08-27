@@ -30,7 +30,11 @@ export function createLocalSignOptions(
   return {
     app: resolvedApp,
     identity,
-    identityValidation: true,
+    // osx-sign queries the generic identity policy, which omits locally issued
+    // code-signing certificates even though codesign accepts them. Let
+    // codesign validate our pinned local identity directly; keep library-side
+    // discovery for any caller-supplied distribution identity.
+    identityValidation: identity !== '-' && identity !== DEFAULT_LOCAL_SIGNING_IDENTITY,
     platform: 'darwin',
     preAutoEntitlements: false,
     preEmbedProvisioningProfile: false,

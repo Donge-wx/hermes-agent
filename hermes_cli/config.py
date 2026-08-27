@@ -4742,7 +4742,7 @@ def show_config():
             try:
                 _tt = int(_tt)
                 if _tt > 0:
-                    print(f"  Token cap:    {_tt:,} tokens (takes lower of ratio vs absolute)")
+                    print(f"  token cap:    {_tt:,} token (takes lower of ratio vs absolute)")
             except (TypeError, ValueError):
                 pass
         print(f"  Target ratio: {compression.get('target_ratio', 0.20) * 100:.0f}% of threshold preserved")

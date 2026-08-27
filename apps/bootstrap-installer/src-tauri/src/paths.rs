@@ -4,7 +4,7 @@
 //! `HERMES_HOME`:
 //!   Windows: %LOCALAPPDATA%\myking
 //!   macOS:   ~/.myking
-//!   Linux:   ~/.myking  (override via $HERMES_HOME)
+//!   Linux:   ~/.myking
 //!
 //! The Python runtime and install scripts still consume the `HERMES_HOME`
 //! compatibility variable. Keeping the My King default here aligned with the
@@ -20,14 +20,13 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use tracing_appender::non_blocking::WorkerGuard;
 
-/// Returns the canonical Hermes home directory, respecting $HERMES_HOME if set.
+/// Returns the fixed My King home directory.
+///
+/// The compatible backend still consumes an environment variable named
+/// `HERMES_HOME`, but the branded installer must never inherit that variable:
+/// it could otherwise install into an ordinary Hermes deployment. Callers pass
+/// this fixed result to child processes explicitly.
 pub fn hermes_home() -> PathBuf {
-    if let Ok(override_path) = std::env::var("HERMES_HOME") {
-        if !override_path.trim().is_empty() {
-            return PathBuf::from(override_path);
-        }
-    }
-
     #[cfg(target_os = "windows")]
     {
         // Dedicated My King root; the child installer receives it as HERMES_HOME.
@@ -44,6 +43,26 @@ pub fn hermes_home() -> PathBuf {
     // Last resort — current dir, almost certainly wrong but at least
     // doesn't panic.
     PathBuf::from(".myking")
+}
+
+/// Resolve a UI-provided home without allowing it to redirect the managed
+/// installer. The optional field remains in the Tauri protocol for backward
+/// compatibility, but only the exact fixed My King root is accepted.
+pub fn resolve_managed_home(requested: Option<&str>) -> Result<PathBuf, String> {
+    let managed = hermes_home();
+    let Some(raw) = requested.map(str::trim).filter(|value| !value.is_empty()) else {
+        return Ok(managed);
+    };
+    let candidate = PathBuf::from(raw);
+    if candidate == managed {
+        Ok(managed)
+    } else {
+        Err(format!(
+            "refusing to redirect the My King installer from {} to {}",
+            managed.display(),
+            candidate.display()
+        ))
+    }
 }
 
 pub fn log_dir() -> PathBuf {
@@ -114,7 +133,10 @@ pub fn copy_self_to_hermes_home() -> std::io::Result<()> {
         _ => src == dest,
     };
     if same {
-        tracing::info!(?dest, "installer already at destination; skipping self-copy");
+        tracing::info!(
+            ?dest,
+            "installer already at destination; skipping self-copy"
+        );
         return Ok(());
     }
 
@@ -211,4 +233,72 @@ pub fn open_log_dir(app: tauri::AppHandle) -> Result<(), String> {
     app.opener()
         .open_path(path.to_string_lossy(), None::<&str>)
         .map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn inherited_hermes_home_cannot_redirect_managed_root() {
+        const PROBE_OUTPUT: &str = "MYKING_BOOTSTRAP_HOME_PROBE_OUTPUT";
+        if let Some(output) = std::env::var_os(PROBE_OUTPUT) {
+            std::fs::write(output, hermes_home().to_string_lossy().as_bytes()).unwrap();
+            return;
+        }
+
+        // Given a separate ordinary Hermes directory and an isolated child
+        // process inheriting HERMES_HOME pointing at it.
+        let base = std::env::temp_dir().join(format!(
+            "myking-home-env-test-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let hermes = base.join(".hermes");
+        std::fs::create_dir_all(&hermes).unwrap();
+        let output = base.join("resolved-home.txt");
+        let status = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "paths::tests::inherited_hermes_home_cannot_redirect_managed_root",
+                "--nocapture",
+            ])
+            .env("HERMES_HOME", &hermes)
+            .env(PROBE_OUTPUT, &output)
+            .status()
+            .unwrap();
+
+        // When the public production resolver runs, then it returns the My
+        // King root and performs no write inside ordinary Hermes.
+        assert!(status.success());
+        let resolved = PathBuf::from(std::fs::read_to_string(&output).unwrap());
+        assert_ne!(resolved, hermes);
+        assert_eq!(
+            resolved.file_name().and_then(|name| name.to_str()),
+            Some(".myking")
+        );
+        assert_eq!(std::fs::read_dir(&hermes).unwrap().count(), 0);
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn explicit_ordinary_hermes_home_is_rejected() {
+        let ordinary = dirs::home_dir().unwrap().join(".hermes");
+        let error = resolve_managed_home(Some(ordinary.to_string_lossy().as_ref())).unwrap_err();
+        assert!(error.contains("refusing to redirect"));
+        assert!(error.contains(".myking"));
+        assert!(error.contains(".hermes"));
+    }
+
+    #[test]
+    fn exact_managed_home_is_accepted() {
+        let managed = hermes_home();
+        assert_eq!(
+            resolve_managed_home(Some(managed.to_string_lossy().as_ref())).unwrap(),
+            managed
+        );
+    }
 }

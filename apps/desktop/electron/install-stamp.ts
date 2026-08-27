@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import net from 'node:net'
 
 export interface MyKingInstallStamp {
   readonly branch: null | string
@@ -12,7 +13,54 @@ export interface MyKingInstallStamp {
   readonly source: null | string
 }
 
-const LOOPBACK_IPV4_RE = /^(?:127(?:\.\d{1,3}){3}|0\.0\.0\.0)$/
+const RESERVED_HOST_SUFFIXES = ['.example', '.invalid', '.localhost', '.test'] as const
+
+function isNonPublicIpAddress(hostname: string): boolean {
+  const address = hostname.startsWith('::ffff:') ? hostname.slice('::ffff:'.length) : hostname
+  const version = net.isIP(address)
+
+  if (version === 4) {
+    const octets = address.split('.').map(Number)
+    const first = octets[0] ?? -1
+    const second = octets[1] ?? -1
+
+    return (
+      first === 0 ||
+      first === 10 ||
+      first === 127 ||
+      (first === 100 && second >= 64 && second <= 127) ||
+      (first === 169 && second === 254) ||
+      (first === 172 && second >= 16 && second <= 31) ||
+      (first === 192 && second === 0) ||
+      (first === 192 && second === 168) ||
+      (first === 198 && (second === 18 || second === 19 || second === 51)) ||
+      (first === 203 && second === 0) ||
+      first >= 224
+    )
+  }
+
+  if (version === 6) {
+    const firstGroup = Number.parseInt(address.split(':')[0] ?? '', 16)
+
+    return (
+      address === '::' ||
+      address === '::1' ||
+      (firstGroup & 0xfe00) === 0xfc00 ||
+      (firstGroup & 0xffc0) === 0xfe80 ||
+      (firstGroup & 0xff00) === 0xff00 ||
+      address.startsWith('2001:db8:')
+    )
+  }
+
+  return false
+}
+
+function isReservedHostname(hostname: string): boolean {
+  return (
+    hostname === 'localhost' ||
+    RESERVED_HOST_SUFFIXES.some(suffix => hostname === suffix.slice(1) || hostname.endsWith(suffix))
+  )
+}
 
 export function parseMyKingPublicHttpsUrl(rawValue: unknown): string | null {
   if (typeof rawValue !== 'string' || !rawValue.trim()) {
@@ -33,9 +81,8 @@ export function parseMyKingPublicHttpsUrl(rawValue: unknown): string | null {
     parsed.protocol !== 'https:' ||
     parsed.username ||
     parsed.password ||
-    hostname === 'localhost' ||
-    hostname === '::1' ||
-    LOOPBACK_IPV4_RE.test(hostname)
+    isReservedHostname(hostname) ||
+    isNonPublicIpAddress(hostname)
   ) {
     return null
   }

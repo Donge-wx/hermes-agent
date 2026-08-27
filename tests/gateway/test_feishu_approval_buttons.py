@@ -162,6 +162,30 @@ class TestFeishuUpdatePrompt:
     """Test send_update_prompt sends an interactive card."""
 
     @pytest.mark.asyncio
+    async def test_managed_update_prompt_does_not_build_or_send_card(self, tmp_path, monkeypatch):
+        """Managed Feishu must not allocate a prompt card or state."""
+        adapter = _make_adapter()
+        fake_home = tmp_path / "home"
+        managed_home = fake_home / ".myking"
+        managed_home.mkdir(parents=True)
+        monkeypatch.setattr(Path, "home", classmethod(lambda _cls: fake_home))
+        monkeypatch.setenv("HERMES_HOME", str(managed_home))
+
+        with (
+            patch.object(adapter, "_build_update_prompt_card") as mock_build,
+            patch.object(adapter, "_feishu_send_with_retry", new_callable=AsyncMock) as mock_send,
+        ):
+            result = await adapter.send_update_prompt(
+                chat_id="oc_12345", prompt="Update now?", session_key="sess",
+            )
+
+        assert result.success is False
+        assert result.error == "updates_disabled"
+        assert adapter._update_prompt_state == {}
+        mock_build.assert_not_called()
+        mock_send.assert_not_awaited()
+
+    @pytest.mark.asyncio
     async def test_sends_interactive_card(self):
         adapter = _make_adapter()
 
@@ -426,6 +450,38 @@ class TestCardActionCallbackResponse:
         assert 8 in adapter._update_prompt_state
         mock_submit.assert_not_called()
 
+    def test_managed_update_prompt_returns_no_card_and_cleans_state(
+        self, _patch_callback_card_types, tmp_path, monkeypatch,
+    ):
+        """A historic My King card neither acknowledges nor resumes an update."""
+        adapter = _make_adapter()
+        fake_home = tmp_path / "home"
+        managed_home = fake_home / ".myking"
+        managed_home.mkdir(parents=True)
+        monkeypatch.setattr(Path, "home", classmethod(lambda _cls: fake_home))
+        monkeypatch.setenv("HERMES_HOME", str(managed_home))
+        adapter._loop = MagicMock()
+        adapter._loop.is_closed = MagicMock(return_value=False)
+        adapter._allowed_group_users = {"ou_bob"}
+        adapter._update_prompt_state[9] = {
+            "session_key": "sess-up-9",
+            "message_id": "msg_up_009",
+            "chat_id": "oc_12345",
+        }
+        data = _make_card_action_data(
+            {"hermes_update_prompt_action": "y", "update_prompt_id": 9},
+            open_id="ou_bob",
+        )
+
+        with patch("asyncio.run_coroutine_threadsafe") as mock_submit:
+            response = adapter._on_card_action_trigger(data)
+
+        assert response is not None
+        assert response.card is None
+        assert 9 not in adapter._update_prompt_state
+        mock_submit.assert_not_called()
+        assert not (managed_home / ".update_response").exists()
+
 
 class TestResolveUpdatePrompt:
     """Test update prompt resolution persists the response file."""
@@ -445,5 +501,3 @@ class TestResolveUpdatePrompt:
 
         assert (tmp_path / ".hermes" / ".update_response").read_text() == "y"
         assert 1 not in adapter._update_prompt_state
-
-
