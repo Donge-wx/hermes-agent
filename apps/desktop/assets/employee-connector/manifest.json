@@ -1,0 +1,6 @@
+{
+  "name": "My King Employee Connector",
+  "version": 1,
+  "windowsTask": "MyKingEmployeeConnector",
+  "macOSLaunchDaemon": "com.myking.employee-connector"
+}

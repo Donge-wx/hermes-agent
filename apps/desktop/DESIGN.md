@@ -90,6 +90,7 @@ keyboard-focus states may introduce a local interaction lens.
 | `--lg-radius-control` | `0.75rem` / 12px | controls; inner radii stay smaller than their container |
 | `--lg-radius-theme-card`, `--lg-radius-composer`, `--lg-radius-pill` | 14px / 22px / capsule | theme specimens, Composer, and My King brand capsule |
 | `--lg-radius-island`, `--lg-shadow-island`, `--lg-shadow-navigation-well` | 16px / named layered elevation | toolbar/status islands and the single primary-navigation material well |
+| `--lg-measure-enrollment` | `42rem` | employee enrollment uses the shared readable settings measure |
 | `--lg-measure-*`, `--lg-size-*`, `--lg-space-*`, `--lg-stroke-*`, `--lg-radius-*` | named geometry primitives | Liquid Glass modules consume tokens for every length; only media-query thresholds remain literal because CSS custom properties are unavailable in media conditions |
 | `--lg-shadow-*`, `--lg-backdrop-*`, `--lg-filter-*` | named optical recipes | component, shell, overlay, and state-specific depth/blur values live in `tokens.css`; consuming modules do not carry one-off shadow or blur measurements |
 | `--brand-backdrop-*` | viewport-relative placement, rotation, opacity, saturation | reusable ambient My King symbol layer; component markup owns no geometry literals |
@@ -490,6 +491,21 @@ long transcript or a busy terminal.
 - **Update all locales together** — `en`, `ja`, `zh`, `zh-hant`. A string change
   in `en.ts` that skips the others is a regression (drifted punctuation,
   stale labels). Keep trailing-punctuation and tone consistent across all four.
+
+## My King employee enrollment assistant
+
+- **My King employee enrollment assistant.** An employee build stamped with an
+  enrollment base URL but no preassigned gateway replaces the unusable gateway
+  boot state with one blocking Liquid Glass setup surface. The same live
+  enrollment body is reused at the top of Gateway Settings; it is not a second
+  application or a parallel connection form. The surface shows the current
+  server/connector stage by name, never a percentage, clears a submitted code
+  from the field immediately, and exposes diagnostics plus an explicit unbind
+  confirmation. A preassigned managed gateway bypasses this assistant, while an
+  ordinary unstamped build renders none of it. Connected facts form one flat
+  status list with token hairlines; the input and actions use the shared
+  `Input`, `Button`, `Loader`, `Dialog`, `LogView`, and `ConfirmDialog`
+  primitives rather than nested cards or bespoke controls.
 
 ## State (TypeScript)
 

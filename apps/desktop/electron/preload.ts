@@ -141,6 +141,19 @@ contextBridge.exposeInMainWorld('hermesDesktop', {
     }
   },
   getBootProgress: () => ipcRenderer.invoke('hermes:boot-progress:get'),
+  employeeEnrollment: {
+    getStatus: () => ipcRenderer.invoke('myking:employee-enrollment:status'),
+    enroll: code => ipcRenderer.invoke('myking:employee-enrollment:enroll', code),
+    check: () => ipcRenderer.invoke('myking:employee-enrollment:check'),
+    diagnostics: () => ipcRenderer.invoke('myking:employee-enrollment:diagnostics'),
+    unbind: () => ipcRenderer.invoke('myking:employee-enrollment:unbind'),
+    onStatus: callback => {
+      const listener = (_event, status) => callback(status)
+      ipcRenderer.on('myking:employee-enrollment:status', listener)
+
+      return () => ipcRenderer.removeListener('myking:employee-enrollment:status', listener)
+    }
+  },
   getConnectionConfig: profile => ipcRenderer.invoke('hermes:connection-config:get', profile),
   saveConnectionConfig: payload => ipcRenderer.invoke('hermes:connection-config:save', payload),
   applyConnectionConfig: payload => ipcRenderer.invoke('hermes:connection-config:apply', payload),

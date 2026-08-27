@@ -705,6 +705,34 @@ export interface Translations {
       empty: string
     }
     gateway: {
+      employeeEnrollment: {
+        title: string
+        description: string
+        codePlaceholder: string
+        connect: string
+        check: string
+        diagnostics: string
+        connectedTitle: string
+        employee: string
+        localAccess: string
+        remoteGateway: string
+        secureConnection: string
+        normal: string
+        recentCheck: string
+        neverChecked: string
+        recheck: string
+        reauthorize: string
+        unbind: string
+        unbindTitle: string
+        unbindDescription: string
+        diagnosticsTitle: string
+        diagnosticsEmpty: string
+        close: string
+        stages: Record<string, string>
+        completedStages: Record<string, string>
+        pendingStages: Record<string, string>
+        errors: Record<string, string>
+      }
       loading: string
       unavailableTitle: string
       unavailableDesc: string

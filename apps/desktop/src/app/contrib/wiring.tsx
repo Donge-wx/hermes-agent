@@ -82,6 +82,7 @@ import { requestComposerInsert } from '../chat/composer/focus'
 import { useComposerActions } from '../chat/hooks/use-composer-actions'
 import { CommandPalette } from '../command-palette'
 import { triggerAndRefreshCronJobs } from '../cron/cron-actions'
+import { MyKingEmployeeEnrollmentAssistant } from '../employee-enrollment'
 import { useGatewayBoot } from '../gateway/hooks/use-gateway-boot'
 import { useGatewayRequest } from '../gateway/hooks/use-gateway-request'
 import { useKeybinds } from '../hooks/use-keybinds'
@@ -1103,6 +1104,7 @@ export function ContribWiring({ children }: { children: ReactNode }) {
       <UpdatesOverlay />
       <GatewayConnectingOverlay />
       <BootFailureOverlay />
+      {!isAuxiliaryWindow() && <MyKingEmployeeEnrollmentAssistant placement="gate" />}
       <CommandPalette />
       <PluginInstallModal />
       <PetGenerateOverlay />

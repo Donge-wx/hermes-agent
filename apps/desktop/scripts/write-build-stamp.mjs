@@ -38,6 +38,8 @@ const STAMP_SCHEMA_VERSION = 1
 export const FALLBACK_COMMIT = "0000000000000000000000000000000000000000"
 export const FALLBACK_BRANCH = "main"
 
+const LOCAL_IPV4_RE = /^(?:127(?:\.\d{1,3}){3}|0\.0\.0\.0)$/
+
 const DESKTOP_ROOT = resolve(import.meta.dirname, "..")
 const REPO_ROOT = resolve(DESKTOP_ROOT, "..", "..")
 const OUT_DIR = join(DESKTOP_ROOT, "build")
@@ -114,6 +116,55 @@ export function isFallbackCommit(commit) {
   return typeof commit === "string" && /^0{7,40}$/.test(commit)
 }
 
+export function parseBuildHttpsUrl(rawValue, variableName) {
+  const value = String(rawValue || "").trim()
+
+  if (!value) return null
+
+  let parsed
+
+  try {
+    parsed = new URL(value)
+  } catch {
+    throw new Error(`${variableName} must be a valid HTTPS URL.`)
+  }
+
+  const hostname = parsed.hostname.toLowerCase().replace(/^\[|\]$/g, "")
+
+  if (
+    parsed.protocol !== "https:" ||
+    parsed.username ||
+    parsed.password ||
+    hostname === "localhost" ||
+    hostname === "::1" ||
+    LOCAL_IPV4_RE.test(hostname)
+  ) {
+    throw new Error(`${variableName} must be a public HTTPS URL.`)
+  }
+
+  parsed.hash = ""
+  parsed.search = ""
+  parsed.pathname = parsed.pathname.replace(/\/+$/, "")
+
+  return parsed.toString().replace(/\/+$/, "")
+}
+
+export function resolveEmployeeDistributionFields(env = process.env) {
+  const employeeEnrollmentBaseUrl = parseBuildHttpsUrl(
+    env.MYKING_EMPLOYEE_ENROLLMENT_BASE_URL,
+    "MYKING_EMPLOYEE_ENROLLMENT_BASE_URL"
+  )
+  const managedEmployeeGatewayUrl = parseBuildHttpsUrl(
+    env.MYKING_MANAGED_EMPLOYEE_GATEWAY_URL,
+    "MYKING_MANAGED_EMPLOYEE_GATEWAY_URL"
+  )
+
+  return {
+    ...(managedEmployeeGatewayUrl ? { managedEmployeeGatewayUrl } : {}),
+    ...(employeeEnrollmentBaseUrl ? { employeeEnrollmentBaseUrl } : {})
+  }
+}
+
 function main() {
   const stamp = resolveStamp()
   if (!stamp || !stamp.commit) {
@@ -155,7 +206,8 @@ function main() {
     branch: stamp.branch,
     builtAt: new Date().toISOString(),
     dirty: stamp.dirty,
-    source: stamp.source
+    source: stamp.source,
+    ...resolveEmployeeDistributionFields()
   }
 
   mkdirSync(OUT_DIR, { recursive: true })

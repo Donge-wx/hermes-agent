@@ -72,7 +72,9 @@ import { applyConnectionChange } from './connection-apply'
 import {
   acceptedMyKingDeepLinkSchemes,
   extractMyKingDeepLink,
-  selectMyKingDeepLinkProtocol
+  parseMyKingEnrollmentLink,
+  selectMyKingDeepLinkProtocol,
+  takeMyKingEnrollmentDeepLink
 } from './deep-link-protocols'
 import {
   apiRequestRegistryConnectionId,
@@ -134,6 +136,22 @@ import { adoptServedDashboardToken } from './dashboard-token'
 import { loadOrCreateInstallationId, sshOwnershipId } from './desktop-installation'
 import { formatDesktopLogLine } from './desktop-log-line'
 import { resolveDesktopRemoteRoute } from './desktop-remote-route'
+import { runMyKingEmployeeConnectorElevated } from './employee-connector-elevation'
+import {
+  enableMyKingEmployeeConnector,
+  readMyKingEmployeeBinding,
+  resolveMyKingEmployeeConnectorPaths
+} from './employee-connector'
+import {
+  MyKingEmployeeEnrollmentError,
+  redactMyKingEmployeeSecrets,
+  type MyKingEmployeeHttpRequest
+} from './employee-enrollment-contract'
+import { createMyKingEmployeeEnrollment } from './employee-enrollment'
+import {
+  removeMyKingEmployeeStaticGatewayCredential,
+  resolveMyKingEmployeeGatewayRoute
+} from './employee-gateway-route'
 import {
   buildPosixCleanupScript,
   buildWindowsCleanupScript,
@@ -174,6 +192,7 @@ import { probeGatewayWebSocket } from './gateway-ws-probe'
 import { registerGitIpc } from './git-ipc'
 import { clearStaleGitLocks } from './gitlock'
 import { readAndConsumeHandoffResult } from './handoff-result'
+import { loadMyKingInstallStamp } from './install-stamp'
 import {
   ATTACHMENT_UPLOAD_DEFAULT_MAX_BYTES,
   clampDataUrlReadMaxMb,
@@ -370,6 +389,14 @@ import { isPackagedInstallPath as isPackagedInstallPathUnderRoots } from './work
 import { readWslWindowsClipboardImage } from './wsl-clipboard-image'
 import { resolvePickerDefaultPath, setActiveGatewayProfile, setWslBridgeProfileState } from './wsl-path-bridge'
 
+declare const __HERMES_DESKTOP_BUILD_APP_ID__: string
+
+const DEV_SERVER = process.env.HERMES_DESKTOP_DEV_SERVER
+const MY_KING_DEEP_LINK_PROTOCOL = selectMyKingDeepLinkProtocol(Boolean(DEV_SERVER), process.defaultApp)
+/** Schemes accepted when parsing inbound URLs (dev also accepts the public scheme). */
+const DEEPLINK_SCHEMES = acceptedMyKingDeepLinkSchemes(MY_KING_DEEP_LINK_PROTOCOL !== MY_KING_PROTOCOL)
+let _coldStartEmployeeEnrollmentLink = takeMyKingEnrollmentDeepLink(process.argv, DEEPLINK_SCHEMES)
+
 // Electron derives userData and safeStorage identity from its internal app
 // name. My King owns an independent keychain item; reusing Hermes here makes
 // locally rebuilt signatures prompt for the legacy key and couples the apps.
@@ -396,7 +423,6 @@ if (!USER_DATA_OVERRIDE) {
 fs.mkdirSync(DEFAULT_MY_KING_USER_DATA, { recursive: true })
 app.setPath('userData', DEFAULT_MY_KING_USER_DATA)
 
-const DEV_SERVER = process.env.HERMES_DESKTOP_DEV_SERVER
 const IS_PACKAGED = app.isPackaged || Boolean(process.env.HERMES_DESKTOP_IS_PACKAGED)
 const IS_MAC = process.platform === 'darwin'
 const IS_WINDOWS = process.platform === 'win32'
@@ -623,57 +649,15 @@ const SOURCE_REPO_ROOT = path.resolve(APP_ROOT, '../..')
 // after install. The bootstrap runner (Phase 1D) reads it to know which
 // commit to clone when running install.ps1 stages at first launch.
 //
-// Returns null when the file is missing (dev runs from a checkout where
-// build hasn't been invoked, or schema mismatch). Callers must handle null.
-//
-// Schema:
-//   { schemaVersion: 1, commit, branch, builtAt, dirty, source }
-const INSTALL_STAMP_SCHEMA_VERSION = 1
-
-function loadInstallStamp() {
-  // Try packaged location first (resources/install-stamp.json), then the
-  // dev/local build output (apps/desktop/build/install-stamp.json) so
-  // someone running `npm run start` after a local `npm run build` also
-  // sees a stamp without needing a packaged build.
-  const candidates = [
+// Returns null when the file is missing or fails the strict runtime parser.
+// The parser keeps the legacy stamp compatible while rejecting unsafe employee
+// enrollment and managed-gateway URLs at the trust boundary.
+const INSTALL_STAMP = loadMyKingInstallStamp(
+  [
     process.resourcesPath ? path.join(process.resourcesPath, 'install-stamp.json') : null,
     path.join(APP_ROOT, 'build', 'install-stamp.json')
-  ].filter(Boolean)
-
-  for (const p of candidates) {
-    try {
-      const raw = fs.readFileSync(p, 'utf8')
-      const parsed = JSON.parse(raw)
-
-      if (parsed && typeof parsed === 'object' && typeof parsed.commit === 'string' && parsed.commit.length >= 7) {
-        if (parsed.schemaVersion !== INSTALL_STAMP_SCHEMA_VERSION) {
-          console.warn(
-            `[hermes] install-stamp.json schemaVersion ${parsed.schemaVersion} != expected ${INSTALL_STAMP_SCHEMA_VERSION}; ignoring`
-          )
-
-          continue
-        }
-
-        return Object.freeze({
-          schemaVersion: parsed.schemaVersion,
-          commit: parsed.commit,
-          branch: parsed.branch || null,
-          builtAt: parsed.builtAt || null,
-          dirty: Boolean(parsed.dirty),
-          source: parsed.source || null,
-          path: p
-        })
-      }
-    } catch (e) {
-      console.warn(`[hermes] install-stamp.json found at ${p} , but parsing failed with ${e}`)
-      // Either ENOENT or malformed JSON; try the next candidate
-    }
-  }
-
-  return null
-}
-
-const INSTALL_STAMP = loadInstallStamp()
+  ].filter((candidate): candidate is string => Boolean(candidate))
+)
 
 if (INSTALL_STAMP) {
   console.log(
@@ -765,6 +749,27 @@ const DESKTOP_BACKEND_OWNERSHIP_PATH = path.join(app.getPath('userData'), 'backe
 // ~/.hermes/active_profile file. Unset (null) preserves the legacy behavior:
 // no --profile flag, so the backend honors active_profile / default.
 const DESKTOP_PROFILE_CONFIG_PATH = path.join(app.getPath('userData'), 'active-profile.json')
+const MY_KING_EMPLOYEE_CONNECTOR_PATHS = resolveMyKingEmployeeConnectorPaths({
+  platform: process.platform,
+  programData: process.env.ProgramData,
+  userData: app.getPath('userData')
+})
+const MY_KING_EMPLOYEE_CONNECTOR_HELPER = IS_PACKAGED
+  ? path.join(
+      process.resourcesPath,
+      'employee-connector',
+      process.platform === 'win32'
+        ? 'myking-employee-connector-windows.ps1'
+        : 'myking-employee-connector-macos.sh'
+    )
+  : path.join(
+      APP_ROOT,
+      'assets',
+      'employee-connector',
+      process.platform === 'win32'
+        ? 'myking-employee-connector-windows.ps1'
+        : 'myking-employee-connector-macos.sh'
+    )
 // Mirrors hermes_cli.profiles._PROFILE_ID_RE so we never hand the backend a
 // value its profile resolver would reject and exit on.
 const PROFILE_NAME_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/
@@ -1542,6 +1547,195 @@ function rememberLog(chunk) {
   }
 
   scheduleDesktopLogFlush()
+}
+
+let myKingEmployeeEnrollment: ReturnType<typeof createMyKingEmployeeEnrollment> | null = null
+
+function myKingEmployeeApiError(status: number, value: unknown): MyKingEmployeeEnrollmentError {
+  const code =
+    value !== null && typeof value === 'object' && !Array.isArray(value) && 'code' in value
+      ? String(value.code || '')
+      : ''
+
+  if (status === 410 || ['invite_expired', 'invitation_expired'].includes(code)) {
+    return new MyKingEmployeeEnrollmentError('invite-expired', 'The employee invitation has expired.')
+  }
+
+  if (['invite_used', 'invitation_used'].includes(code)) {
+    return new MyKingEmployeeEnrollmentError('invite-used', 'The employee invitation was already used.')
+  }
+
+  if (['device_already_bound', 'device_bound'].includes(code)) {
+    return new MyKingEmployeeEnrollmentError('device-already-bound', 'This device is already bound.')
+  }
+
+  if (code === 'employee_mismatch') {
+    return new MyKingEmployeeEnrollmentError('employee-mismatch', 'The employee identity does not match.')
+  }
+
+  if (status >= 500) {
+    return new MyKingEmployeeEnrollmentError('company-unavailable', 'The company server is temporarily unavailable.')
+  }
+
+  return new MyKingEmployeeEnrollmentError('enrollment-failed', 'The company server rejected this enrollment.')
+}
+
+async function postMyKingEmployeeJson(request: MyKingEmployeeHttpRequest): Promise<unknown> {
+  let response: Response
+
+  try {
+    response = await electronNet.fetch(request.url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(request.authorization ? { Authorization: request.authorization } : {})
+      },
+      body: JSON.stringify(request.body),
+      signal: AbortSignal.timeout(request.timeoutMs)
+    })
+  } catch (error) {
+    if (error instanceof MyKingEmployeeEnrollmentError) {
+      throw error
+    }
+
+    throw new MyKingEmployeeEnrollmentError('company-unavailable', 'The company server is temporarily unavailable.')
+  }
+
+  const rawBody = await response.text()
+  let body: unknown
+
+  try {
+    body = rawBody ? JSON.parse(rawBody) : null
+  } catch {
+    throw new MyKingEmployeeEnrollmentError('invalid-server-response', 'The company server returned invalid JSON.')
+  }
+
+  if (!response.ok) {
+    throw myKingEmployeeApiError(response.status, body)
+  }
+
+  return body
+}
+
+function broadcastMyKingEmployeeEnrollmentStatus(status) {
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (!window.isDestroyed() && !window.webContents.isDestroyed()) {
+      window.webContents.send('myking:employee-enrollment:status', status)
+    }
+  }
+
+  rememberLog(
+    redactMyKingEmployeeSecrets(
+      `[employee-enrollment] state=${status.stage}${status.error ? ` error=${status.error}` : ''}`
+    )
+  )
+}
+
+function windowsEmployeeIsAdministrator() {
+  if (!IS_WINDOWS) {
+    return false
+  }
+
+  try {
+    const whoami = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'whoami.exe')
+    const groups = execFileSync(whoami, ['/groups', '/fo', 'csv', '/nh'], {
+      encoding: 'utf8',
+      windowsHide: true
+    })
+
+    return groups.includes('S-1-5-32-544')
+  } catch {
+    return false
+  }
+}
+
+async function runMyKingEmployeeConnectorWithAuthorization(helperScriptPath, action, planPath) {
+  try {
+    await runMyKingEmployeeConnectorElevated({
+      action,
+      helperScriptPath,
+      planPath,
+      platform: process.platform,
+      systemRoot: process.env.SystemRoot
+    })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+
+    if (/cancel|canceled|cancelled|user did not grant/i.test(message)) {
+      throw new MyKingEmployeeEnrollmentError('permission-required', 'System administrator permission is required.')
+    }
+
+    throw new MyKingEmployeeEnrollmentError('ssh-service-failed', 'The local SSH service could not be configured.')
+  }
+}
+
+async function verifyMyKingEmployeeGateway(expectedUrl) {
+  const connection = await startHermes()
+
+  if (connection.mode !== 'remote' || normalizeRemoteBaseUrl(connection.baseUrl) !== normalizeRemoteBaseUrl(expectedUrl)) {
+    throw new MyKingEmployeeEnrollmentError(
+      'isolation-failed',
+      'The employee gateway route did not stay on the assigned company gateway.'
+    )
+  }
+}
+
+async function applyMyKingEmployeeGateway(expectedUrl) {
+  const route = currentMyKingEmployeeGatewayRoute()
+
+  if (!route || normalizeRemoteBaseUrl(route.url) !== normalizeRemoteBaseUrl(expectedUrl)) {
+    throw new MyKingEmployeeEnrollmentError('employee-mismatch', 'The assigned employee gateway changed unexpectedly.')
+  }
+
+  await teardownPrimaryBackendAndWait({ soft: true })
+  await verifyMyKingEmployeeGateway(expectedUrl)
+  sendConnectionApplied()
+}
+
+async function clearMyKingEmployeeGateway(assignedUrl) {
+  await teardownPrimaryBackendAndWait({ soft: true })
+
+  if (assignedUrl) {
+    const normalizedAssignedUrl = normalizeRemoteBaseUrl(assignedUrl)
+
+    await clearOauthSession(undefined)
+    oauthCookieWarmup = null
+    _clearNativeTokens(normalizedAssignedUrl)
+    writeDesktopConnectionConfig(
+      removeMyKingEmployeeStaticGatewayCredential(readDesktopConnectionConfig(), normalizedAssignedUrl)
+    )
+  }
+
+  sendConnectionApplied()
+}
+
+function getMyKingEmployeeEnrollment() {
+  if (myKingEmployeeEnrollment) {
+    return myKingEmployeeEnrollment
+  }
+
+  myKingEmployeeEnrollment = createMyKingEmployeeEnrollment({
+    appVersion: app.getVersion(),
+    applyRemoteGateway: applyMyKingEmployeeGateway,
+    arch: process.arch === 'arm64' ? 'arm64' : 'x64',
+    baseUrl: INSTALL_STAMP?.managedEmployeeGatewayUrl ? null : (INSTALL_STAMP?.employeeEnrollmentBaseUrl ?? null),
+    clearRemoteGateway: clearMyKingEmployeeGateway,
+    connectorPaths: MY_KING_EMPLOYEE_CONNECTOR_PATHS,
+    enableConnector: () => enableMyKingEmployeeConnector(MY_KING_EMPLOYEE_CONNECTOR_PATHS),
+    emit: broadcastMyKingEmployeeEnrollmentStatus,
+    employeeHome: app.getPath('home'),
+    employeeIsAdministrator: windowsEmployeeIsAdministrator(),
+    employeeUser: os.userInfo().username,
+    helperScriptPath: MY_KING_EMPLOYEE_CONNECTOR_HELPER,
+    managedGatewayUrl: INSTALL_STAMP?.managedEmployeeGatewayUrl ?? null,
+    platform: process.platform,
+    postJson: postMyKingEmployeeJson,
+    probeRemoteGateway: verifyMyKingEmployeeGateway,
+    runElevated: runMyKingEmployeeConnectorWithAuthorization,
+    userData: app.getPath('userData')
+  })
+
+  return myKingEmployeeEnrollment
 }
 
 installCrashForensics({ flush: flushDesktopLogBufferSync, log: rememberLog })
@@ -9405,6 +9599,48 @@ function persistSshConnectionToken(profile, source, token) {
   }
 }
 
+function currentMyKingEmployeeGatewayRoute() {
+  return resolveMyKingEmployeeGatewayRoute({
+    binding: readMyKingEmployeeBinding(MY_KING_EMPLOYEE_CONNECTOR_PATHS.bindingPath),
+    managedEmployeeGatewayUrl: INSTALL_STAMP?.managedEmployeeGatewayUrl ?? null
+  })
+}
+
+async function resolveMyKingEmployeeGatewayBackend(url) {
+  const baseUrl = normalizeRemoteBaseUrl(url)
+  const config = readDesktopConnectionConfig()
+  const blocks = [config.remote, ...Object.values(config.profiles || {})]
+  const saved = blocks.find(block => {
+    if (!block || typeof block !== 'object' || typeof block.url !== 'string') {
+      return false
+    }
+
+    try {
+      return normalizeRemoteBaseUrl(block.url) === baseUrl
+    } catch {
+      return false
+    }
+  })
+
+  if (saved) {
+    const authMode = normAuthMode(saved.authMode)
+    const token = authMode === 'oauth' ? null : decryptDesktopSecret(saved.token)
+
+    return buildRemoteConnection(baseUrl, authMode, token, 'employee', undefined, 'url', undefined, saved.headers)
+  }
+
+  const probe = await probeRemoteAuthMode(baseUrl)
+
+  if (probe.authMode === 'oauth') {
+    return buildRemoteConnection(baseUrl, 'oauth', null, 'employee')
+  }
+
+  throw new MyKingEmployeeEnrollmentError(
+    'gateway-auth-required',
+    'The company gateway did not provide a usable managed authentication session.'
+  )
+}
+
 // Resolve the remote backend for a given profile, or null when that profile
 // should run a LOCAL backend. Precedence:
 //   1. explicit per-profile remote override (connection.json `profiles[name]`)
@@ -9413,6 +9649,19 @@ function persistSshConnectionToken(profile, source, token) {
 // A null/empty profile resolves the env/global remote, so legacy callers and
 // the connection test (which pass no profile) are unchanged.
 async function resolveRemoteBackend(profile) {
+  const employeeRoute = currentMyKingEmployeeGatewayRoute()
+
+  if (employeeRoute) {
+    return resolveMyKingEmployeeGatewayBackend(employeeRoute.url)
+  }
+
+  if (INSTALL_STAMP?.employeeEnrollmentBaseUrl) {
+    throw new MyKingEmployeeEnrollmentError(
+      'enrollment-required',
+      'Connect this device with My King Employee Enrollment before opening the company gateway.'
+    )
+  }
+
   const config = readDesktopConnectionConfig()
 
   const route = resolveDesktopRemoteRoute({
@@ -9476,6 +9725,10 @@ function configuredRemoteProfileNames() {
 // profile via ?profile=. Cloud counts — it resolves to a remote backend (Q6).
 // Distinct from per-profile overrides — here there's one host for all.
 function globalRemoteActive() {
+  if (currentMyKingEmployeeGatewayRoute() || INSTALL_STAMP?.employeeEnrollmentBaseUrl) {
+    return true
+  }
+
   if (process.env.HERMES_DESKTOP_REMOTE_URL) {
     return true
   }
@@ -12560,6 +12813,28 @@ ipcMain.handle('hermes:bootstrap:cancel', async () => {
 })
 ipcMain.handle('hermes:boot-progress:get', async () => bootProgressState)
 ipcMain.handle('hermes:bootstrap:get', async () => getBootstrapState())
+ipcMain.handle('myking:employee-enrollment:status', () => getMyKingEmployeeEnrollment().getStatus())
+ipcMain.handle('myking:employee-enrollment:enroll', (_event, code) =>
+  getMyKingEmployeeEnrollment().enroll(typeof code === 'string' ? code : '')
+)
+ipcMain.handle('myking:employee-enrollment:check', () => getMyKingEmployeeEnrollment().check())
+ipcMain.handle('myking:employee-enrollment:diagnostics', () => {
+  let lines: string[] = []
+
+  try {
+    lines = fs
+      .readFileSync(MY_KING_EMPLOYEE_CONNECTOR_PATHS.diagnosticsLogPath, 'utf8')
+      .split(/\r?\n/)
+      .filter(Boolean)
+      .slice(-200)
+      .map(redactMyKingEmployeeSecrets)
+  } catch {
+    lines = []
+  }
+
+  return { path: MY_KING_EMPLOYEE_CONNECTOR_PATHS.diagnosticsLogPath, lines }
+})
+ipcMain.handle('myking:employee-enrollment:unbind', () => getMyKingEmployeeEnrollment().unbind())
 ipcMain.handle('hermes:connection-config:get', async (_event, profile) =>
   sanitizeDesktopConnectionConfig(readDesktopConnectionConfig(), profile)
 )
@@ -14873,6 +15148,21 @@ async function runDesktopUninstall(mode) {
   const appPath = resolveRemovableAppPath(process.execPath, process.platform, process.env)
   const removeBundle = shouldRemoveAppBundle(IS_PACKAGED, appPath) ? appPath : null
 
+  if (
+    readMyKingEmployeeBinding(MY_KING_EMPLOYEE_CONNECTOR_PATHS.bindingPath) ||
+    fs.existsSync(MY_KING_EMPLOYEE_CONNECTOR_PATHS.baseDir)
+  ) {
+    try {
+      await getMyKingEmployeeEnrollment().unbind()
+    } catch {
+      return {
+        ok: false,
+        error: 'employee-connector-cleanup-failed',
+        message: 'My King Employee Connector could not be removed. Authorize cleanup and try uninstalling again.'
+      }
+    }
+  }
+
   // CRITICAL (Windows): tear down every backend the desktop owns and wait for
   // the venv shim to unlock BEFORE the cleanup script runs. lite/full delete
   // the venv, and even gui-only removes the install tree's GUI artifacts — a
@@ -14965,10 +15255,8 @@ ipcMain.handle('hermes:vscode-theme:search', async (_event, query) => searchMark
 // running app. Three delivery paths: macOS 'open-url',
 // Win/Linux running-app 'second-instance' (argv), Win/Linux cold-start argv.
 // ---------------------------------------------------------------------------
-const MY_KING_DEEP_LINK_PROTOCOL = selectMyKingDeepLinkProtocol(Boolean(DEV_SERVER), process.defaultApp)
-/** Schemes accepted when parsing inbound URLs (dev also accepts the public scheme). */
-const DEEPLINK_SCHEMES = acceptedMyKingDeepLinkSchemes(MY_KING_DEEP_LINK_PROTOCOL !== MY_KING_PROTOCOL)
 let _pendingDeepLink = null
+let _pendingEmployeeEnrollmentCode: string | null = null
 let _rendererReadyForDeepLink = false
 
 function _extractDeepLink(argv) {
@@ -14989,7 +15277,7 @@ function handleDeepLink(url) {
   try {
     parsed = new URL(url)
   } catch {
-    rememberLog(`[deeplink] ignoring malformed url: ${url}`)
+    rememberLog('[deeplink] ignoring malformed url')
 
     return
   }
@@ -14998,6 +15286,37 @@ function handleDeepLink(url) {
 
   if (!DEEPLINK_SCHEMES.includes(scheme)) {
     rememberLog(`[deeplink] ignoring scheme ${scheme} (expected ${DEEPLINK_SCHEMES.join(' or ')})`)
+
+    return
+  }
+
+  const enrollment = parseMyKingEnrollmentLink(url, DEEPLINK_SCHEMES)
+
+  if (enrollment) {
+    if (!_rendererReadyForDeepLink) {
+      _pendingEmployeeEnrollmentCode = enrollment.code
+    } else {
+      const code = enrollment.code
+      void getMyKingEmployeeEnrollment()
+        .enroll(code)
+        .catch(() => undefined)
+    }
+
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      if (mainWindow.isMinimized()) {
+        mainWindow.restore()
+      }
+
+      mainWindow.focus()
+    }
+
+    return
+  }
+
+  if (parsed.hostname === 'enroll') {
+    void getMyKingEmployeeEnrollment()
+      .enroll('')
+      .catch(() => undefined)
 
     return
   }
@@ -15034,6 +15353,14 @@ function handleDeepLink(url) {
 // a link that arrived during boot/install is flushed exactly once.
 ipcMain.handle('hermes:deep-link-ready', () => {
   _rendererReadyForDeepLink = true
+
+  if (_pendingEmployeeEnrollmentCode) {
+    const code = _pendingEmployeeEnrollmentCode
+    _pendingEmployeeEnrollmentCode = null
+    void getMyKingEmployeeEnrollment()
+      .enroll(code)
+      .catch(() => undefined)
+  }
 
   if (_pendingDeepLink) {
     const queued = _pendingDeepLink
@@ -15082,7 +15409,7 @@ if (!isPrimaryInstance) {
   app.exit(0)
 } else {
   app.on('second-instance', (_event, argv) => {
-    const url = _extractDeepLink(argv)
+    const url = takeMyKingEnrollmentDeepLink(argv, DEEPLINK_SCHEMES) ?? _extractDeepLink(argv)
 
     if (url) {
       handleDeepLink(url)
@@ -15171,7 +15498,8 @@ app.whenReady().then(() => {
   createWindow()
 
   // Win/Linux cold start: the launching myking:// URL is in our own argv.
-  const _coldStartLink = _extractDeepLink(process.argv)
+  const _coldStartLink = _coldStartEmployeeEnrollmentLink ?? _extractDeepLink(process.argv)
+  _coldStartEmployeeEnrollmentLink = null
 
   if (_coldStartLink) {
     handleDeepLink(_coldStartLink)

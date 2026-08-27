@@ -4,6 +4,222 @@
   -webkit-backdrop-filter: var(--lg-backdrop-overlay-scrim);
 }
 
+/* Employee enrollment reuses one live body in the blocking first-run gate and
+   Gateway Settings. The gate owns the raised material; the settings placement
+   stays flat and continuous with the page. */
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='employee-enrollment-gate'] {
+  padding: var(--lg-space-4xl);
+  background:
+    radial-gradient(72% 64% at 12% 4%, color-mix(in srgb, var(--lg-ice-mist) 72%, transparent), transparent 70%),
+    radial-gradient(62% 72% at 90% 98%, color-mix(in srgb, var(--lg-blue-mist) 38%, transparent), transparent 76%),
+    linear-gradient(145deg, var(--lg-content-raised), var(--lg-content));
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='employee-enrollment'] {
+  display: grid;
+  width: min(100%, var(--lg-measure-enrollment));
+  gap: var(--lg-space-2xl);
+  color: var(--lg-ink);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='employee-enrollment'][data-placement='gate'] {
+  max-height: calc(100dvh - (2 * var(--lg-space-4xl)));
+  overflow-y: auto;
+  border: var(--lg-stroke-hairline) solid var(--lg-rim-strong);
+  border-radius: var(--lg-radius-overlay);
+  padding: var(--lg-space-4xl);
+  background:
+    radial-gradient(62% 42% at 14% 0%, color-mix(in srgb, var(--lg-white) 82%, transparent), transparent 72%),
+    linear-gradient(120deg, color-mix(in srgb, var(--lg-white) 44%, transparent), transparent 48%),
+    var(--lg-glass-overlay);
+  box-shadow: var(--lg-shadow-overlay);
+  backdrop-filter: var(--lg-backdrop-overlay);
+  -webkit-backdrop-filter: var(--lg-backdrop-overlay);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='employee-enrollment'][data-placement='settings'] {
+  max-width: var(--lg-measure-detail);
+  margin-bottom: var(--lg-space-4xl);
+  padding-bottom: var(--lg-space-4xl);
+  border-bottom: var(--lg-stroke-hairline) solid var(--lg-seam-list);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] .employee-enrollment__header {
+  display: flex;
+  align-items: center;
+  gap: var(--lg-space-2xl);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] .employee-enrollment__header > svg {
+  width: var(--lg-size-cognition-glyph);
+  height: var(--lg-size-cognition-glyph);
+  color: var(--lg-blue);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] .employee-enrollment__header h2 {
+  color: var(--lg-ink);
+  font-size: var(--lg-type-section-heading);
+  font-weight: 650;
+  line-height: var(--lg-line-control);
+  letter-spacing: var(--lg-tracking-section-heading);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-placement='gate']
+  .employee-enrollment__header h2 {
+  font-size: var(--lg-type-intro-display);
+  line-height: var(--lg-line-intro-display);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] .employee-enrollment__header p {
+  max-width: var(--lg-measure-boot-description);
+  margin-top: var(--lg-space-sm);
+  color: var(--lg-ink-secondary);
+  font-size: var(--lg-type-caption);
+  line-height: var(--lg-line-body);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] .employee-enrollment__brand {
+  width: var(--lg-size-state-glyph);
+  height: var(--lg-size-state-glyph);
+  filter: var(--lg-filter-onboarding-brand);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] .employee-enrollment__entry {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--lg-space-lg);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] .employee-enrollment__entry input,
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] .employee-enrollment__entry button {
+  min-height: var(--lg-size-control);
+  font-size: var(--lg-type-control);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] .employee-enrollment__current {
+  display: flex;
+  align-items: center;
+  gap: var(--lg-space-lg);
+  color: var(--lg-ink);
+  font-size: var(--lg-type-body);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] .employee-enrollment__current [role='status'] {
+  width: var(--lg-size-state-loader);
+  height: var(--lg-size-state-loader);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] .employee-enrollment__progress ol {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--lg-space-xs) var(--lg-space-lg);
+  margin: var(--lg-space-lg) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] .employee-enrollment__progress li {
+  display: flex;
+  min-height: var(--lg-size-control-compact);
+  align-items: center;
+  gap: var(--lg-space-sm);
+  border-radius: var(--lg-radius-control);
+  padding-inline: var(--lg-space-md);
+  color: var(--lg-ink-tertiary);
+  font-size: var(--lg-type-caption);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] .employee-enrollment__progress li > span {
+  display: grid;
+  width: var(--lg-size-checkbox);
+  height: var(--lg-size-checkbox);
+  flex: none;
+  place-items: center;
+  border-radius: var(--lg-radius-pill);
+  background: var(--lg-glass-raised);
+  box-shadow: var(--lg-shadow-contact);
+  font-size: var(--lg-type-micro);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  .employee-enrollment__progress li[data-state='active'] {
+  background: var(--lg-selected-wash);
+  color: var(--lg-ink);
+  box-shadow: var(--lg-shadow-selection-lens);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  .employee-enrollment__progress li[data-state='complete'] {
+  color: var(--lg-blue);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] .employee-enrollment__facts {
+  border-block: var(--lg-stroke-hairline) solid var(--lg-seam-list);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] .employee-enrollment__fact,
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] .employee-enrollment__recent {
+  display: grid;
+  min-height: var(--lg-size-nav-row);
+  grid-template-columns: var(--lg-size-cognition-glyph) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--lg-space-lg);
+  border-bottom: var(--lg-stroke-hairline) solid var(--lg-seam-list);
+  font-size: var(--lg-type-body);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] .employee-enrollment__fact > svg {
+  width: var(--lg-size-icon-glyph);
+  height: var(--lg-size-icon-glyph);
+  color: var(--lg-blue);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] .employee-enrollment__fact strong,
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] .employee-enrollment__recent time {
+  color: var(--lg-ink-secondary);
+  font-size: var(--lg-type-caption);
+  font-weight: 600;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] .employee-enrollment__recent {
+  grid-template-columns: minmax(0, 1fr) auto;
+  border-bottom: 0;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] .employee-enrollment__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lg-space-2xl);
+}
+
+@media (max-width: 40rem) {
+  :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='employee-enrollment-gate'] {
+    align-items: stretch;
+    padding: var(--lg-space-lg);
+  }
+
+  :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+    [data-slot='employee-enrollment'][data-placement='gate'] {
+    align-self: center;
+    max-height: calc(100dvh - (2 * var(--lg-space-lg)));
+    border-radius: var(--lg-radius-panel);
+    padding: var(--lg-space-2xl);
+  }
+
+  :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] .employee-enrollment__progress ol,
+  :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] .employee-enrollment__entry {
+    grid-template-columns: 1fr;
+  }
+
+  :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] .employee-enrollment__header {
+    align-items: flex-start;
+  }
+}
+
 /* Onboarding owns the pre-gateway fallback too. That state can be the only
    renderer surface visible when the backend fails, so it must carry the same
    branded material as the connecting and hard-recovery stages instead of

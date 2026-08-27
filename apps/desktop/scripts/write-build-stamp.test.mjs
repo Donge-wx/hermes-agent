@@ -7,6 +7,8 @@ import {
   fromCI,
   fromFallback,
   fromLocalGit,
+  parseBuildHttpsUrl,
+  resolveEmployeeDistributionFields,
   isFallbackCommit,
   resolveStamp
 } from './write-build-stamp.mjs'
@@ -83,4 +85,42 @@ test('resolveStamp falls back when neither CI nor git is available', () => {
     dirty: false,
     source: 'fallback'
   })
+})
+
+test('resolveEmployeeDistributionFields keeps the existing stamp shape when no employee URLs are configured', () => {
+  assert.deepEqual(resolveEmployeeDistributionFields({}), {})
+})
+
+test('resolveEmployeeDistributionFields reads My King employee build URLs', () => {
+  assert.deepEqual(
+    resolveEmployeeDistributionFields({
+      MYKING_EMPLOYEE_ENROLLMENT_BASE_URL: 'https://enroll.myking.test/',
+      MYKING_MANAGED_EMPLOYEE_GATEWAY_URL: 'https://gateway.myking.test/'
+    }),
+    {
+      employeeEnrollmentBaseUrl: 'https://enroll.myking.test',
+      managedEmployeeGatewayUrl: 'https://gateway.myking.test'
+    }
+  )
+})
+
+test.each([
+  'http://enroll.myking.test',
+  'https://localhost',
+  'https://127.0.0.1',
+  'https://127.99.1.2',
+  'https://0.0.0.0',
+  'https://[::1]',
+  'file:///tmp/enroll',
+  'javascript:alert(1)',
+  'data:text/plain,hello'
+])('parseBuildHttpsUrl rejects an unsafe employee enrollment URL: %s', value => {
+  assert.throws(() => parseBuildHttpsUrl(value, 'MYKING_EMPLOYEE_ENROLLMENT_BASE_URL'))
+})
+
+test('parseBuildHttpsUrl accepts a public HTTPS URL and removes trailing slashes', () => {
+  assert.equal(
+    parseBuildHttpsUrl('https://employee.myking.test/path///', 'MYKING_EMPLOYEE_ENROLLMENT_BASE_URL'),
+    'https://employee.myking.test/path'
+  )
 })

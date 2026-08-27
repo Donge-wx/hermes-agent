@@ -12,6 +12,36 @@ import type { QuickEntryStatePush, QuickEntryStatus, QuickEntrySubmitPayload } f
 
 export {}
 
+export type MyKingEmployeeEnrollmentStage =
+  | 'idle'
+  | 'validating-invitation'
+  | 'confirming-identity'
+  | 'configuring-secure-connection'
+  | 'enabling-device-access'
+  | 'connecting-remote-gateway'
+  | 'verifying-isolation'
+  | 'connected'
+  | 'error'
+
+export interface MyKingEmployeeBinding {
+  readonly deviceId: string
+  readonly employeeId: string
+  readonly employeeName: string
+  readonly enrolledAt: string
+  readonly lastCheckAt: null | string
+  readonly remoteGatewayUrl: string
+  readonly version: 1
+}
+
+export interface MyKingEmployeeEnrollmentStatus {
+  readonly binding: MyKingEmployeeBinding | null
+  readonly configured: boolean
+  readonly connectorReady: boolean
+  readonly error: null | string
+  readonly managedGateway: boolean
+  readonly stage: MyKingEmployeeEnrollmentStage
+}
+
 declare global {
   interface Window {
     hermesDesktop: {
@@ -131,6 +161,14 @@ declare global {
         onShown: (callback: () => void) => () => void
       }
       getBootProgress: () => Promise<DesktopBootProgress>
+      employeeEnrollment?: {
+        getStatus: () => Promise<MyKingEmployeeEnrollmentStatus>
+        enroll: (code: string) => Promise<MyKingEmployeeEnrollmentStatus>
+        check: () => Promise<MyKingEmployeeEnrollmentStatus>
+        diagnostics: () => Promise<{ readonly lines: readonly string[]; readonly path: string }>
+        unbind: () => Promise<MyKingEmployeeEnrollmentStatus>
+        onStatus: (callback: (status: MyKingEmployeeEnrollmentStatus) => void) => () => void
+      }
       getConnectionConfig: (profile?: null | string) => Promise<DesktopConnectionConfig>
       saveConnectionConfig: (payload: DesktopConnectionConfigInput) => Promise<DesktopConnectionConfig>
       applyConnectionConfig: (payload: DesktopConnectionConfigInput) => Promise<DesktopConnectionConfig>

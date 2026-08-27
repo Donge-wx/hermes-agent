@@ -26,6 +26,7 @@ import { selectableCardClass } from '@/lib/selectable-card'
 import { cn } from '@/lib/utils'
 import { notify, notifyError, readableError } from '@/store/notifications'
 
+import { MyKingEmployeeEnrollmentAssistant } from '../employee-enrollment'
 import { ConnectionsRegistrySection } from './connections-registry'
 import { CONTROL_TEXT } from './constants'
 import { EmptyState, ListRow, Pill, SettingsContent, SettingsSkeleton } from './primitives'
@@ -1018,6 +1019,7 @@ export function GatewaySettings({ embedded = false }: { embedded?: boolean } = {
 
   return (
     <SettingsContent bare={embedded}>
+      {embedded ? null : <MyKingEmployeeEnrollmentAssistant placement="settings" />}
       {embedded ? null : (
         <div className="mb-5">
           <div className="flex items-center gap-2 text-[length:var(--conversation-text-font-size)] font-medium">

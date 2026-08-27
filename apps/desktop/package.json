@@ -219,6 +219,10 @@
         "to": "install-stamp.json"
       },
       {
+        "from": "assets/employee-connector",
+        "to": "employee-connector"
+      },
+      {
         "from": "assets/icon.ico",
         "to": "icon.ico"
       },
@@ -303,6 +307,7 @@
     },
     "nsis": {
       "oneClick": false,
+      "include": "assets/employee-connector/installer.nsh",
       "allowToChangeInstallationDirectory": true,
       "perMachine": false,
       "shortcutName": "My King",

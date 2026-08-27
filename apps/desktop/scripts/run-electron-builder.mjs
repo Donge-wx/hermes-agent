@@ -9,6 +9,8 @@ import path from "node:path"
 import { spawnSync } from "node:child_process"
 import { createRequire } from "node:module"
 
+import { myKingEmployeeArtifactName, shouldUseLocalElectronDist } from "./electron-builder-target.mjs"
+
 const require = createRequire(import.meta.url)
 
 function electronDistDir() {
@@ -38,7 +40,14 @@ function electronBuilderCli() {
 
 const dist = electronDistDir()
 const args = []
-if (dist && fs.existsSync(distBinary(dist))) {
+const cliArgs = process.argv.slice(2)
+const employeeArtifactName = myKingEmployeeArtifactName()
+
+if (employeeArtifactName && !cliArgs.some(arg => arg.startsWith('-c.artifactName='))) {
+  args.push(`-c.artifactName=${employeeArtifactName}`)
+}
+
+if (shouldUseLocalElectronDist(process.platform, cliArgs) && dist && fs.existsSync(distBinary(dist))) {
   args.push(`-c.electronDist=${dist}`)
 } else {
   console.warn(
