@@ -76,8 +76,11 @@ describe('formatBlockerCommandLine', () => {
 })
 
 describe('BlockerView', () => {
-  afterEach(() => {
-    cleanup()
+  afterEach(async () => {
+    await act(async () => {
+      cleanup()
+      await new Promise(resolve => setTimeout(resolve, 0))
+    })
     $updateOverlayOpen.set(false)
     $updateOverlayTarget.set('client')
     $updateStatus.set(null)
