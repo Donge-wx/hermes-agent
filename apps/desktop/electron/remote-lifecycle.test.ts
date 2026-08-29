@@ -343,15 +343,15 @@ test.skipIf(process.platform === 'win32')(
     const temp = await mkdtemp(path.join(os.tmpdir(), 'hermes wrapper ownership '))
     const installDir = path.join(temp, 'install dir')
     const venvBin = path.join(installDir, 'venv', 'bin')
-    const pythonLink = path.join(venvBin, 'python')
+    const pythonLink = path.join(venvBin, 'python3')
     const entrypoint = path.join(installDir, 'hermes')
     const launcher = path.join(temp, 'hermes launcher')
-    const python = (await exec('command -v python3')).stdout.trim()
+    const python = process.execPath
     const tokenPath = path.join(os.homedir(), spawnTokenPath(OWNERSHIP_ID, SPAWN_NONCE).replace(/^~\//, ''))
 
     await mkdir(venvBin, { recursive: true })
     await symlink(python, pythonLink)
-    await writeFile(entrypoint, 'import time\ntime.sleep(30)\n', 'utf8')
+    await writeFile(entrypoint, 'setTimeout(() => {}, 30_000)\n', 'utf8')
     await writeFile(launcher, `#!/bin/bash\nexec "${pythonLink}" "${entrypoint}" "$@"\n`, 'utf8')
     await chmod(launcher, 0o755)
 
@@ -384,13 +384,17 @@ test.skipIf(process.platform === 'win32')(
 
     const waitForEntrypoint = async (process: ReturnType<typeof spawn>) => {
       for (let attempt = 0; attempt < 40; attempt += 1) {
-        const command = (await exec(`ps -ww -o command= -p ${process.pid}`)).stdout
+        if (process.exitCode !== null || process.signalCode !== null) {
+          return false
+        }
+
+        const command = (await exec(`ps -ww -o command= -p ${process.pid}`, { shell: '/bin/bash' })).stdout.trim()
 
         if (command.includes(entrypoint)) {
           return true
         }
 
-        await new Promise(resolve => setTimeout(resolve, 25))
+        await new Promise(resolve => setTimeout(resolve, 50))
       }
 
       return false
