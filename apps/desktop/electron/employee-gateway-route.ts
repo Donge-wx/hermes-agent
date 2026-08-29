@@ -27,6 +27,31 @@ function record(value: unknown): Record<string, unknown> | null {
     : null
 }
 
+export function mergeMyKingEmployeeProxyBypassList(current: string, urls: readonly unknown[]): string {
+  const entries = current
+    .split(';')
+    .map(value => value.trim())
+    .filter(Boolean)
+  const known = new Set(entries.map(value => value.toLowerCase()))
+
+  for (const rawUrl of urls) {
+    const normalized = parseMyKingPublicHttpsUrl(rawUrl)
+
+    if (!normalized) {
+      continue
+    }
+
+    const hostname = new URL(normalized).hostname.toLowerCase()
+
+    if (!known.has(hostname)) {
+      entries.push(hostname)
+      known.add(hostname)
+    }
+  }
+
+  return entries.join(';')
+}
+
 export function removeMyKingEmployeeStaticGatewayCredential(
   config: Record<string, unknown>,
   assignedUrl: string

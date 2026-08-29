@@ -185,6 +185,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup()
+  vi.restoreAllMocks()
   // Vitest keeps import.meta.hot truthy, so the boot effect's cleanup parks an
   // open gateway instead of tearing it down (the real HMR path). Drain + close
   // that survivor so the next test boots a fresh socket instead of adoptBoot().
@@ -226,6 +227,82 @@ async function advanceBackoff() {
 }
 
 describe('useGatewayBoot remote reconnect loop (real hook, fake socket)', () => {
+  it('warms an employee-managed gateway before resolving and opening its WebSocket', async () => {
+    const events: string[] = []
+    const employeeConnection = {
+      ...primaryConn,
+      authMode: 'oauth' as const,
+      baseUrl: 'https://vps.example.com/api/employee-gateways/test-id',
+      employeeManaged: true
+    }
+    const desktop = {
+      ...fakeDesktop(),
+      getConnection: vi.fn(async () => employeeConnection)
+    }
+    desktop.getGatewayWsUrl = vi.fn(async () => {
+      events.push('resolve')
+
+      return employeeConnection.wsUrl
+    })
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      events.push('warm')
+
+      return new Response(null, { status: 204 })
+    })
+
+    class RecordingSocket extends FakeWebSocket {
+      constructor(url: string) {
+        events.push('socket')
+        super(url)
+      }
+    }
+
+    ;(globalThis as { WebSocket: unknown }).WebSocket = RecordingSocket
+    ;(window as { hermesDesktop?: unknown }).hermesDesktop = desktop
+
+    render(<Harness />)
+    await flushAsync()
+
+    expect(events.slice(0, 3)).toEqual(['warm', 'resolve', 'socket'])
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      'https://vps.example.com/api/employee-gateways/test-id/api/health',
+      expect.objectContaining({ method: 'GET', mode: 'no-cors' })
+    )
+    expect($gatewayState.get()).toBe('open')
+  })
+
+  it('continues resolving and opening an employee WebSocket when network warmup fails', async () => {
+    const desktop = {
+      ...fakeDesktop(),
+      getConnection: vi.fn(async () => ({
+        ...primaryConn,
+        authMode: 'oauth' as const,
+        employeeManaged: true
+      }))
+    }
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('Failed to fetch'))
+    ;(window as { hermesDesktop?: unknown }).hermesDesktop = desktop
+
+    render(<Harness />)
+    await flushAsync()
+
+    expect(globalThis.fetch).toHaveBeenCalledOnce()
+    expect(desktop.getGatewayWsUrl).toHaveBeenCalledOnce()
+    expect(FakeWebSocket.instances).toHaveLength(1)
+    expect($gatewayState.get()).toBe('open')
+  })
+
+  it('does not warm an ordinary gateway before opening its WebSocket', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+
+    render(<Harness />)
+    await flushAsync()
+
+    expect(fetchSpy).not.toHaveBeenCalled()
+    expect(FakeWebSocket.instances).toHaveLength(1)
+    expect($gatewayState.get()).toBe('open')
+  })
+
   it('INITIAL boot against a dead VPS: getConnection hangs (waitForHermes) → app sits in the connecting combo, then fails', async () => {
     // The report's actual path: a fresh launch pointed at an unreachable VPS.
     // startHermes()'s remote branch awaits waitForHermes() for 45s before it

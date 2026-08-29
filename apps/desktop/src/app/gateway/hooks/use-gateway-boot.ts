@@ -86,6 +86,27 @@ const BOOT_RETRY_MAX_ATTEMPTS = 5
 // loop's 300ms: each attempt may rebuild an SSH master + remote dashboard.
 const BOOT_RETRY_BASE_DELAY_MS = 2_000
 
+async function warmEmployeeGatewayNetwork(connection: HermesConnection) {
+  if (connection.employeeManaged !== true) {
+    return
+  }
+
+  try {
+    const gatewayBaseUrl = connection.baseUrl.replace(/\/+$/, '')
+
+    await fetch(`${gatewayBaseUrl}/api/health`, {
+      method: 'GET',
+      cache: 'no-store',
+      credentials: 'omit',
+      mode: 'no-cors',
+      referrerPolicy: 'no-referrer',
+      signal: AbortSignal.timeout(2_000)
+    })
+  } catch (error) {
+    console.warn('Failed to warm managed employee gateway network', error)
+  }
+}
+
 interface GatewayBootOptions {
   beforeConnectionSwitch: () => void
   handleGatewayEvent: (event: RpcEvent) => void
@@ -241,6 +262,7 @@ export function useGatewayBoot({
         // explicit auth rejection asks for sign-in; transport failures stay in
         // this reconnect loop. For local/token gateways the URL carries a
         // long-lived token and the re-mint is a cheap no-op.
+        await warmEmployeeGatewayNetwork(conn)
         const wsUrl = await resolveGatewayWsUrl(desktop, conn)
         await gateway.connect(wsUrl)
 
@@ -390,6 +412,7 @@ export function useGatewayBoot({
         }
 
         publish(conn)
+        await warmEmployeeGatewayNetwork(conn)
         const wsUrl = await resolveGatewayWsUrl(desktop, conn)
         await gateway.connect(wsUrl)
 
@@ -672,6 +695,7 @@ export function useGatewayBoot({
         // conn.wsUrl is stale; resolveGatewayWsUrl() re-mints it rather than
         // connecting with a dead ticket. Auth rejection asks for sign-in;
         // connectivity failures remain retryable.
+        await warmEmployeeGatewayNetwork(conn)
         const wsUrl = await resolveGatewayWsUrl(desktop, conn)
         await gateway.connect(wsUrl)
 

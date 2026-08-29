@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  mergeMyKingEmployeeProxyBypassList,
   removeMyKingEmployeeStaticGatewayCredential,
   resolveMyKingEmployeeGatewayRoute
 } from './employee-gateway-route'
@@ -16,6 +17,17 @@ const binding = {
 }
 
 describe('My King managed employee gateway route', () => {
+  it('adds only the company gateway hosts to the existing Chromium proxy bypass list', () => {
+    expect(
+      mergeMyKingEmployeeProxyBypassList('localhost;*.internal.test', [
+        'https://mac-studio.tail2b3890.ts.net:8443',
+        'https://mac-studio.tail2b3890.ts.net:8443/api/employee-gateways/enrollment-1',
+        'https://secondary-gateway.myking.test/api',
+        'http://not-public.test'
+      ])
+    ).toBe('localhost;*.internal.test;mac-studio.tail2b3890.ts.net;secondary-gateway.myking.test')
+  })
+
   it('keeps the install-stamp managed gateway at highest priority', () => {
     expect(
       resolveMyKingEmployeeGatewayRoute({

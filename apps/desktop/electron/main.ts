@@ -149,6 +149,7 @@ import {
 } from './employee-enrollment-contract'
 import { createMyKingEmployeeEnrollment } from './employee-enrollment'
 import {
+  mergeMyKingEmployeeProxyBypassList,
   removeMyKingEmployeeStaticGatewayCredential,
   resolveMyKingEmployeeGatewayRoute
 } from './employee-gateway-route'
@@ -754,6 +755,20 @@ const MY_KING_EMPLOYEE_CONNECTOR_PATHS = resolveMyKingEmployeeConnectorPaths({
   programData: process.env.ProgramData,
   userData: app.getPath('userData')
 })
+const MY_KING_EMPLOYEE_BINDING_AT_BOOT = readMyKingEmployeeBinding(MY_KING_EMPLOYEE_CONNECTOR_PATHS.bindingPath)
+const MY_KING_EMPLOYEE_PROXY_BYPASS = mergeMyKingEmployeeProxyBypassList(
+  app.commandLine.getSwitchValue('proxy-bypass-list'),
+  [
+    INSTALL_STAMP?.employeeEnrollmentBaseUrl,
+    INSTALL_STAMP?.managedEmployeeGatewayUrl,
+    MY_KING_EMPLOYEE_BINDING_AT_BOOT?.remoteGatewayUrl
+  ]
+)
+
+if (MY_KING_EMPLOYEE_PROXY_BYPASS) {
+  app.commandLine.appendSwitch('proxy-bypass-list', MY_KING_EMPLOYEE_PROXY_BYPASS)
+}
+
 const MY_KING_EMPLOYEE_CONNECTOR_HELPER = IS_PACKAGED
   ? path.join(
       process.resourcesPath,
