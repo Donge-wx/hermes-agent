@@ -316,20 +316,63 @@ export function createMyKingEmployeeEnrollment(options: MyKingEmployeeEnrollment
     },
     unbind() {
       return runOnce(async () => {
+        const planPath = path.join(options.userData, 'employee-connector-unbind.json')
         const binding = readMyKingEmployeeBinding(options.connectorPaths.bindingPath)
+        let receipt: null | Record<string, unknown> = null
 
-        if (binding) {
-          await options.revokeRemoteGateway(binding)
+        try {
+          const value: unknown = JSON.parse(fs.readFileSync(planPath, 'utf8'))
+          receipt = value !== null && typeof value === 'object' && !Array.isArray(value) ? { ...value } : null
+        } catch {
+          receipt = null
         }
 
-        const planPath = path.join(options.userData, 'employee-connector-unbind.json')
-        fs.writeFileSync(planPath, '{}\n', { encoding: 'utf8', mode: 0o600 })
+        const matchesReceipt =
+          binding !== null &&
+          receipt?.enrollmentId === binding.enrollmentId &&
+          receipt.remoteGatewayUrl === binding.remoteGatewayUrl
+        let serverRevoked = matchesReceipt && receipt?.serverRevoked === true
+        let gatewayCleared = matchesReceipt && receipt?.gatewayCleared === true
+
+        if (binding && !serverRevoked) {
+          await options.revokeRemoteGateway(binding)
+          serverRevoked = true
+          fs.writeFileSync(
+            planPath,
+            `${JSON.stringify({
+              enrollmentId: binding.enrollmentId,
+              gatewayCleared: false,
+              remoteGatewayUrl: binding.remoteGatewayUrl,
+              serverRevoked: true
+            })}\n`,
+            { encoding: 'utf8', mode: 0o600 }
+          )
+        }
+
+        if (binding && !gatewayCleared) {
+          await options.clearRemoteGateway(binding.remoteGatewayUrl)
+          gatewayCleared = true
+          fs.writeFileSync(
+            planPath,
+            `${JSON.stringify({
+              enrollmentId: binding.enrollmentId,
+              gatewayCleared: true,
+              remoteGatewayUrl: binding.remoteGatewayUrl,
+              serverRevoked
+            })}\n`,
+            { encoding: 'utf8', mode: 0o600 }
+          )
+        }
+
+        if (!fs.existsSync(planPath)) {
+          fs.writeFileSync(planPath, '{}\n', { encoding: 'utf8', mode: 0o600 })
+        }
+
         await options.runElevated(options.helperScriptPath, 'unbind', planPath)
         fs.rmSync(options.connectorPaths.bindingPath, { force: true })
         removeMyKingEmployeeDeviceId(options.userData)
         fs.rmSync(planPath, { force: true })
         pending = null
-        await options.clearRemoteGateway(binding?.remoteGatewayUrl ?? null)
 
         return publish('idle')
       })
