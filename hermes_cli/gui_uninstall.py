@@ -43,6 +43,7 @@ from pathlib import Path
 from hermes_constants import get_hermes_home
 
 from hermes_cli.colors import Colors, color
+from hermes_cli.managed_update_policy import managed_updates_disabled
 
 
 def log_info(msg: str):
@@ -67,24 +68,30 @@ def _agent_root(hermes_home: Path) -> Path:
     return hermes_home / "hermes-agent"
 
 
+def _desktop_product_name() -> str:
+    """Return the desktop identity for the current process launch root."""
+    return "My King" if managed_updates_disabled() else "Hermes"
+
+
 def desktop_userdata_dir() -> Path:
     """Return the Electron ``userData`` directory for the desktop app.
 
-    Mirrors Electron's ``app.getPath('userData')`` for an app named "Hermes"
-    on each platform. This is GUI-only state (connection.json, updates.json,
-    Chromium cache) and never holds agent config or sessions.
+    Mirrors Electron's ``app.getPath('userData')`` for the process desktop
+    identity on each platform. This is GUI-only state (connection.json,
+    updates.json, Chromium cache) and never holds agent config or sessions.
     """
     home = Path.home()
+    product_name = _desktop_product_name()
     if sys.platform == "darwin":
-        return home / "Library" / "Application Support" / "Hermes"
+        return home / "Library" / "Application Support" / product_name
     if sys.platform == "win32":
         appdata = os.environ.get("APPDATA")
         base = Path(appdata) if appdata else (home / "AppData" / "Roaming")
-        return base / "Hermes"
+        return base / product_name
     # Linux / other POSIX — XDG config home.
     xdg = os.environ.get("XDG_CONFIG_HOME")
     base = Path(xdg) if xdg else (home / ".config")
-    return base / "Hermes"
+    return base / product_name
 
 
 def source_built_gui_artifacts(hermes_home: Path) -> "list[Path]":
@@ -113,28 +120,35 @@ def packaged_gui_app_paths() -> "list[Path]":
 
     Returns every candidate for the current OS; the caller filters to those
     that actually exist. We never glob system-wide — only the well-known
-    electron-builder output locations for the "Hermes" product.
+    electron-builder output locations for the current process product.
     """
     home = Path.home()
+    product_name = _desktop_product_name()
     paths: list[Path] = []
     if sys.platform == "darwin":
         paths += [
-            Path("/Applications/Hermes.app"),
-            home / "Applications" / "Hermes.app",
+            Path("/Applications") / f"{product_name}.app",
+            home / "Applications" / f"{product_name}.app",
         ]
     elif sys.platform == "win32":
         local = os.environ.get("LOCALAPPDATA")
         local_base = Path(local) if local else (home / "AppData" / "Local")
-        paths += [
-            # NSIS per-user install (perMachine=false → Programs\Hermes).
-            local_base / "Programs" / "Hermes",
-            # Older / alternate layout some builds used.
-            local_base / "hermes-desktop",
-        ]
+        if managed_updates_disabled():
+            paths += [
+                local_base / "Programs" / "My King",
+                local_base / "Programs" / "My-King",
+            ]
+        else:
+            paths += [
+                # NSIS per-user install (perMachine=false → Programs\Hermes).
+                local_base / "Programs" / "Hermes",
+                # Older / alternate layout some builds used.
+                local_base / "hermes-desktop",
+            ]
         program_files = os.environ.get("ProgramFiles")
         if program_files:
             # NSIS per-machine fallback (needs admin to remove).
-            paths.append(Path(program_files) / "Hermes")
+            paths.append(Path(program_files) / product_name)
     else:
         # Linux: AppImage is a single file the user placed somewhere; we can
         # only reliably clean the desktop entry + icon we know the name of.

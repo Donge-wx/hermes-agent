@@ -147,6 +147,16 @@ class TestWsTicketEndpoint:
         )
 
 
+class TestTrustedReverseProxyHttp:
+    def test_session_header_authenticates_gated_api_requests(self, gated_app):
+        response = gated_app.get(
+            "/api/config",
+            headers={web_server._SESSION_HEADER_NAME: web_server._SESSION_TOKEN},
+        )
+
+        assert response.status_code == 200
+
+
 # ---------------------------------------------------------------------------
 # _ws_auth_ok — unit-level (synthetic WebSocket-shaped object)
 # ---------------------------------------------------------------------------
@@ -179,6 +189,7 @@ def insecure_explicit_host_app():
 def _fake_ws(
     *,
     query: dict,
+    headers: dict[str, str] | None = None,
     client_host: str = "127.0.0.1",
     path: str = "/api/pty",
     protocols: tuple[str, ...] = (),
@@ -192,9 +203,13 @@ def _fake_ws(
         def get(self, k, default=""):
             return self._q.get(k, default)
 
+    request_headers = dict(headers or {})
+    if protocols:
+        request_headers["sec-websocket-protocol"] = ", ".join(protocols)
+
     return SimpleNamespace(
         query_params=_QP(query),
-        headers={"sec-websocket-protocol": ", ".join(protocols)} if protocols else {},
+        headers=request_headers,
         client=SimpleNamespace(host=client_host),
         url=SimpleNamespace(path=path),
     )
@@ -210,6 +225,19 @@ class TestWsAuthOkLoopback:
 
 class TestWsAuthOkGated:
     """Gate ON — ticket path only."""
+
+    def test_trusted_reverse_proxy_can_use_the_dashboard_session_header(self, gated_app):
+        ws = _fake_ws(
+            query={},
+            headers={web_server._SESSION_HEADER_NAME: web_server._SESSION_TOKEN},
+            path="/api/ws",
+        )
+
+        assert web_server._ws_auth_ok(ws) is True
+        assert ws._hermes_auth_identity == {
+            "user_id": "trusted-reverse-proxy",
+            "provider": "session-token",
+        }
 
 
     def test_consumed_ticket_rejected(self, gated_app):
@@ -472,4 +500,3 @@ class TestGatewayWsUrl:
         gw_cred = gw.split("internal=")[1].split("&")[0]
         sc_cred = sc.split("internal=")[1].split("&")[0]
         assert gw_cred == sc_cred
-

@@ -74,6 +74,8 @@ HERMES_AGENT_LOGO = """[bold #FFD700]██╗  ██╗███████�
 [#CD7F32]██║  ██║███████╗██║  ██║██║ ╚═╝ ██║███████╗███████║      ██║  ██║╚██████╔╝███████╗██║ ╚████║   ██║[/]
 [#CD7F32]╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝╚══════╝╚══════╝      ╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝   ╚═╝[/]"""
 
+MY_KING_WORDMARK = "[bold #5E5CE6]MY KING[/]"
+
 HERMES_CADUCEUS = """[#CD7F32]⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣀⡀⠀⣀⣀⠀⢀⣀⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀[/]
 [#CD7F32]⠀⠀⠀⠀⠀⠀⢀⣠⣴⣾⣿⣿⣇⠸⣿⣿⠇⣸⣿⣿⣷⣦⣄⡀⠀⠀⠀⠀⠀⠀[/]
 [#FFBF00]⠀⢀⣠⣴⣶⠿⠋⣩⡿⣿⡿⠻⣿⡇⢠⡄⢸⣿⠟⢿⣿⢿⣍⠙⠿⣶⣦⣄⡀⠀[/]
@@ -615,7 +617,10 @@ def get_latest_release_tag(repo_dir: Optional[Path] = None) -> Optional[tuple]:
 
 def format_banner_version_label() -> str:
     """Return the version label shown in the startup banner title."""
-    base = f"Hermes Agent v{VERSION} ({RELEASE_DATE})"
+    from hermes_cli.managed_update_policy import managed_updates_disabled
+
+    product_name = "My King backend" if managed_updates_disabled() else "Hermes Agent"
+    base = f"{product_name} v{VERSION} ({RELEASE_DATE})"
     state = get_git_banner_state()
     if not state:
         return base
@@ -639,8 +644,21 @@ _update_result: Optional[int] = None
 _update_check_done = threading.Event()
 
 
+def _managed_updates_disabled() -> bool:
+    """Return whether CLI update affordances are disabled for this deployment."""
+    from hermes_cli.managed_update_policy import managed_updates_disabled
+
+    return managed_updates_disabled()
+
+
 def prefetch_update_check():
     """Kick off update check in a background daemon thread."""
+    global _update_result
+    if _managed_updates_disabled():
+        _update_result = None
+        _update_check_done.set()
+        return
+
     def _run():
         global _update_result
         _update_result = check_for_updates()
@@ -720,6 +738,8 @@ def _defer_update_notice(console: "Console", max_wait: float = 30.0) -> None:
     startup never blocks on git/network. Prints at most once per process.
     """
     global _deferred_update_notice_started
+    if _managed_updates_disabled():
+        return
     if _deferred_update_notice_started:
         return
     _deferred_update_notice_started = True
@@ -976,14 +996,26 @@ def build_welcome_banner(console: "Console", model: str, cwd: str,
     text = _skin_color("banner_text", "#FFF8DC")
     session_color = _skin_color("session_border", "#8B8682")
 
-    # Use skin's custom caduceus art if provided
-    try:
-        from hermes_cli.skin_engine import get_active_skin
-        _bskin = get_active_skin()
-        _hero = _bskin.banner_hero if hasattr(_bskin, 'banner_hero') and _bskin.banner_hero else HERMES_CADUCEUS
-    except Exception:
+    managed_brand = _managed_updates_disabled()
+    if managed_brand:
         _bskin = None
-        _hero = HERMES_CADUCEUS
+        _hero = ""
+        footer_brand = "My King"
+    else:
+        # Use skin's custom caduceus art if provided for normal Hermes only.
+        try:
+            from hermes_cli.skin_engine import get_active_skin
+
+            _bskin = get_active_skin()
+            _hero = (
+                _bskin.banner_hero
+                if hasattr(_bskin, "banner_hero") and _bskin.banner_hero
+                else HERMES_CADUCEUS
+            )
+        except Exception:
+            _bskin = None
+            _hero = HERMES_CADUCEUS
+        footer_brand = "Nous Research"
     left_lines = ["", _hero, ""]
     if (provider or "").strip().lower() == "moa":
         # MoA virtual provider: ``model`` is a preset name. Show the preset and
@@ -1006,7 +1038,7 @@ def build_welcome_banner(console: "Console", model: str, cwd: str,
             preset_name = preset_name[:25] + "..."
         agg_str = f" [dim {dim}]·[/] [dim {dim}]agg {agg_label}[/]" if agg_label else ""
         ctx_str = f" [dim {dim}]·[/] [dim {dim}]{_format_context_length(context_length)} context[/]" if context_length else ""
-        left_lines.append(f"[{accent}]MoA: {preset_name}[/]{agg_str}{ctx_str} [dim {dim}]·[/] [dim {dim}]Nous Research[/]")
+        left_lines.append(f"[{accent}]MoA: {preset_name}[/]{agg_str}{ctx_str} [dim {dim}]·[/] [dim {dim}]{footer_brand}[/]")
     else:
         if not (model or "").strip() or (model or "").strip().lower() == "unknown":
             # Unconfigured install: say so in red instead of a blank/"unknown"
@@ -1023,7 +1055,7 @@ def build_welcome_banner(console: "Console", model: str, cwd: str,
             if len(model_short) > 28:
                 model_short = model_short[:25] + "..."
             ctx_str = f" [dim {dim}]·[/] [dim {dim}]{_format_context_length(context_length)} context[/]" if context_length else ""
-            left_lines.append(f"[{accent}]{model_short}[/]{ctx_str} [dim {dim}]·[/] [dim {dim}]Nous Research[/]")
+            left_lines.append(f"[{accent}]{model_short}[/]{ctx_str} [dim {dim}]·[/] [dim {dim}]{footer_brand}[/]")
 
     if os.getenv("HERMES_YOLO_MODE"):
         left_lines.append(f"[bold red]⚠ YOLO mode[/] [dim {dim}]— all approval prompts bypassed[/]")
@@ -1231,14 +1263,15 @@ def build_welcome_banner(console: "Console", model: str, cwd: str,
     # result isn't ready yet, defer the warning line: a daemon thread waits
     # for the prefetch and prints the same notice above the prompt when it
     # lands (prompt_toolkit's patch_stdout renders late prints safely).
-    try:
-        behind = get_update_result(timeout=0.05)
-        if behind is None and not _update_check_done.is_set():
-            _defer_update_notice(console)
-        elif behind is not None and behind != 0:
-            right_lines.append(_format_update_notice(behind))
-    except Exception:
-        pass  # Never break the banner over an update check
+    if not _managed_updates_disabled():
+        try:
+            behind = get_update_result(timeout=0.05)
+            if behind is None and not _update_check_done.is_set():
+                _defer_update_notice(console)
+            elif behind is not None and behind != 0:
+                right_lines.append(_format_update_notice(behind))
+        except Exception:
+            pass  # Never break the banner over an update check
 
     right_content = "\n".join(right_lines)
     layout_table.add_row(left_content, right_content)
@@ -1262,7 +1295,13 @@ def build_welcome_banner(console: "Console", model: str, cwd: str,
     console.print()
     term_width = shutil.get_terminal_size().columns
     if term_width >= 95:
-        _logo = _bskin.banner_logo if _bskin and hasattr(_bskin, 'banner_logo') and _bskin.banner_logo else HERMES_AGENT_LOGO
+        _logo = (
+            MY_KING_WORDMARK
+            if managed_brand
+            else _bskin.banner_logo
+            if _bskin and hasattr(_bskin, "banner_logo") and _bskin.banner_logo
+            else HERMES_AGENT_LOGO
+        )
         console.print(_logo)
         console.print()
     console.print(outer_panel)

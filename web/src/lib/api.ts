@@ -358,6 +358,8 @@ export const api = {
     fetchJSON<AuthMeResponse>("/api/auth/me", undefined, {
       allowUnauthorized: true,
     }),
+  getAuthProviders: () =>
+    fetchJSON<AuthProvidersResponse>("/api/auth/providers"),
   logout: () =>
     fetch(`${BASE}/auth/logout`, {
       method: "POST",
@@ -1346,6 +1348,16 @@ export interface AuthMeResponse {
   org_id: string;
   provider: string;
   expires_at: number;
+}
+
+export interface AuthProviderSummary {
+  readonly display_name: string;
+  readonly name: string;
+  readonly supports_password: boolean;
+}
+
+export interface AuthProvidersResponse {
+  readonly providers: readonly AuthProviderSummary[];
 }
 
 export interface ActionResponse {

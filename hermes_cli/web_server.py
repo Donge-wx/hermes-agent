@@ -57,6 +57,11 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from hermes_cli import __version__, __release_date__
+from hermes_cli.managed_update_policy import (
+    UPDATES_DISABLED_ERROR,
+    UPDATES_DISABLED_MESSAGE,
+    managed_updates_disabled,
+)
 from hermes_cli.config import (
     build_cron_model_impact,
     cfg_get,
@@ -478,7 +483,50 @@ def _get_pty_active_session_files(app: "FastAPI") -> dict[str, Path]:
         return app.state.pty_active_session_files
 
 
-app = FastAPI(title="Hermes Agent", version=__version__, lifespan=_lifespan)
+app = FastAPI(
+    title="My King",
+    version=__version__,
+    lifespan=_lifespan,
+    docs_url=None,
+    redoc_url=None,
+)
+
+from fastapi.exception_handlers import (  # noqa: E402
+    http_exception_handler as _default_http_exception_handler,
+)
+from starlette.exceptions import HTTPException as _StarletteHTTPException  # noqa: E402
+
+
+@app.exception_handler(_StarletteHTTPException)
+async def _managed_auth_http_exception_handler(
+    request: Request,
+    exc: _StarletteHTTPException,
+):
+    """Brand browser auth failures while preserving API error contracts."""
+    accept = request.headers.get("accept", "")
+    is_auth_navigation = (
+        request.method == "GET"
+        and request.url.path.startswith("/auth/")
+        and "text/html" in accept.lower()
+    )
+    if not is_auth_navigation:
+        return await _default_http_exception_handler(request, exc)
+
+    from hermes_cli.dashboard_auth.auth_error_page import (
+        render_auth_error_html,
+    )
+    from hermes_cli.dashboard_auth.prefix import prefix_from_request
+
+    headers = dict(exc.headers or {})
+    headers["Cache-Control"] = "no-store"
+    return HTMLResponse(
+        render_auth_error_html(
+            status_code=exc.status_code,
+            login_href=f"{prefix_from_request(request)}/login",
+        ),
+        status_code=exc.status_code,
+        headers=headers,
+    )
 
 
 # Memory-provider OAuth connect routes live in the memory layer, not here.
@@ -616,6 +664,8 @@ def _require_token(request: Request) -> None:
       making plugin install/enable/disable and the other ``_require_token``
       endpoints permanently unreachable behind the gate. Defer to the gate.
     """
+    if getattr(request.state, "token_authenticated", False):
+        return
     if getattr(request.app.state, "auth_required", False):
         # Gate is authoritative. It attaches ``request.state.session`` on
         # success and 401s otherwise, so a request that reached us is already
@@ -850,6 +900,10 @@ async def _token_auth_seam(request: Request, call_next):
     cookie/session gates skip enforcement. Non-token routes pass straight
     through untouched.
     """
+    if request.url.path.startswith("/api/") and _has_valid_session_token(request):
+        request.state.token_authenticated = True
+        return await call_next(request)
+
     from hermes_cli.dashboard_auth.token_auth import token_auth_middleware
     return await token_auth_middleware(request, call_next)
 
@@ -2329,7 +2383,7 @@ def _dashboard_local_update_managed_externally() -> bool:
     externally managed unless their apply path is proven safe inside the
     running container filesystem.
     """
-    if _default_hermes_root_is_opt_data():
+    if managed_updates_disabled() or _default_hermes_root_is_opt_data():
         return True
     try:
         from hermes_constants import is_container
@@ -4830,6 +4884,15 @@ async def gateway_drain(request: Request):
 @app.post("/api/hermes/update")
 async def update_hermes():
     """Kick off ``hermes update`` in the background."""
+    if managed_updates_disabled():
+        return {
+            "ok": False,
+            "pid": None,
+            "name": "hermes-update",
+            "error": UPDATES_DISABLED_ERROR,
+            "message": UPDATES_DISABLED_MESSAGE,
+        }
+
     if _dashboard_local_update_managed_externally():
         message = (
             "Hermes updates are managed outside this dashboard in "
@@ -4984,6 +5047,18 @@ async def check_hermes_update(force: bool = False):
                  desktop's remote update overlay renders this as "what's
                  changed". Additive: existing consumers ignore it.
     """
+    if managed_updates_disabled():
+        return {
+            "install_method": "managed-myking",
+            "current_version": __version__,
+            "behind": None,
+            "update_available": False,
+            "can_apply": False,
+            "update_command": None,
+            "message": UPDATES_DISABLED_MESSAGE,
+            "error": UPDATES_DISABLED_ERROR,
+        }
+
     if _dashboard_local_update_managed_externally():
         return {
             "install_method": "managed-runtime",
@@ -16115,13 +16190,13 @@ def _ws_auth_reason(ws: "WebSocket") -> tuple[Optional[str], str]:
     machine-parseable token explaining the rejection (``no_credential``,
     ``token_mismatch``, ``ticket_invalid``, ``internal_invalid``).
     ``credential`` names which credential type was presented (``ticket``,
-    ``internal``, ``token``, or ``none``) so the accepted path can log *how*
-    a peer authed, not just that it did.
+    ``internal``, ``session-header``, ``token``, or ``none``) so the accepted
+    path can log *how* a peer authed, not just that it did.
 
     Loopback / ``--insecure``: legacy ``?token=<_SESSION_TOKEN>`` query
     parameter, constant-time compared.
 
-    Gated (public bind, no ``--insecure``): one of two credentials —
+    Gated (public bind, no ``--insecure``): one of three credentials —
 
     * ``?ticket=<single-use>`` — a browser-minted, single-use, 30s-TTL ticket
       consumed against the dashboard-auth ticket store. This is what the SPA
@@ -16132,6 +16207,10 @@ def _ws_auth_reason(ws: "WebSocket") -> tuple[Optional[str], str]:
       is multi-use and never expires so the child can reconnect, and is never
       injected into the SPA — see ``dashboard_auth.ws_tickets`` for the
       threat model.
+    * ``X-Hermes-Session-Token`` — the dashboard machine credential accepted
+      only on ``/api/ws`` for a trusted reverse proxy. Browser WebSocket APIs
+      cannot set this header, so it does not replace the single-use browser
+      ticket path.
 
     The legacy ``?token=`` path is unconditionally rejected in gated mode
     (the SPA bundle isn't carrying the token any longer, and a leaked
@@ -16150,6 +16229,19 @@ def _ws_auth_reason(ws: "WebSocket") -> tuple[Optional[str], str]:
             consume_internal_credential,
             consume_ticket,
         )
+
+        session_header = str(ws.headers.get(_SESSION_HEADER_NAME, "") or "")
+        if session_header and ws.url.path == "/api/ws":
+            if hmac.compare_digest(
+                session_header.encode(),
+                _SESSION_TOKEN.encode(),
+            ):
+                ws._hermes_auth_identity = {
+                    "user_id": "trusted-reverse-proxy",
+                    "provider": "session-token",
+                }
+                return None, "session-header"
+            return "token_mismatch", "session-header"
 
         # Server-spawned children (PTY child → /api/ws, /api/pub) present the
         # multi-use internal credential rather than a single-use ticket, so

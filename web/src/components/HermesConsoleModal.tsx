@@ -14,6 +14,8 @@ import { api } from "@/lib/api";
 import { maybeReloadForLoopbackWsAuthFailure } from "@/lib/dashboard-auth-reload";
 import { cn, themedBody } from "@/lib/utils";
 import { useTheme } from "@/themes";
+import { useI18n } from "@/i18n";
+import { getSystemCopy } from "@/i18n/system-copy";
 
 type ConsoleFrame =
   | {
@@ -104,8 +106,8 @@ export function HermesConsoleModal({ open, onClose }: HermesConsoleModalProps) {
   const termRef = useRef<XtermTerminal | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const lineRef = useRef("");
-  const promptRef = useRef("hermes> ");
-  const inputPromptRef = useRef("hermes> ");
+  const promptRef = useRef("myking> ");
+  const inputPromptRef = useRef("myking> ");
   const historyRef = useRef<string[]>([]);
   const historyIndexRef = useRef<number | null>(null);
   const activeCommandRef = useRef(false);
@@ -113,7 +115,11 @@ export function HermesConsoleModal({ open, onClose }: HermesConsoleModalProps) {
   const hasReadyFrameRef = useRef(false);
   const [connectionState, setConnectionState] =
     useState<ConnectionState>("connecting");
-  const [consoleProfile, setConsoleProfile] = useState("current");
+  const { locale } = useI18n();
+  const copy = getSystemCopy(locale);
+  const [consoleProfile, setConsoleProfile] = useState<string>(
+    copy.consoleCurrentProfile,
+  );
   const { profile } = useProfileScope();
   const { theme } = useTheme();
 
@@ -179,11 +185,11 @@ export function HermesConsoleModal({ open, onClose }: HermesConsoleModalProps) {
       setConnectionState("running");
       if (!sendFrame({ type: "input", line })) {
         activeCommandRef.current = false;
-        writeLine(term, "\x1b[31mConsole is not connected.\x1b[0m");
+        writeLine(term, `\x1b[31m${copy.consoleDisconnected}\x1b[0m`);
         showPrompt();
       }
     },
-    [cancelCommand, sendFrame, showPrompt],
+    [cancelCommand, copy.consoleDisconnected, sendFrame, showPrompt],
   );
 
   const recallHistory = useCallback(
@@ -273,11 +279,11 @@ export function HermesConsoleModal({ open, onClose }: HermesConsoleModalProps) {
       if (!term) return;
 
       if (frame.type === "ready") {
-        const nextPrompt = frame.prompt || "hermes> ";
+        const nextPrompt = (frame.prompt || "myking> ").replace(/^hermes>/i, "myking>");
         promptRef.current = nextPrompt;
         inputPromptRef.current = nextPrompt;
         hasReadyFrameRef.current = true;
-        setConsoleProfile(frame.profile || "current");
+        setConsoleProfile(frame.profile || copy.consoleCurrentProfile);
         activeCommandRef.current = false;
         setConnectionState("ready");
         term.clear();
@@ -291,7 +297,7 @@ export function HermesConsoleModal({ open, onClose }: HermesConsoleModalProps) {
       }
 
       if (frame.type === "error") {
-        writeLine(term, `\x1b[31m${frame.message || "Command failed."}\x1b[0m`);
+        writeLine(term, `\x1b[31m${frame.message || copy.consoleCommandFailed}\x1b[0m`);
         return;
       }
 
@@ -302,7 +308,7 @@ export function HermesConsoleModal({ open, onClose }: HermesConsoleModalProps) {
         if (frame.message) {
           writeLine(term, `\x1b[33m${frame.message}\x1b[0m`);
         }
-        inputPromptRef.current = "Confirm? [y/N] ";
+        inputPromptRef.current = copy.consoleConfirm;
         lineRef.current = "";
         term.write(inputPromptRef.current);
         return;
@@ -310,7 +316,9 @@ export function HermesConsoleModal({ open, onClose }: HermesConsoleModalProps) {
 
       if (frame.type === "complete") {
         activeCommandRef.current = false;
-        if (frame.prompt) promptRef.current = frame.prompt;
+        if (frame.prompt) {
+          promptRef.current = frame.prompt.replace(/^hermes>/i, "myking>");
+        }
         if (frame.status === "confirm_required") return;
         if (frame.status === "exit") {
           setConnectionState("closed");
@@ -318,10 +326,10 @@ export function HermesConsoleModal({ open, onClose }: HermesConsoleModalProps) {
           return;
         }
         if (frame.status === "timeout") {
-          writeLine(term, "\x1b[31mCommand timed out.\x1b[0m");
+          writeLine(term, `\x1b[31m${copy.consoleTimedOut}\x1b[0m`);
         }
         if (frame.status === "cancelled") {
-          writeLine(term, "\x1b[33mCancelled.\x1b[0m");
+          writeLine(term, `\x1b[33m${copy.consoleCancelled}\x1b[0m`);
         }
         pendingCommandRef.current = null;
         setConnectionState("ready");
@@ -334,7 +342,7 @@ export function HermesConsoleModal({ open, onClose }: HermesConsoleModalProps) {
         showPrompt();
       }
     },
-    [showPrompt],
+    [copy, showPrompt],
   );
 
   useEffect(() => {
@@ -393,9 +401,9 @@ export function HermesConsoleModal({ open, onClose }: HermesConsoleModalProps) {
 
     const dataDisposable = term.onData(handleInputData);
     setConnectionState("connecting");
-    setConsoleProfile(profile || "current");
+    setConsoleProfile(profile || copy.consoleCurrentProfile);
     hasReadyFrameRef.current = false;
-    writeLine(term, "\x1b[2mConnecting to Hermes Console...\x1b[0m");
+    writeLine(term, `\x1b[2m${copy.consoleConnecting}\x1b[0m`);
 
     void (async () => {
       try {
@@ -414,13 +422,13 @@ export function HermesConsoleModal({ open, onClose }: HermesConsoleModalProps) {
             const frame = JSON.parse(String(ev.data)) as ConsoleFrame;
             handleFrame(frame);
           } catch {
-            writeLine(term, "\x1b[31mMalformed console frame.\x1b[0m");
+            writeLine(term, `\x1b[31m${copy.consoleMalformedFrame}\x1b[0m`);
           }
         };
 
         ws.onerror = () => {
           setConnectionState("error");
-          writeLine(term, "\x1b[31mConsole websocket error.\x1b[0m");
+          writeLine(term, `\x1b[31m${copy.consoleSocketError}\x1b[0m`);
         };
 
         ws.onclose = (ev) => {
@@ -435,14 +443,14 @@ export function HermesConsoleModal({ open, onClose }: HermesConsoleModalProps) {
           const reason = ev.reason ? ` ${ev.reason}` : "";
           const message =
             ev.code === 1006 && !hasReadyFrameRef.current
-              ? "Console connection failed before the server handshake. Check that this dashboard is connected to a backend with /api/console."
-              : `Console closed (${ev.code}).${reason}`;
+              ? copy.consoleHandshakeFailed
+              : copy.consoleClosed(ev.code, reason);
           writeLine(term, `\x1b[31m${message}\x1b[0m`);
         };
       } catch (err) {
         if (cancelled) return;
         setConnectionState("error");
-        writeLine(term, `\x1b[31mConsole unavailable: ${err}\x1b[0m`);
+        writeLine(term, `\x1b[31m${copy.consoleUnavailable(err)}\x1b[0m`);
       }
     })();
 
@@ -460,7 +468,7 @@ export function HermesConsoleModal({ open, onClose }: HermesConsoleModalProps) {
       activeCommandRef.current = false;
       hasReadyFrameRef.current = false;
     };
-  }, [handleFrame, handleInputData, open, profile, theme]);
+  }, [copy, handleFrame, handleInputData, open, profile, theme]);
 
   useEffect(() => {
     if (!open) return;
@@ -507,10 +515,10 @@ export function HermesConsoleModal({ open, onClose }: HermesConsoleModalProps) {
               id="hermes-console-title"
               className="font-mondwest text-display text-base tracking-wider"
             >
-              Hermes Console
+              {copy.consoleTitle}
             </h2>
             <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-              <Badge tone={statusTone}>{connectionState}</Badge>
+              <Badge tone={statusTone}>{copy.consoleState[connectionState]}</Badge>
               <span className="font-mono">{consoleProfile}</span>
             </div>
           </div>
@@ -519,7 +527,7 @@ export function HermesConsoleModal({ open, onClose }: HermesConsoleModalProps) {
             size="icon"
             onClick={onClose}
             className="text-muted-foreground hover:text-foreground"
-            aria-label="Close console"
+            aria-label={copy.consoleClose}
           >
             <X />
           </Button>

@@ -11,6 +11,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@nous-research/ui/ui/components/dialog";
+import { useI18n } from "@/i18n";
+import { getSkillsCopy } from "@/i18n/skills-copy";
 
 /* ------------------------------------------------------------------ */
 /*  SkillEditorDialog — create or edit a SKILL.md from the dashboard   */
@@ -78,6 +80,8 @@ function EditorBody({
   onClose,
   onSaved,
 }: Omit<SkillEditorDialogProps, "open">) {
+  const { locale } = useI18n();
+  const copy = getSkillsCopy(locale);
   const isEdit = editName !== null;
   const [name, setName] = useState("");
   const [category, setCategory] = useState("");
@@ -102,11 +106,11 @@ function EditorBody({
   const handleSave = async () => {
     setError(null);
     if (!isEdit && !name.trim()) {
-      setError("Skill name is required.");
+      setError(copy.nameRequired);
       return;
     }
     if (!content.trim()) {
-      setError("SKILL.md content is required.");
+      setError(copy.skillContentRequired);
       return;
     }
     setSaving(true);
@@ -138,12 +142,12 @@ function EditorBody({
     <>
       <DialogHeader>
         <DialogTitle>
-          {isEdit ? `Edit skill: ${editName}` : "New skill"}
+          {isEdit && editName ? copy.editSkill(editName) : copy.newSkill}
         </DialogTitle>
         <DialogDescription>
           {isEdit
-            ? "Rewrite this skill's SKILL.md. Frontmatter (name, description) is validated on save."
-            : "Author a custom skill — YAML frontmatter plus markdown instructions. It becomes available to the agent and attachable to cron jobs."}
+            ? copy.editDescription
+            : copy.newDescription}
         </DialogDescription>
       </DialogHeader>
 
@@ -151,7 +155,7 @@ function EditorBody({
         {!isEdit && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="grid gap-1.5">
-              <Label htmlFor="skill-editor-name">Name</Label>
+              <Label htmlFor="skill-editor-name">{copy.name}</Label>
               <Input
                 id="skill-editor-name"
                 autoFocus
@@ -161,7 +165,7 @@ function EditorBody({
               />
             </div>
             <div className="grid gap-1.5">
-              <Label htmlFor="skill-editor-category">Category (optional)</Label>
+              <Label htmlFor="skill-editor-category">{copy.categoryOptional}</Label>
               <Input
                 id="skill-editor-category"
                 placeholder="devops"
@@ -197,7 +201,7 @@ function EditorBody({
 
         <div className="flex items-center justify-end gap-2">
           <Button ghost size="sm" onClick={onClose} disabled={saving}>
-            Cancel
+            {copy.cancel}
           </Button>
           <Button
             size="sm"
@@ -206,7 +210,7 @@ function EditorBody({
             disabled={saving || loading}
             prefix={saving ? <Spinner /> : undefined}
           >
-            {saving ? "Saving…" : isEdit ? "Save changes" : "Create skill"}
+            {saving ? copy.saving : isEdit ? copy.saveChanges : copy.createSkill}
           </Button>
         </div>
       </div>

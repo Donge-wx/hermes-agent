@@ -1,6 +1,6 @@
-import type { Translations } from "./types";
+import type { ResolvedTranslations } from "./types";
 
-export const zh: Translations = {
+export const zh: ResolvedTranslations = {
   common: {
     save: "保存",
     saving: "保存中...",
@@ -49,12 +49,12 @@ export const zh: Translations = {
   },
 
   app: {
-    brand: "Hermes Agent",
-    brandShort: "HA",
+    brand: "My King",
+    brandShort: "MK",
     closeNavigation: "关闭导航",
     closeModelTools: "关闭模型与工具",
     footer: {
-      org: "Nous Research",
+      org: "My King",
     },
     activeSessionsLabel: "活跃会话：",
     gatewayStatusLabel: "网关状态：",
@@ -71,6 +71,12 @@ export const zh: Translations = {
       config: "配置",
       cron: "定时任务",
       documentation: "文档",
+      files: "文件",
+      channels: "消息平台",
+      webhooks: "Webhook",
+      pairing: "设备配对",
+      system: "系统",
+      mcp: "MCP 服务",
       keys: "密钥",
       logs: "日志",
       models: "模型",
@@ -119,8 +125,8 @@ export const zh: Translations = {
     starting: "启动中",
     startedInBackground: "已在后台启动 — 请查看日志",
     stopped: "已停止",
-    updateHermes: "更新 Hermes",
-    updatingHermes: "正在更新 Hermes…",
+    updateHermes: "更新 My King",
+    updatingHermes: "正在更新 My King…",
     waitingForOutput: "等待输出…",
   },
 
@@ -163,6 +169,25 @@ export const zh: Translations = {
     failedToDeleteSelected: "删除所选会话失败",
     resumeInChat: "在对话中继续",
     newChat: "新对话",
+    anyChatSource: "全部对话来源",
+    anyAutomationSource: "全部自动化来源",
+    chatSources: "对话来源",
+    automationSources: "自动化来源",
+    noSources: "未选择来源",
+    selectedSources: "已选 {count} 个来源",
+    pruneOld: "清理旧会话",
+    pruneDescription:
+      "永久删除最后活动时间早于指定天数的已归档会话。活跃会话不会被清理。",
+    olderThanDays: "早于（天）",
+    prune: "清理",
+    statsTotal: "会话总数",
+    statsActive: "活跃会话",
+    statsArchived: "已归档",
+    statsMessages: "消息",
+    statsSources: "来源",
+    importSessions: "导入会话",
+    importSessionsLabel: "导入已导出的会话",
+    importSessionsTitle: "导入 JSON 或 JSONL 会话文件",
     previousPage: "上一页",
     nextPage: "下一页",
     roles: {
@@ -197,6 +222,12 @@ export const zh: Translations = {
     perDayAvg: "/天 平均",
     acrossModels: "共 {count} 个模型",
     inOut: "输入 {input} / 输出 {output}",
+    hiddenTitle: "token 分析已隐藏",
+    hiddenDescription:
+      "本页的 token、费用和每日统计只是本地调试估算，只统计包含有效用量信息的主代理成功响应；辅助调用、提供方重试、回退尝试与缓存写入均不会完整计入。",
+    hiddenProviderHint:
+      "实际用量与账单请以模型提供方控制台（如 OpenRouter、Anthropic 等）为准。",
+    hiddenConfigHint: "如仍需查看本地调试估算，可在“配置”中启用",
   },
 
   models: {
@@ -209,6 +240,18 @@ export const zh: Translations = {
     toolCalls: "工具调用",
     noModelsData: "该时间段暂无模型使用数据",
     startSession: "开始会话后将在此显示模型数据",
+    modelSettings: "模型设置",
+    appliesToNewSessions: "应用于新会话",
+    mainModel: "主模型",
+    unset: "未设置",
+    change: "更改",
+    auxiliaryTasks: "辅助任务",
+    configure: "配置",
+    taskSummary: "{count} 个任务 · 全部自动",
+    overrideSummary: "{overrides} 个覆盖 · {auto} 个自动",
+    mixtureOfAgents: "多代理混合",
+    notLoaded: "未载入",
+    referenceSummary: "{count} 个参考模型",
   },
 
   logs: {
@@ -219,6 +262,22 @@ export const zh: Translations = {
     component: "组件",
     lines: "行数",
     noLogLines: "未找到日志记录",
+    files: { agent: "代理", errors: "错误", gateway: "网关" },
+    levels: {
+      ALL: "全部",
+      DEBUG: "调试",
+      INFO: "信息",
+      WARNING: "警告",
+      ERROR: "错误",
+    },
+    components: {
+      all: "全部",
+      gateway: "网关",
+      agent: "代理",
+      tools: "工具",
+      cli: "命令行",
+      cron: "定时任务",
+    },
   },
 
   cron: {
@@ -312,6 +371,39 @@ export const zh: Translations = {
     created: "已创建",
     deleted: "已删除",
     renamed: "已重命名",
+    activeProfile: "当前启用配置",
+    activeBadge: "已启用",
+    setActive: "设为启用配置",
+    activeSet: "启用配置已切换",
+    gatewayRunning: "网关运行中",
+    gatewayStopped: "网关已停止",
+    gatewayRunningWarning: "此配置的网关正在运行，删除时会一并停止。",
+    aliasBadge: "别名",
+    description: "说明",
+    descriptionPlaceholder: "说明此配置擅长处理的任务，便于分配看板任务。",
+    noDescription: "暂无说明",
+    editDescription: "编辑说明",
+    descriptionSaved: "说明已保存",
+    reviewBadge: "待复核",
+    autoGenerate: "自动生成",
+    generating: "正在生成…",
+    describeFailed: "无法生成说明",
+    distribution: "分发方式",
+    advancedOptions: "高级选项",
+    cloneAll: "克隆全部内容（记忆、会话、技能和状态）",
+    noSkillsOption: "不预置内置技能",
+    descriptionOptional: "说明（可选）",
+    modelOptional: "模型（可选）",
+    modelInherit: "继承克隆来源或默认设置",
+    modelLoading: "正在载入模型…",
+    modelNone: "暂无已认证提供方，请先设置密钥",
+    editModel: "更改模型",
+    modelSaved: "模型已更新",
+    modelSelect: "选择模型",
+    actions: "操作",
+    manageSkills: "管理技能与工具",
+    activeSetHint: "后台已切换为管理 {name}；新的命令行和网关任务也会使用此配置。",
+    fullBuilder: "完整创建",
   },
 
   pluginsPage: {
@@ -321,7 +413,7 @@ export const zh: Translations = {
     enableAfterInstall: "安装后启用",
     enableRuntime: "启用",
     forceReinstall: "强制重装（先删除已有目录）",
-    headline: "发现、安装、启用和更新 Hermes 插件（对齐 `hermes plugins` CLI）。",
+    headline: "发现、安装、启用和更新 My King 插件（对齐 `hermes plugins` CLI）。",
     identifierLabel: "Git 地址或 owner/repo",
     inactive: "未启用",
     installBtn: "安装",
@@ -434,7 +526,7 @@ export const zh: Translations = {
     showValue: "显示实际值",
     hideValue: "隐藏值",
     customTitle: "自定义密钥",
-    customHint: "存储在 .env 中、Hermes 无法识别的任意环境变量。可用于为技能、MCP 服务器或你自己的工具注入环境变量。",
+    customHint: "存储在 .env 中、My King 无法识别的任意环境变量。可用于为技能、MCP 服务器或你自己的工具注入环境变量。",
     customConfigured: "已设置 {count} 个自定义密钥",
     addCustomKey: "添加自定义密钥",
     customKeyName: "变量名",
@@ -483,6 +575,33 @@ export const zh: Translations = {
       external: "外部 CLI",
     },
     expiresIn: "{time}后过期",
+    loadFailed: "加载 OAuth 提供商失败",
+    disconnected: "已断开连接",
+    disconnectFailed: "断开连接失败",
+    openDocs: "打开 {provider}文档",
+    disconnectTitle: "断开 {provider}？",
+    disconnectDescription:
+      "这会移除 {provider} 已保存的 OAuth token。如需再次使用，必须重新登录授权。",
+    providerError: "连接状态异常：{error}",
+  },
+
+  docs: {
+    title: "本地 API 文档",
+    description:
+      "查看当前 My King 后台实际开放的接口。文档来自本机 OpenAPI 定义，可离线使用。",
+    openSchema: "打开 OpenAPI JSON",
+    searchPlaceholder: "搜索接口、路径或说明…",
+    allGroups: "全部接口",
+    endpointCount: "共 {count} 个接口",
+    noEndpoints: "没有匹配的接口",
+    loadFailed: "无法加载本地 API 文档",
+    parameters: "参数",
+    noParameters: "无参数",
+    requestBody: "请求体",
+    responses: "响应",
+    required: "必填",
+    optional: "可选",
+    schemaVersion: "OpenAPI {version}",
   },
 
   language: {
@@ -497,11 +616,11 @@ export const zh: Translations = {
   achievements: {
     hero: {
       kicker: "Agentic Gamerscore",
-      title: "Hermes Achievements",
+      title: "My King Achievements",
       subtitle:
-        "从真实会话历史中获得的 Hermes 可收集徽章。已知尚未达成的成就显示为「已发现」；秘密成就在首次出现匹配行为之前保持隐藏。",
+        "从真实会话历史中获得的 My King 可收集徽章。已知尚未达成的成就显示为「已发现」；秘密成就在首次出现匹配行为之前保持隐藏。",
       scan_subtitle:
-        "正在扫描 Hermes 会话历史。在历史记录较多时，首次扫描可能需要 5–10 秒。",
+        "正在扫描 My King 会话历史。在历史记录较多时，首次扫描可能需要 5–10 秒。",
     },
     actions: {
       rescan: "重新扫描",
@@ -516,7 +635,7 @@ export const zh: Translations = {
       highest_tier: "最高等级",
       highest_tier_hint: "Copper → Silver → Gold → Diamond → Olympian",
       latest: "最新",
-      latest_hint_empty: "多多运行 Hermes",
+      latest_hint_empty: "多多运行 My King",
       none_yet: "暂无",
     },
     state: {
@@ -547,10 +666,10 @@ export const zh: Translations = {
       tiers_header: "等级",
       secret_header: "秘密成就",
       secret_body:
-        "秘密成就会隐藏其确切触发条件。一旦 Hermes 检测到相关信号，卡片将变为「已发现」并显示其要求。",
+        "秘密成就会隐藏其确切触发条件。一旦 My King 检测到相关信号，卡片将变为「已发现」并显示其要求。",
       scan_status_header: "扫描状态",
       scan_status_body:
-        "Hermes 正在对本地历史进行一次扫描，之后卡片会自动出现。即使这需要几秒钟，也没有卡住。",
+        "My King 正在对本地历史进行一次扫描，之后卡片会自动出现。即使这需要几秒钟，也没有卡住。",
       what_scanned_header: "扫描内容",
       what_scanned_body:
         "会话、工具调用、模型元数据、错误、成就和本地解锁状态。",
@@ -597,7 +716,7 @@ export const zh: Translations = {
         "「在 X 上分享」会在新标签页中打开预填好的帖子。如果想附上 1200×630 的徽章，请先点击「复制图片」—— X 允许你直接粘贴到推文编辑器中。「下载 PNG」会将文件保存下来，可在任意位置使用。",
       clipboard_unsupported:
         "此浏览器不支持复制剪贴板图片 —— 请改用「下载」。",
-      tweet_text: "Just unlocked {tier_part}\"{name}\" in Hermes Agent ☤",
+      tweet_text: "Just unlocked {tier_part}\"{name}\" in My King ☤",
     },
   },
 

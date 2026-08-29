@@ -36,25 +36,34 @@ import type {
 import { useModalBehavior } from "@/hooks/useModalBehavior";
 import { usePageHeader } from "@/contexts/usePageHeader";
 import { cn, themedBody } from "@/lib/utils";
+import { visibleManagedMessagingPlatforms } from "@/lib/managed-dashboard-policy";
+import { useI18n } from "@/i18n";
+import {
+  getChannelsCopy,
+  getManagedChannelPresentation,
+} from "@/i18n/channels-copy";
 
 // State → badge mapping. The backend emits a small, fixed vocabulary plus
 // whatever the live gateway runtime reports (connected/disconnected/fatal).
-const STATE_BADGE: Record<
+const STATE_TONES: Record<
   string,
-  { tone: "success" | "warning" | "destructive" | "secondary" | "outline"; label: string }
+  "success" | "warning" | "destructive" | "secondary" | "outline"
 > = {
-  connected: { tone: "success", label: "Connected" },
-  pending_restart: { tone: "warning", label: "Restart to apply" },
-  gateway_stopped: { tone: "warning", label: "Gateway stopped" },
-  startup_failed: { tone: "destructive", label: "Start failed" },
-  disconnected: { tone: "warning", label: "Disconnected" },
-  not_configured: { tone: "outline", label: "Not configured" },
-  disabled: { tone: "secondary", label: "Disabled" },
-  fatal: { tone: "destructive", label: "Error" },
+  connected: "success",
+  pending_restart: "warning",
+  gateway_stopped: "warning",
+  startup_failed: "destructive",
+  disconnected: "warning",
+  not_configured: "outline",
+  disabled: "secondary",
+  fatal: "destructive",
 };
 
-function stateBadge(state: string) {
-  return STATE_BADGE[state] ?? { tone: "outline" as const, label: state };
+function stateBadge(state: string, labels: Record<string, string>) {
+  return {
+    tone: STATE_TONES[state] ?? "outline",
+    label: labels[state] ?? state,
+  };
 }
 
 const TELEGRAM_USER_ID_RE = /^\d+$/;
@@ -137,6 +146,8 @@ export default function ChannelsPage() {
   );
   const [loading, setLoading] = useState(true);
   const { toast, showToast } = useToast();
+  const { locale } = useI18n();
+  const copy = getChannelsCopy(locale);
   const { setEnd } = usePageHeader();
 
   // Config modal state
@@ -162,12 +173,12 @@ export default function ChannelsPage() {
     return api
       .getMessagingPlatforms()
       .then((res) => {
-        setPlatforms(res.platforms);
+        setPlatforms(visibleManagedMessagingPlatforms(res.platforms));
         setEnvPath(res.env_path || "~/.hermes/.env");
         setGatewayStartCommand(res.gateway_start_command || "hermes gateway start");
       })
-      .catch((e) => showToast(`Error: ${e}`, "error"));
-  }, [showToast]);
+      .catch((e) => showToast(`${copy.error}：${e}`, "error"));
+  }, [copy.error, showToast]);
 
   useEffect(() => {
     load().finally(() => setLoading(false));
@@ -192,14 +203,17 @@ export default function ChannelsPage() {
       if (v.trim()) env[k] = v.trim();
     });
     if (Object.keys(env).length === 0) {
-      showToast("Nothing to save — fill in at least one field.", "error");
+      showToast(copy.nothingToSave, "error");
       return;
     }
     const missing = editing.env_vars.filter(
       (v) => v.required && !v.is_set && !env[v.key],
     );
     if (missing.length > 0) {
-      showToast(`${missing[0].prompt || missing[0].key} is required`, "error");
+      showToast(
+        `${missing[0].prompt || missing[0].key} ${copy.fieldRequired}`,
+        "error",
+      );
       return;
     }
     const nextFieldErrors: Record<string, string> = {};
@@ -209,19 +223,20 @@ export default function ChannelsPage() {
     });
     if (Object.keys(nextFieldErrors).length > 0) {
       setFieldErrors(nextFieldErrors);
-      showToast("Fix the highlighted fields before saving.", "error");
+      showToast(copy.fixFields, "error");
       return;
     }
     setSaving(true);
     try {
       const body: MessagingPlatformUpdate = { env, enabled: true };
       await api.updateMessagingPlatform(editing.id, body);
-      showToast(`${editing.name} saved`, "success");
+      const presentation = getManagedChannelPresentation(copy, editing.id);
+      showToast(`${presentation?.name ?? editing.name} ${copy.saved}`, "success");
       setEditing(null);
       setRestartNeeded(true);
       await load();
     } catch (e) {
-      showToast(`Failed to save: ${e}`, "error");
+      showToast(`${copy.failedToSave}：${e}`, "error");
     } finally {
       setSaving(false);
     }
@@ -241,7 +256,7 @@ export default function ChannelsPage() {
       );
       setRestartNeeded(true);
     } catch (e) {
-      showToast(`Error: ${e}`, "error");
+      showToast(`${copy.error}：${e}`, "error");
     } finally {
       setTogglingId(null);
     }
@@ -253,7 +268,7 @@ export default function ChannelsPage() {
       const res = await api.testMessagingPlatform(platform.id);
       showToast(`${platform.name}: ${res.message}`, res.ok ? "success" : "error");
     } catch (e) {
-      showToast(`Error: ${e}`, "error");
+      showToast(`${copy.error}：${e}`, "error");
     } finally {
       setTestingId(null);
     }
@@ -263,12 +278,12 @@ export default function ChannelsPage() {
     setRestarting(true);
     try {
       await api.restartGateway();
-      showToast("Gateway restarting…", "success");
+      showToast(copy.gatewayRestarting, "success");
       setRestartNeeded(false);
       // Give the gateway a moment to come up, then refresh status.
       setTimeout(() => void load(), 4000);
     } catch (e) {
-      showToast(`Failed to restart: ${e}`, "error");
+      showToast(`${copy.failedToRestart}：${e}`, "error");
     } finally {
       setRestarting(false);
     }
@@ -283,12 +298,12 @@ export default function ChannelsPage() {
         disabled={restarting}
         prefix={restarting ? <Spinner /> : <RotateCw className="h-4 w-4" />}
       >
-        {restarting ? "Restarting…" : "Restart gateway"}
+        {restarting ? copy.restarting : copy.restartGateway}
       </Button>,
     );
     return () => setEnd(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [setEnd, restarting]);
+  }, [copy.restartGateway, copy.restarting, restarting, setEnd]);
 
   const configured = useMemo(
     () => platforms.filter((p) => p.configured).length,
@@ -314,7 +329,7 @@ export default function ChannelsPage() {
             <div className="flex items-center gap-2 text-sm">
               <AlertTriangle className="h-4 w-4 shrink-0 text-warning" />
               <span>
-                Changes are saved. Restart the gateway for them to take effect.
+                {copy.changesSaved}
               </span>
             </div>
             <Button
@@ -324,7 +339,7 @@ export default function ChannelsPage() {
               disabled={restarting}
               prefix={restarting ? <Spinner /> : <RotateCw className="h-4 w-4" />}
             >
-              {restarting ? "Restarting…" : "Restart now"}
+              {restarting ? copy.restarting : copy.restartNow}
             </Button>
           </CardContent>
         </Card>
@@ -335,18 +350,17 @@ export default function ChannelsPage() {
           <CardContent className="flex items-center gap-2 p-4 text-sm text-muted-foreground">
             <WifiOff className="h-4 w-4 shrink-0" />
             <span>
-              The gateway is not running. Configure channels here, then start the
-              gateway with <code className="font-courier">{gatewayStartCommand}</code>{" "}
-              (or the Restart button above).
+              {copy.gatewayNotRunning}{" "}
+              <code className="font-courier">{gatewayStartCommand}</code>
+              {copy.gatewayNotRunningSuffix}
             </span>
           </CardContent>
         </Card>
       )}
 
       <p className="text-xs text-muted-foreground">
-        {configured} of {platforms.length} channels configured. Credentials are
-        written to <code className="font-courier">{envPath}</code>; the
-        gateway connects each enabled channel on its next restart.
+        {copy.configuredPrefix} {configured}/{platforms.length} {copy.configuredSuffix}{" "}
+        <code className="font-courier">{envPath}</code>。
       </p>
 
       {/* Config modal */}
@@ -374,7 +388,7 @@ export default function ChannelsPage() {
               size="icon"
               onClick={() => setEditing(null)}
               className="absolute right-2 top-2 text-muted-foreground hover:text-foreground"
-              aria-label="Close"
+              aria-label={copy.close}
             >
               <X />
             </Button>
@@ -384,9 +398,8 @@ export default function ChannelsPage() {
                 id="channel-config-title"
                 className="font-mondwest text-display text-base tracking-wider"
               >
-                {editing.id === "telegram"
-                  ? "Use your own Telegram bot"
-                  : `Configure ${editing.name}`}
+                {copy.configure}{" "}
+                {getManagedChannelPresentation(copy, editing.id)?.name ?? editing.name}
               </h2>
               {editing.docs_url && (
                 <a
@@ -395,7 +408,7 @@ export default function ChannelsPage() {
                   rel="noopener noreferrer"
                   className="mt-1 inline-flex items-center gap-1 text-xs text-primary hover:underline"
                 >
-                  {editing.id === "telegram" ? "BotFather guide" : "Setup guide"}
+                  {copy.setupGuide}
                   <ExternalLink className="h-3 w-3" />
                 </a>
               )}
@@ -440,7 +453,7 @@ export default function ChannelsPage() {
                     </a>
                   </div>
                   <p className="text-xs">
-                    You can leave allowed users blank. Hermes will then send new DM
+                    You can leave allowed users blank. My King will then send new DM
                     users a code that you approve from the Pairing page.
                   </p>
                 </div>
@@ -477,7 +490,7 @@ export default function ChannelsPage() {
                     className="text-base leading-6 sm:text-xs sm:leading-4"
                     placeholder={
                       field.is_set
-                        ? field.redacted_value || "•••••• (set — leave blank to keep)"
+                        ? field.redacted_value || `••••••（${copy.keepExisting}）`
                         : field.key
                     }
                     value={draftEnv[field.key] ?? ""}
@@ -508,7 +521,7 @@ export default function ChannelsPage() {
                   className="w-full sm:w-auto"
                   onClick={() => setEditing(null)}
                 >
-                  Cancel
+                  {copy.cancel}
                 </Button>
                 <Button
                   className="w-full uppercase sm:w-auto"
@@ -517,7 +530,7 @@ export default function ChannelsPage() {
                   disabled={saving}
                   prefix={saving ? <Spinner /> : undefined}
                 >
-                  {saving ? "Saving…" : "Save & enable"}
+                  {saving ? copy.saving : copy.saveAndEnable}
                 </Button>
               </div>
             </div>
@@ -528,7 +541,9 @@ export default function ChannelsPage() {
       {/* Platform list */}
       <div className="grid gap-3">
         {platforms.map((platform) => {
-          const badge = stateBadge(platform.state);
+          const badge = stateBadge(platform.state, copy.state);
+          const presentation = getManagedChannelPresentation(copy, platform.id);
+          const displayName = presentation?.name ?? platform.name;
           const busy = togglingId === platform.id;
           const StateIcon =
             platform.state === "connected"
@@ -555,12 +570,12 @@ export default function ChannelsPage() {
                     <div className="flex flex-col gap-0.5 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-mondwest normal-case text-sm font-medium">
-                          {platform.name}
+                          {displayName}
                         </span>
                         <Badge tone={badge.tone}>{badge.label}</Badge>
                       </div>
                       <span className="text-xs text-muted-foreground">
-                        {platform.description}
+                        {presentation?.description ?? platform.description}
                       </span>
                       {platform.error_message && (
                         <span className="text-xs text-destructive">
@@ -578,7 +593,7 @@ export default function ChannelsPage() {
                         <Switch
                           checked={platform.enabled}
                           onCheckedChange={() => void handleToggle(platform)}
-                          aria-label={`Enable ${platform.name}`}
+                          aria-label={`${copy.configure} ${displayName}`}
                         />
                       )}
                     </div>
@@ -595,7 +610,7 @@ export default function ChannelsPage() {
                         )
                       }
                     >
-                      Test
+                      {copy.test}
                     </Button>
                     {platform.id !== "telegram" && (
                       <Button
@@ -604,7 +619,7 @@ export default function ChannelsPage() {
                         onClick={() => openConfig(platform)}
                         prefix={<Settings2 className="h-4 w-4" />}
                       >
-                        Configure
+                        {copy.configure}
                       </Button>
                     )}
                   </div>
@@ -847,7 +862,7 @@ function WhatsAppOnboardingPanel({
         : "waiting";
   const setupHelp =
     phase === "connected" || phase === "applying"
-      ? "WhatsApp is linked but Hermes is not listening yet. Save and restart the gateway to finish setup."
+      ? "WhatsApp is linked but My King is not listening yet. Save and restart the gateway to finish setup."
       : setup?.status === "installing"
         ? "Preparing the WhatsApp bridge. The QR code will appear here when it is ready."
         : setup?.status === "starting"
@@ -858,24 +873,24 @@ function WhatsAppOnboardingPanel({
     : setup?.account_name || setup?.account_id || "";
   const linkedAccountDetail =
     setup?.account_phone || setup?.account_id
-      ? "This is the WhatsApp account Hermes is now logged into."
-      : "Hermes is logged into the WhatsApp account that scanned the QR code.";
+      ? "This is the WhatsApp account My King is now logged into."
+      : "My King is logged into the WhatsApp account that scanned the QR code.";
   const linkedAccountChatUrl = setup?.account_phone
     ? `https://wa.me/${setup.account_phone}`
     : "";
   const messageInstruction =
     mode === "self-chat"
-      ? "After the restart, open Message Yourself on the linked account and send Hermes a message."
-      : "After the restart, start a chat from another WhatsApp account with the linked account and send Hermes a message.";
+      ? "After the restart, open Message Yourself on the linked account and send My King a message."
+      : "After the restart, start a chat from another WhatsApp account with the linked account and send My King a message.";
   const hasSavedAllowedUsers = Boolean(platform.whatsapp_setup?.allowed_users_set);
   const pairingInstruction =
     mode === "self-chat" && !allowedUsers.trim()
       ? hasSavedAllowedUsers
-        ? "Hermes will keep the saved WhatsApp allowlist."
+        ? "My King will keep the saved WhatsApp allowlist."
         : "Self-chat mode will allow the linked account automatically when you save."
       : !allowedUsers.trim() && hasSavedAllowedUsers
-        ? "Hermes will keep the saved WhatsApp allowlist."
-        : "If no allowed numbers were entered, Hermes replies with a pairing code. Approve it from the dashboard Pairing page.";
+        ? "My King will keep the saved WhatsApp allowlist."
+        : "If no allowed numbers were entered, My King replies with a pairing code. Approve it from the dashboard Pairing page.";
 
   return (
     <div className="rounded-sm border border-border bg-background/35 p-4">
@@ -957,7 +972,7 @@ function WhatsAppOnboardingPanel({
 
               {phase === "waiting" && (
                 <div className="text-xs text-muted-foreground">
-                  After saving, unknown DMs use Hermes pairing codes unless their
+                  After saving, unknown DMs use My King pairing codes unless their
                   number is already allowed.
                 </div>
               )}
@@ -1148,7 +1163,7 @@ function TelegramOnboardingPanel({
     setDetectedOwnerId(null);
     setNewAllowedId("");
     try {
-      const res = await api.startTelegramOnboarding({ bot_name: "Hermes Agent" });
+      const res = await api.startTelegramOnboarding({ bot_name: "My King" });
       const dataUrl = await QRCode.toDataURL(res.qr_payload, {
         errorCorrectionLevel: "M",
         margin: 1,
@@ -1266,7 +1281,7 @@ function TelegramOnboardingPanel({
         </span>
         <span className="text-xs text-muted-foreground">
           Both options connect a bot you control and save its credentials only to
-          this Hermes installation.
+          this My King installation.
         </span>
       </div>
 
@@ -1279,7 +1294,7 @@ function TelegramOnboardingPanel({
             <Badge tone="success">recommended</Badge>
           </div>
           <p className="text-xs text-muted-foreground">
-            Scan a QR code and confirm in Telegram. Hermes creates the bot and
+            Scan a QR code and confirm in Telegram. My King creates the bot and
             detects your Telegram user ID automatically.
           </p>
           <Button

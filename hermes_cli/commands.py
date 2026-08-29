@@ -603,6 +603,11 @@ def _is_gateway_available(cmd: CommandDef, config_overrides: set[str] | None = N
     when the config value is truthy.  Pass *config_overrides* (from
     ``_resolve_config_gates()``) to avoid re-reading config for every command.
     """
+    if cmd.name == "update":
+        from hermes_cli.managed_update_policy import managed_updates_disabled
+
+        if managed_updates_disabled():
+            return False
     if not cmd.cli_only:
         return True
     if cmd.gateway_config_gate:

@@ -93,6 +93,12 @@ export interface Translations {
       config: string;
       cron: string;
       documentation: string;
+      files?: string;
+      channels?: string;
+      webhooks?: string;
+      pairing?: string;
+      system?: string;
+      mcp?: string;
       keys: string;
       logs: string;
       models: string;
@@ -203,6 +209,24 @@ export interface Translations {
     failedToDeleteSelected: string;
     resumeInChat: string;
     newChat: string;
+    anyChatSource?: string;
+    anyAutomationSource?: string;
+    chatSources?: string;
+    automationSources?: string;
+    noSources?: string;
+    selectedSources?: string;
+    pruneOld?: string;
+    pruneDescription?: string;
+    olderThanDays?: string;
+    prune?: string;
+    statsTotal?: string;
+    statsActive?: string;
+    statsArchived?: string;
+    statsMessages?: string;
+    statsSources?: string;
+    importSessions?: string;
+    importSessionsLabel?: string;
+    importSessionsTitle?: string;
     previousPage: string;
     nextPage: string;
     roles: {
@@ -238,6 +262,10 @@ export interface Translations {
     perDayAvg: string;
     acrossModels: string;
     inOut: string;
+    hiddenTitle?: string;
+    hiddenDescription?: string;
+    hiddenProviderHint?: string;
+    hiddenConfigHint?: string;
   };
 
   // ── Models page ──
@@ -251,6 +279,18 @@ export interface Translations {
     toolCalls: string;
     noModelsData: string;
     startSession: string;
+    modelSettings?: string;
+    appliesToNewSessions?: string;
+    mainModel?: string;
+    unset?: string;
+    change?: string;
+    auxiliaryTasks?: string;
+    configure?: string;
+    taskSummary?: string;
+    overrideSummary?: string;
+    mixtureOfAgents?: string;
+    notLoaded?: string;
+    referenceSummary?: string;
   };
 
   // ── Logs page ──
@@ -262,6 +302,9 @@ export interface Translations {
     component: string;
     lines: string;
     noLogLines: string;
+    files?: Record<"agent" | "errors" | "gateway", string>;
+    levels?: Record<"ALL" | "DEBUG" | "INFO" | "WARNING" | "ERROR", string>;
+    components?: Record<"all" | "gateway" | "agent" | "tools" | "cli" | "cron", string>;
   };
 
   // ── Cron page ──
@@ -433,6 +476,7 @@ export interface Translations {
     actions?: string;
     manageSkills?: string;
     activeSetHint?: string;
+    fullBuilder?: string;
   };
 
   // ── Skills page ──
@@ -571,6 +615,32 @@ export interface Translations {
       external: string;
     };
     expiresIn: string;
+    loadFailed?: string;
+    disconnected?: string;
+    disconnectFailed?: string;
+    openDocs?: string;
+    disconnectTitle?: string;
+    disconnectDescription?: string;
+    providerError?: string;
+  };
+
+  // ── Local API documentation ──
+  docs?: {
+    title: string;
+    description: string;
+    openSchema: string;
+    searchPlaceholder: string;
+    allGroups: string;
+    endpointCount: string;
+    noEndpoints: string;
+    loadFailed: string;
+    parameters: string;
+    noParameters: string;
+    requestBody: string;
+    responses: string;
+    required: string;
+    optional: string;
+    schemaVersion: string;
   };
 
   // ── Language switcher ──
@@ -872,3 +942,18 @@ export interface Translations {
     };
   };
 }
+
+type ManagedOAuthTranslationKey =
+  | "loadFailed"
+  | "disconnected"
+  | "disconnectFailed"
+  | "openDocs"
+  | "disconnectTitle"
+  | "disconnectDescription"
+  | "providerError";
+
+export type ResolvedTranslations = Omit<Translations, "oauth" | "docs"> & {
+  oauth: Omit<Translations["oauth"], ManagedOAuthTranslationKey> &
+    Required<Pick<Translations["oauth"], ManagedOAuthTranslationKey>>;
+  docs: NonNullable<Translations["docs"]>;
+};

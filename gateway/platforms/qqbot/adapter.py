@@ -1201,6 +1201,10 @@ class QQAdapter(BasePlatformAdapter):
 
         update_answer = parse_update_prompt_button_data(button_data)
         if update_answer is not None:
+            from hermes_cli.managed_update_policy import managed_updates_disabled
+
+            if managed_updates_disabled():
+                return
             update_session_key = f"agent:main:qqbot:{event.scene}:{event.group_openid or event.guild_id or event.user_openid}"
             if not self._is_authorized_interaction_for_session(event, update_session_key):
                 logger.warning(
@@ -1225,6 +1229,10 @@ class QQAdapter(BasePlatformAdapter):
         response to its interactive prompts (stash-restore, config migration).
         Writes via ``tmp + rename`` so a partial write can't fool the reader.
         """
+        from hermes_cli.managed_update_policy import managed_updates_disabled
+
+        if managed_updates_disabled():
+            return
         try:
             from hermes_constants import get_hermes_home
             home = get_hermes_home()
@@ -2758,6 +2766,13 @@ class QQAdapter(BasePlatformAdapter):
         ``~/.hermes/.update_response`` so the detached update process
         can read it.
         """
+        from hermes_cli.managed_update_policy import (
+            UPDATES_DISABLED_ERROR,
+            managed_updates_disabled,
+        )
+
+        if managed_updates_disabled():
+            return SendResult(success=False, error=UPDATES_DISABLED_ERROR)
         del session_key, metadata  # present for contract parity only.
 
         default_hint = f" (default: {default})" if default else ""

@@ -5966,9 +5966,12 @@ class DiscordAdapter(BasePlatformAdapter):
         async def slash_voice(interaction: discord.Interaction, mode: str = ""):
             await self._run_simple_slash(interaction, f"/voice {mode}".strip())
 
-        @tree.command(name="update", description="Update Hermes Agent to the latest version")
-        async def slash_update(interaction: discord.Interaction):
-            await self._run_simple_slash(interaction, "/update", "Update initiated~")
+        from hermes_cli.managed_update_policy import managed_updates_disabled
+
+        if not managed_updates_disabled():
+            @tree.command(name="update", description="Update Hermes Agent to the latest version")
+            async def slash_update(interaction: discord.Interaction):
+                await self._run_simple_slash(interaction, "/update", "Update initiated~")
 
         @tree.command(name="restart", description="Gracefully restart the Hermes gateway")
         async def slash_restart(interaction: discord.Interaction):
@@ -7737,6 +7740,13 @@ class DiscordAdapter(BasePlatformAdapter):
         Used by the gateway ``/update`` watcher when ``hermes update --gateway``
         needs user input (stash restore, config migration).
         """
+        from hermes_cli.managed_update_policy import (
+            UPDATES_DISABLED_ERROR,
+            managed_updates_disabled,
+        )
+
+        if managed_updates_disabled():
+            return SendResult(success=False, error=UPDATES_DISABLED_ERROR)
         if not self._client or not DISCORD_AVAILABLE:
             return SendResult(success=False, error="Not connected")
         try:
@@ -9092,6 +9102,10 @@ def _define_discord_view_classes() -> None:
             self, interaction: discord.Interaction, answer: str,
             color: discord.Color, label: str,
         ):
+            from hermes_cli.managed_update_policy import managed_updates_disabled
+
+            if managed_updates_disabled():
+                return
             if self.resolved:
                 await interaction.response.send_message(
                     "Already answered~", ephemeral=True

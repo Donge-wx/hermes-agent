@@ -46,6 +46,15 @@ BOLD='\033[1m'
 REPO_URL_SSH="git@github.com:NousResearch/hermes-agent.git"
 REPO_URL_HTTPS="https://github.com/NousResearch/hermes-agent.git"
 HERMES_HOME="${HERMES_HOME:-$HOME/.myking}"
+
+is_myking_managed_install() {
+    local normalized_home="${HERMES_HOME%/}"
+    local myking_home="${HOME%/}/.myking"
+    case "$normalized_home" in
+        "$myking_home"|"$myking_home"/*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
 # INSTALL_DIR is resolved AFTER arg parsing and OS detection so we can pick an
 # FHS-style layout for root installs.  Track whether the user gave us an
 # explicit directory — if so we never override it.
@@ -162,7 +171,11 @@ while [[ $# -gt 0 ]]; do
             ;;
 
         -h|--help)
-            echo "Hermes Agent Installer"
+            if is_myking_managed_install; then
+                echo "My King Installer"
+            else
+                echo "Hermes Agent Installer"
+            fi
             echo ""
             echo "Usage: install.sh [OPTIONS]"
             echo ""
@@ -218,9 +231,17 @@ print_banner() {
     echo ""
     echo -e "${MAGENTA}${BOLD}"
     echo "┌─────────────────────────────────────────────────────────┐"
-    echo "│             ⚕ Hermes Agent Installer                    │"
+    if is_myking_managed_install; then
+        echo "│                 My King Installer                       │"
+    else
+        echo "│             ⚕ Hermes Agent Installer                    │"
+    fi
     echo "├─────────────────────────────────────────────────────────┤"
-    echo "│  An open source AI agent by Nous Research.              │"
+    if is_myking_managed_install; then
+        echo "│  Managed AI work system.                                │"
+    else
+        echo "│  An open source AI agent by Nous Research.              │"
+    fi
     echo "└─────────────────────────────────────────────────────────┘"
     echo -e "${NC}"
 }
@@ -3027,6 +3048,56 @@ _desktop_pack() {
     fi
 }
 
+# The My King desktop deliberately owns a separate application/data identity.
+# When this installer is running for that managed home, accepting a stale
+# Hermes.app as the freshly built desktop would silently reintroduce the old
+# brand into a My King installation.  An ordinary Hermes installation retains
+# the legacy artifact fallback for upstream compatibility.
+# Print the desktop artifact selected for this install and return non-zero when
+# the build emitted no usable application.  Keeping resolution in one helper
+# makes the My King identity boundary testable without invoking npm/electron.
+find_desktop_app() {
+    local desktop_dir="$1"
+    local cand
+
+    if [ "$OS" = "linux" ]; then
+        if [ -x "$desktop_dir/release/linux-unpacked/Hermes" ]; then
+            printf '%s\n' "$desktop_dir/release/linux-unpacked/Hermes"
+            return 0
+        elif [ -x "$desktop_dir/release/linux-unpacked/hermes" ]; then
+            printf '%s\n' "$desktop_dir/release/linux-unpacked/hermes"
+            return 0
+        fi
+        return 1
+    fi
+
+    if is_myking_managed_install; then
+        for cand in \
+            "$desktop_dir/release/mac-arm64/My King.app" \
+            "$desktop_dir/release/mac/My King.app"; do
+            if [ -d "$cand" ]; then
+                printf '%s\n' "$cand"
+                return 0
+            fi
+        done
+        return 1
+    fi
+
+    # Preserve the normal upstream Hermes artifact selection exactly, including
+    # the legacy bundle names required by older electron-builder releases.
+    for cand in \
+        "$desktop_dir/release/mac-arm64/My King.app" \
+        "$desktop_dir/release/mac/My King.app" \
+        "$desktop_dir/release/mac-arm64/Hermes.app" \
+        "$desktop_dir/release/mac/Hermes.app"; do
+        if [ -d "$cand" ]; then
+            printf '%s\n' "$cand"
+            return 0
+        fi
+    done
+    return 1
+}
+
 # Last-resort Electron mirror after GitHub download fails (#47266).
 DESKTOP_ELECTRON_FALLBACK_MIRROR="https://npmmirror.com/mirrors/electron/"
 
@@ -3261,27 +3332,8 @@ install_desktop() {
         return 1
     fi
 
-    local app=""
-    if [ "$OS" = "linux" ]; then
-        if [ -x "$desktop_dir/release/linux-unpacked/Hermes" ]; then
-            app="$desktop_dir/release/linux-unpacked/Hermes"
-        elif [ -x "$desktop_dir/release/linux-unpacked/hermes" ]; then
-            app="$desktop_dir/release/linux-unpacked/hermes"
-        fi
-    else
-        local cand
-        for cand in \
-            "$desktop_dir/release/mac-arm64/My King.app" \
-            "$desktop_dir/release/mac/My King.app" \
-            "$desktop_dir/release/mac-arm64/Hermes.app" \
-            "$desktop_dir/release/mac/Hermes.app"; do
-            if [ -d "$cand" ]; then
-                app="$cand"
-                break
-            fi
-        done
-    fi
-    if [ -z "$app" ]; then
+    local app
+    if ! app="$(find_desktop_app "$desktop_dir")"; then
         log_error "Desktop build completed but no app was found under $desktop_dir/release/"
         return 1
     fi
@@ -3553,7 +3605,13 @@ main() {
     echo "git" > "$INSTALL_DIR/.install_method"
 }
 
-if [ "$MANIFEST_MODE" = true ]; then
+# When sourced, expose the installer helpers without running an installation.
+# This keeps shell-level integration tests on the same functions that the
+# production installer calls, while `curl | bash` still reaches this dispatch
+# because neither BASH_SOURCE nor $0 is set in that invocation mode.
+if [ "${BASH_SOURCE[0]:-}" != "$0" ]; then
+    return 0
+elif [ "$MANIFEST_MODE" = true ]; then
     emit_manifest
 elif [ -n "$STAGE_NAME" ]; then
     run_stage_protocol "$STAGE_NAME"

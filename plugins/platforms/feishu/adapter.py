@@ -2166,6 +2166,13 @@ class FeishuAdapter(BasePlatformAdapter):
         metadata: Optional[Dict[str, Any]] = None,
     ) -> SendResult:
         """Send an interactive update prompt with Yes/No buttons."""
+        from hermes_cli.managed_update_policy import (
+            UPDATES_DISABLED_ERROR,
+            managed_updates_disabled,
+        )
+
+        if managed_updates_disabled():
+            return SendResult(success=False, error=UPDATES_DISABLED_ERROR)
         if not self._client:
             return SendResult(success=False, error="Not connected")
 
@@ -2231,6 +2238,10 @@ class FeishuAdapter(BasePlatformAdapter):
 
     @staticmethod
     def _write_update_prompt_response(answer: str) -> None:
+        from hermes_cli.managed_update_policy import managed_updates_disabled
+
+        if managed_updates_disabled():
+            return
         response_path = get_hermes_home() / ".update_response"
         tmp_path = response_path.with_suffix(".tmp")
         tmp_path.write_text(answer, encoding="utf-8")
@@ -2840,6 +2851,11 @@ class FeishuAdapter(BasePlatformAdapter):
         if prompt_id is None:
             logger.debug("[Feishu] Card action missing update_prompt_id, ignoring")
             return P2CardActionTriggerResponse() if P2CardActionTriggerResponse else None
+        from hermes_cli.managed_update_policy import managed_updates_disabled
+
+        if managed_updates_disabled():
+            self._update_prompt_state.pop(prompt_id, None)
+            return P2CardActionTriggerResponse() if P2CardActionTriggerResponse else None
         state = self._update_prompt_state.get(prompt_id)
         if not state:
             logger.debug("[Feishu] Update prompt %s already resolved or unknown", prompt_id)
@@ -2955,6 +2971,11 @@ class FeishuAdapter(BasePlatformAdapter):
         chat_id: str = "",
     ) -> None:
         """Persist an update prompt answer for the detached update process."""
+        from hermes_cli.managed_update_policy import managed_updates_disabled
+
+        if managed_updates_disabled():
+            self._update_prompt_state.pop(prompt_id, None)
+            return
         state = self._update_prompt_state.get(prompt_id)
         if not state:
             logger.debug("[Feishu] Update prompt %s already resolved or unknown", prompt_id)

@@ -169,6 +169,23 @@ class TestTelegramExecApproval:
         assert "Fix \\[issue\\]\\_1" in sent["text"]
         assert "alpha\\_beta" in sent["text"]
 
+    @pytest.mark.asyncio
+    async def test_managed_send_update_prompt_does_not_send(self, tmp_path, monkeypatch):
+        """Managed Telegram must not surface a historic update prompt."""
+        adapter = _make_adapter()
+        fake_home = tmp_path / "home"
+        managed_home = fake_home / ".myking"
+        managed_home.mkdir(parents=True)
+        monkeypatch.setattr(Path, "home", classmethod(lambda _cls: fake_home))
+        monkeypatch.setenv("HERMES_HOME", str(managed_home))
+        adapter._bot.send_message = AsyncMock()
+
+        result = await adapter.send_update_prompt(chat_id="12345", prompt="Update now?")
+
+        assert result.success is False
+        assert result.error == "updates_disabled"
+        adapter._bot.send_message.assert_not_awaited()
+
 # _handle_callback_query — approval button clicks
 # ===========================================================================
 
@@ -271,6 +288,33 @@ class TestTelegramApprovalCallback:
         assert (tmp_path / ".update_response").read_text() == "y"
 
     @pytest.mark.asyncio
+    async def test_managed_update_prompt_callback_is_silent_and_does_not_write(self, tmp_path, monkeypatch):
+        """A historic My King button must not acknowledge or resume an update."""
+        adapter = _make_adapter()
+        fake_home = tmp_path / "home"
+        managed_home = fake_home / ".myking"
+        managed_home.mkdir(parents=True)
+        monkeypatch.setattr(Path, "home", classmethod(lambda _cls: fake_home))
+        monkeypatch.setenv("HERMES_HOME", str(managed_home))
+
+        query = AsyncMock()
+        query.data = "update_prompt:y"
+        query.message = MagicMock()
+        query.message.chat_id = 12345
+        query.from_user = MagicMock()
+        query.from_user.id = 123
+        query.answer = AsyncMock()
+        query.edit_message_text = AsyncMock()
+        update = MagicMock(callback_query=query)
+
+        with patch.dict(os.environ, {"TELEGRAM_ALLOWED_USERS": "*"}):
+            await adapter._handle_callback_query(update, MagicMock())
+
+        query.answer.assert_not_awaited()
+        query.edit_message_text.assert_not_awaited()
+        assert not (managed_home / ".update_response").exists()
+
+    @pytest.mark.asyncio
     async def test_update_prompt_callback_rejects_unauthorized_user(self, tmp_path):
         """Update prompt buttons should honor TELEGRAM_ALLOWED_USERS."""
         adapter = _make_adapter()
@@ -329,4 +373,3 @@ class TestTelegramApprovalCallback:
         assert runner.last_source is not None
         assert runner.last_source.platform == Platform.TELEGRAM
         assert runner.last_source.user_id == "222"
-

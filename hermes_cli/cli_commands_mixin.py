@@ -3776,6 +3776,15 @@ class CLICommandsMixin:
         prompt_toolkit cleans up terminal modes).  Returns ``False`` / falsy
         when cancelled.
         """
+        from hermes_cli.managed_update_policy import (
+            UPDATES_DISABLED_MESSAGE,
+            managed_updates_disabled,
+        )
+
+        if managed_updates_disabled():
+            print(f"  ✗ {UPDATES_DISABLED_MESSAGE}")
+            return False
+
         from hermes_cli.config import is_managed, format_managed_message
 
         if is_managed():

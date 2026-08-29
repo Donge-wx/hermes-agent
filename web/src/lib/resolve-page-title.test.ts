@@ -12,6 +12,12 @@ const t = {
       config: "Config",
       cron: "Cron",
       documentation: "Documentation",
+      files: "Files translated",
+      channels: "Channels translated",
+      webhooks: "Webhooks translated",
+      pairing: "Pairing translated",
+      system: "System translated",
+      mcp: "MCP translated",
       keys: "Keys",
       logs: "Logs",
       models: "Models",
@@ -21,6 +27,9 @@ const t = {
       skills: "Skills",
     },
   },
+  profiles: {
+    newProfile: "New profile translated",
+  },
 } as unknown as Translations;
 
 describe("resolvePageTitle", () => {
@@ -29,14 +38,17 @@ describe("resolvePageTitle", () => {
     expect(resolvePageTitle("/env", t, [])).toBe("Keys");
   });
 
-  it("renders initialisms and literal labels correctly", () => {
-    // Regression: the naive capitalize fallback produced "Mcp".
-    expect(resolvePageTitle("/mcp", t, [])).toBe("MCP");
-    expect(resolvePageTitle("/system", t, [])).toBe("System");
-    expect(resolvePageTitle("/channels", t, [])).toBe("Channels");
-    expect(resolvePageTitle("/webhooks", t, [])).toBe("Webhooks");
-    expect(resolvePageTitle("/pairing", t, [])).toBe("Pairing");
-    expect(resolvePageTitle("/files", t, [])).toBe("Files");
+  it("uses translated labels for every built-in route", () => {
+    expect(resolvePageTitle("/mcp", t, [])).toBe("MCP translated");
+    expect(resolvePageTitle("/system", t, [])).toBe("System translated");
+    expect(resolvePageTitle("/channels", t, [])).toBe("Channels translated");
+    expect(resolvePageTitle("/webhooks", t, [])).toBe("Webhooks translated");
+    expect(resolvePageTitle("/pairing", t, [])).toBe("Pairing translated");
+    expect(resolvePageTitle("/files", t, [])).toBe("Files translated");
+  });
+
+  it("uses the translated profile-builder title for the nested creation route", () => {
+    expect(resolvePageTitle("/profiles/new", t, [])).toBe("New profile translated");
   });
 
   it("prefers plugin tab labels", () => {
@@ -51,6 +63,6 @@ describe("resolvePageTitle", () => {
 
   it("treats root as sessions and trailing slashes as equivalent", () => {
     expect(resolvePageTitle("/", t, [])).toBe("Sessions");
-    expect(resolvePageTitle("/mcp/", t, [])).toBe("MCP");
+    expect(resolvePageTitle("/mcp/", t, [])).toBe("MCP translated");
   });
 });

@@ -36,8 +36,13 @@ const LINE_COLORS: Record<string, string> = {
 
 const formatFilterLabel = (value: string) => value.toUpperCase();
 
-const toSegmentOptions = <T extends string>(values: readonly T[]) =>
-  values.map((v) => ({ value: v, label: formatFilterLabel(v) }));
+const toSegmentOptions = <T extends string>(
+  values: readonly T[],
+  labels?: Partial<Record<T, string>>,
+) => values.map((value) => ({
+  value,
+  label: labels?.[value] ?? formatFilterLabel(value),
+}));
 
 const filterGroupClass =
   "flex min-w-0 w-full flex-col items-start gap-1.5 sm:w-auto sm:max-w-full sm:flex-row sm:items-center";
@@ -80,8 +85,9 @@ export default function LogsPage() {
     setAfterTitle(
       <span className="flex items-center gap-1.5">
         <Badge tone="secondary" className="text-xs">
-          {formatFilterLabel(file)} · {formatFilterLabel(level)} ·{" "}
-          {formatFilterLabel(component)}
+          {t.logs.files?.[file] ?? formatFilterLabel(file)} ·{" "}
+          {t.logs.levels?.[level] ?? formatFilterLabel(level)} ·{" "}
+          {t.logs.components?.[component] ?? formatFilterLabel(component)}
         </Badge>
         <Button
           type="button"
@@ -131,6 +137,9 @@ export default function LogsPage() {
     t.common.live,
     t.common.refresh,
     t.logs.autoRefresh,
+    t.logs.components,
+    t.logs.files,
+    t.logs.levels,
     fetchLogs,
   ]);
 
@@ -157,7 +166,7 @@ export default function LogsPage() {
             className={segmentedClass}
             value={file}
             onChange={setFile}
-            options={toSegmentOptions(FILES)}
+            options={toSegmentOptions(FILES, t.logs.files)}
           />
         </FilterGroup>
 
@@ -166,7 +175,7 @@ export default function LogsPage() {
             className={segmentedClass}
             value={level}
             onChange={setLevel}
-            options={toSegmentOptions(LEVELS)}
+            options={toSegmentOptions(LEVELS, t.logs.levels)}
           />
         </FilterGroup>
 
@@ -175,7 +184,7 @@ export default function LogsPage() {
             className={segmentedClass}
             value={component}
             onChange={setComponent}
-            options={toSegmentOptions(COMPONENTS)}
+            options={toSegmentOptions(COMPONENTS, t.logs.components)}
           />
         </FilterGroup>
 

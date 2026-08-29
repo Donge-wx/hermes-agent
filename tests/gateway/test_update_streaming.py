@@ -11,6 +11,7 @@ import json
 import os
 import time
 import asyncio
+from pathlib import Path
 from unittest.mock import patch, MagicMock, AsyncMock
 
 import pytest
@@ -130,8 +131,9 @@ class TestUpdateCommandGatewayFlag:
     """Verify the gateway spawns hermes update --gateway."""
 
     @pytest.mark.asyncio
-    async def test_spawns_with_gateway_flag(self, tmp_path):
+    async def test_spawns_with_gateway_flag(self, monkeypatch, tmp_path):
         """The spawned update command includes --gateway and PYTHONUNBUFFERED."""
+        monkeypatch.setenv("HERMES_LANGUAGE", "en")
         runner = _make_runner()
         event = _make_event()
 
@@ -368,6 +370,46 @@ class TestUpdatePromptInterception:
         assert session_key not in runner._update_prompt_pending
 
 
+    @pytest.mark.asyncio
+    async def test_managed_pending_update_prompt_cleans_state_and_routes_plain_message(
+        self,
+        monkeypatch,
+        tmp_path,
+    ):
+        """A stale managed update prompt cannot consume an ordinary message."""
+        runner = _make_runner()
+        fake_home = tmp_path / "home"
+        managed_home = fake_home / ".myking"
+        managed_home.mkdir(parents=True)
+        monkeypatch.setattr(Path, "home", classmethod(lambda _cls: fake_home))
+        monkeypatch.setenv("HERMES_HOME", str(managed_home))
+
+        event = _make_event(text="continue with the report", chat_id="67890")
+        session_key = "agent:main:telegram:dm:67890"
+        runner._update_prompt_pending[session_key] = True
+        runner._is_user_authorized = MagicMock(return_value=True)
+        runner._session_key_for_source = MagicMock(return_value=session_key)
+        runner._handle_message_with_agent = AsyncMock(return_value="normal route")
+        runner._run_post_turn_hooks = AsyncMock()
+        for marker_name in (
+            ".update_pending.json",
+            ".update_pending.claimed.json",
+            ".update_output.txt",
+            ".update_exit_code",
+            ".update_prompt.json",
+            ".update_response",
+        ):
+            (managed_home / marker_name).write_text("stale", encoding="utf-8")
+
+        with patch("gateway.run._hermes_home", managed_home):
+            result = await runner._handle_message(event)
+
+        assert result == "normal route"
+        runner._handle_message_with_agent.assert_awaited_once()
+        assert session_key not in runner._update_prompt_pending
+        assert not any(managed_home.glob(".update_*"))
+
+
 # ---------------------------------------------------------------------------
 # cmd_update --gateway flag
 # ---------------------------------------------------------------------------
@@ -397,4 +439,3 @@ class TestCmdUpdateGatewayMode:
 
         assert len(calls) == 1
         assert "Restore" in calls[0]
-

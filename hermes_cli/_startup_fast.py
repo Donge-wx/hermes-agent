@@ -228,6 +228,11 @@ def print_fast_version_info(*, check_updates: bool = True) -> None:
     if not check_updates:
         return
 
+    from hermes_cli.managed_update_policy import managed_updates_disabled
+
+    if managed_updates_disabled():
+        return
+
     # Update status (synchronous — acceptable since the user asked for
     # version info). Bounded by check_for_updates' own subprocess/network
     # timeouts and its 6-hour cache; any failure prints nothing.

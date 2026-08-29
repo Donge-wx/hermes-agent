@@ -6201,6 +6201,13 @@ class TelegramAdapter(BasePlatformAdapter):
         Used by the gateway ``/update`` watcher when ``hermes update --gateway``
         needs user input (stash restore, config migration).
         """
+        from hermes_cli.managed_update_policy import (
+            UPDATES_DISABLED_ERROR,
+            managed_updates_disabled,
+        )
+
+        if managed_updates_disabled():
+            return SendResult(success=False, error=UPDATES_DISABLED_ERROR)
         if not self._bot:
             return SendResult(success=False, error="Not connected")
         try:
@@ -7456,6 +7463,10 @@ class TelegramAdapter(BasePlatformAdapter):
 
         # --- Update prompt callbacks ---
         if not data.startswith("update_prompt:"):
+            return
+        from hermes_cli.managed_update_policy import managed_updates_disabled
+
+        if managed_updates_disabled():
             return
         answer = data.split(":", 1)[1]  # "y" or "n"
         caller_id = str(getattr(query.from_user, "id", ""))

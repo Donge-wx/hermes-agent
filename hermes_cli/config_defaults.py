@@ -1391,8 +1391,10 @@ DEFAULT_CONFIG = {
         # UI language for static user-facing messages (approval prompts, a
         # handful of gateway slash-command replies).  Does NOT affect agent
         # responses, log lines, tool outputs, or slash-command descriptions.
-        # Supported: en, zh, ja, de, es, fr, tr, uk.  Unknown values fall back to en.
-        "language": "en",
+        # My King managed builds start in Simplified Chinese. Users who already
+        # persisted another supported language keep that explicit choice.
+        # Supported: en, zh, ja, de, es, fr, tr, uk.
+        "language": "zh",
         # TUI busy indicator style: kaomoji (default), emoji, unicode (braille
         # spinner), or ascii.  Live-swappable via `/indicator <style>`.
         "tui_status_indicator": "kaomoji",

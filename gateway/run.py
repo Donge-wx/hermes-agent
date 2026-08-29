@@ -16964,6 +16964,13 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
             allow_gateway_control
             and _up_state is not None
             and _up_state.persistent.update_prompt_pending
+            and self._discard_managed_update_markers()
+        ):
+            _up_state.persistent.update_prompt_pending = False
+        elif (
+            allow_gateway_control
+            and _up_state is not None
+            and _up_state.persistent.update_prompt_pending
         ):
             raw = (event.text or "").strip()
             # Accept /approve and /deny as shorthand for yes/no
@@ -23987,10 +23994,39 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
         Platform.FEISHU, Platform.WECOM, Platform.WECOM_CALLBACK, Platform.WEIXIN, Platform.BLUEBUBBLES, Platform.QQBOT, Platform.LOCAL,
     })
 
+    _UPDATE_NOTIFICATION_MARKERS = (
+        ".update_pending.json",
+        ".update_pending.claimed.json",
+        ".update_output.txt",
+        ".update_exit_code",
+        ".update_prompt.json",
+        ".update_response",
+    )
+
+    @classmethod
+    def _discard_managed_update_markers(cls) -> bool:
+        """Drop update IPC state when this process belongs to My King."""
+        from hermes_cli.managed_update_policy import managed_updates_disabled
+
+        if not managed_updates_disabled():
+            return False
+        for marker_name in cls._UPDATE_NOTIFICATION_MARKERS:
+            try:
+                (_hermes_home / marker_name).unlink(missing_ok=True)
+            except OSError as exc:
+                logger.warning(
+                    "Managed update marker cleanup failed for %s: %s",
+                    marker_name,
+                    exc,
+                )
+        return True
+
 
 
     def _schedule_update_notification_watch(self) -> None:
         """Ensure a background task is watching for update completion."""
+        if self._discard_managed_update_markers():
+            return
         existing_task = getattr(self, "_update_notification_task", None)
         if existing_task and not existing_task.done():
             return
@@ -24016,6 +24052,8 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
         the messenger.  The user's next message is intercepted by
         ``_handle_message`` and written to ``.update_response``.
         """
+        if self._discard_managed_update_markers():
+            return
         pending_path = _hermes_home / ".update_pending.json"
         claimed_path = _hermes_home / ".update_pending.claimed.json"
         output_path = _hermes_home / ".update_output.txt"
@@ -24266,6 +24304,8 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
         cannot resolve the adapter (e.g. after a gateway restart where the
         platform hasn't reconnected yet).
         """
+        if self._discard_managed_update_markers():
+            return True
         pending_path = _hermes_home / ".update_pending.json"
         claimed_path = _hermes_home / ".update_pending.claimed.json"
         output_path = _hermes_home / ".update_output.txt"

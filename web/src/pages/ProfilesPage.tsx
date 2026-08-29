@@ -43,6 +43,7 @@ import {
 } from "@nous-research/ui/ui/components/select";
 import { Checkbox } from "@nous-research/ui/ui/components/checkbox";
 import { useI18n } from "@/i18n";
+import { getProfilesCopy } from "@/i18n/profiles-copy";
 import { usePageHeader } from "@/contexts/usePageHeader";
 import { cn, themedBody } from "@/lib/utils";
 
@@ -259,7 +260,8 @@ export default function ProfilesPage() {
   const [activeInfo, setActiveInfo] = useState<ActiveProfileInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const { toast, showToast } = useToast();
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
+  const copy = getProfilesCopy(locale);
   const { setEnd } = usePageHeader();
   const { setProfile } = useProfileScope();
 
@@ -450,7 +452,7 @@ export default function ProfilesPage() {
       showToast(`${t.profiles.created}: ${name}`, "success");
       if (picked && res.model_set === false) {
         showToast(
-          `Profile created, but the model could not be saved — set it from the profile editor.`,
+          copy.modelSaveFailed,
           "error",
         );
       }
@@ -745,7 +747,7 @@ export default function ProfilesPage() {
       : base;
   })();
 
-  // Put "Build" (full builder) + "Create" (quick modal) buttons in header
+  // Put full and quick creation flows in the page header.
   useLayoutEffect(() => {
     setEnd(
       <div className="flex items-center gap-2">
@@ -755,7 +757,7 @@ export default function ProfilesPage() {
           outlined
           onClick={() => navigate("/profiles/new")}
         >
-          Build
+          {t.profiles.fullBuilder ?? "Full builder"}
         </Button>
         <Button
           className="uppercase"
@@ -769,7 +771,7 @@ export default function ProfilesPage() {
     return () => {
       setEnd(null);
     };
-  }, [setEnd, t.common.create, loading, navigate]);
+  }, [setEnd, t.common.create, t.profiles.fullBuilder, loading, navigate]);
 
   const cloning = cloneFrom !== null;
 
@@ -823,7 +825,7 @@ export default function ProfilesPage() {
               size="icon"
               onClick={() => setCreateModalOpen(false)}
               className="absolute right-2 top-2 text-muted-foreground hover:text-foreground"
-              aria-label="Close"
+              aria-label={t.common.close}
             >
               <X />
             </Button>
@@ -1248,7 +1250,7 @@ export default function ProfilesPage() {
               size="icon"
               onClick={closeEditor}
               className="absolute right-2 top-2 text-muted-foreground hover:text-foreground"
-              aria-label="Close"
+              aria-label={t.common.close}
             >
               <X />
             </Button>

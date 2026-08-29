@@ -3,28 +3,31 @@ import type { Translations } from "@/i18n/types";
 const BUILTIN: Record<string, keyof Translations["app"]["nav"]> = {
   "/chat": "chat",
   "/sessions": "sessions",
+  "/files": "files",
   "/analytics": "analytics",
   "/models": "models",
   "/logs": "logs",
   "/cron": "cron",
   "/skills": "skills",
   "/plugins": "plugins",
+  "/mcp": "mcp",
+  "/channels": "channels",
+  "/webhooks": "webhooks",
+  "/pairing": "pairing",
   "/profiles": "profiles",
   "/config": "config",
   "/env": "keys",
+  "/system": "system",
   "/docs": "documentation",
 };
 
-// Built-in routes without an i18n nav key. Keep these in sync with the
-// sidebar labels in App.tsx — the naive capitalize fallback below mangles
-// initialisms ("/mcp" → "Mcp") and can't match multi-word labels.
-const BUILTIN_LITERAL: Record<string, string> = {
-  "/files": "Files",
-  "/mcp": "MCP",
-  "/channels": "Channels",
-  "/webhooks": "Webhooks",
-  "/pairing": "Pairing",
-  "/system": "System",
+const BUILTIN_FALLBACK: Partial<Record<keyof Translations["app"]["nav"], string>> = {
+  files: "Files",
+  channels: "Channels",
+  webhooks: "Webhooks",
+  pairing: "Pairing",
+  system: "System",
+  mcp: "MCP",
 };
 
 export function resolvePageTitle(
@@ -36,17 +39,16 @@ export function resolvePageTitle(
   if (normalized === "/") {
     return t.app.nav.sessions;
   }
+  if (normalized === "/profiles/new") {
+    return t.profiles.newProfile;
+  }
   const plugin = pluginTabs.find((p) => p.path === normalized);
   if (plugin) {
     return plugin.label;
   }
   const key = BUILTIN[normalized];
   if (key) {
-    return t.app.nav[key];
-  }
-  const literal = BUILTIN_LITERAL[normalized];
-  if (literal) {
-    return literal;
+    return t.app.nav[key] ?? BUILTIN_FALLBACK[key] ?? normalized.slice(1);
   }
   // Derive title from pathname: "/profiles" → "Profiles"
   const segment = normalized.slice(1);
