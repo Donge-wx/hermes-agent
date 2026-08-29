@@ -154,6 +154,7 @@ import {
   mergeMyKingEmployeeProxyBypassList,
   preserveMyKingEmployeeManagedMarker,
   removeMyKingEmployeeStaticGatewayCredential,
+  resolveMyKingEmployeeRuntimeProxyConfig,
   resolveMyKingEmployeeGatewayRoute
 } from './employee-gateway-route'
 import {
@@ -792,7 +793,7 @@ const MY_KING_EMPLOYEE_CONNECTOR_PATHS = resolveMyKingEmployeeConnectorPaths({
   userData: app.getPath('userData')
 })
 const MY_KING_EMPLOYEE_BINDING_AT_BOOT = readMyKingEmployeeBinding(MY_KING_EMPLOYEE_CONNECTOR_PATHS.bindingPath)
-const MY_KING_EMPLOYEE_PROXY_BYPASS = mergeMyKingEmployeeProxyBypassList(
+let myKingEmployeeProxyBypass = mergeMyKingEmployeeProxyBypassList(
   app.commandLine.getSwitchValue('proxy-bypass-list'),
   [
     INSTALL_STAMP?.employeeEnrollmentBaseUrl,
@@ -801,8 +802,8 @@ const MY_KING_EMPLOYEE_PROXY_BYPASS = mergeMyKingEmployeeProxyBypassList(
   ]
 )
 
-if (MY_KING_EMPLOYEE_PROXY_BYPASS) {
-  app.commandLine.appendSwitch('proxy-bypass-list', MY_KING_EMPLOYEE_PROXY_BYPASS)
+if (myKingEmployeeProxyBypass) {
+  app.commandLine.appendSwitch('proxy-bypass-list', myKingEmployeeProxyBypass)
 }
 
 const MY_KING_EMPLOYEE_CONNECTOR_HELPER = IS_PACKAGED
@@ -1750,6 +1751,18 @@ async function verifyMyKingEmployeeGateway(expectedUrl) {
 }
 
 async function applyMyKingEmployeeGateway(expectedUrl, deviceToken) {
+  const proxyConfig = resolveMyKingEmployeeRuntimeProxyConfig({
+    autoDetect: app.commandLine.hasSwitch('proxy-auto-detect'),
+    noProxyServer: app.commandLine.hasSwitch('no-proxy-server'),
+    pacScript: app.commandLine.getSwitchValue('proxy-pac-url'),
+    proxyBypassRules: myKingEmployeeProxyBypass,
+    proxyRules: app.commandLine.getSwitchValue('proxy-server'),
+    urls: [expectedUrl]
+  })
+
+  await session.defaultSession.setProxy(proxyConfig)
+  myKingEmployeeProxyBypass = proxyConfig.proxyBypassRules ?? myKingEmployeeProxyBypass
+
   const config = readDesktopConnectionConfig()
 
   writeDesktopConnectionConfig({

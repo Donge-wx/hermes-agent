@@ -4,6 +4,7 @@ import {
   mergeMyKingEmployeeProxyBypassList,
   preserveMyKingEmployeeManagedMarker,
   removeMyKingEmployeeStaticGatewayCredential,
+  resolveMyKingEmployeeRuntimeProxyConfig,
   resolveMyKingEmployeeGatewayRoute
 } from './employee-gateway-route'
 
@@ -28,6 +29,85 @@ describe('My King managed employee gateway route', () => {
         'http://not-public.test'
       ])
     ).toBe('localhost;*.internal.test;mac-studio.tail2b3890.ts.net;secondary-gateway.myking.test')
+  })
+
+  it('keeps an explicit PAC proxy while adding a gateway returned after startup', () => {
+    expect(
+      resolveMyKingEmployeeRuntimeProxyConfig({
+        autoDetect: false,
+        noProxyServer: false,
+        pacScript: 'https://proxy.company.test/config.pac',
+        proxyBypassRules: 'localhost;enroll.myking.test',
+        proxyRules: '',
+        urls: ['https://assigned-gateway.myking.test/api/employee-gateways/employee-1']
+      })
+    ).toEqual({
+      mode: 'pac_script',
+      pacScript: 'https://proxy.company.test/config.pac',
+      proxyBypassRules: 'localhost;enroll.myking.test;assigned-gateway.myking.test'
+    })
+  })
+
+  it('keeps fixed proxy rules while adding the managed gateway host', () => {
+    expect(
+      resolveMyKingEmployeeRuntimeProxyConfig({
+        autoDetect: false,
+        noProxyServer: false,
+        pacScript: '',
+        proxyBypassRules: '',
+        proxyRules: 'http=proxy.company.test:8080;https=proxy.company.test:8443',
+        urls: ['https://assigned-gateway.myking.test']
+      })
+    ).toEqual({
+      mode: 'fixed_servers',
+      proxyBypassRules: 'assigned-gateway.myking.test',
+      proxyRules: 'http=proxy.company.test:8080;https=proxy.company.test:8443'
+    })
+  })
+
+  it('uses the operating-system proxy when no command-line proxy mode is configured', () => {
+    expect(
+      resolveMyKingEmployeeRuntimeProxyConfig({
+        autoDetect: false,
+        noProxyServer: false,
+        pacScript: '',
+        proxyBypassRules: 'localhost',
+        proxyRules: '',
+        urls: ['https://assigned-gateway.myking.test']
+      })
+    ).toEqual({
+      mode: 'system',
+      proxyBypassRules: 'localhost;assigned-gateway.myking.test'
+    })
+  })
+
+  it('does not enable a proxy when Chromium was launched with proxying disabled', () => {
+    expect(
+      resolveMyKingEmployeeRuntimeProxyConfig({
+        autoDetect: false,
+        noProxyServer: true,
+        pacScript: 'https://proxy.company.test/config.pac',
+        proxyBypassRules: 'localhost',
+        proxyRules: 'https=proxy.company.test:8443',
+        urls: ['https://assigned-gateway.myking.test']
+      })
+    ).toEqual({ mode: 'direct' })
+  })
+
+  it('keeps proxy auto-detection when it is the configured mode', () => {
+    expect(
+      resolveMyKingEmployeeRuntimeProxyConfig({
+        autoDetect: true,
+        noProxyServer: false,
+        pacScript: '',
+        proxyBypassRules: 'localhost',
+        proxyRules: '',
+        urls: ['https://assigned-gateway.myking.test']
+      })
+    ).toEqual({
+      mode: 'auto_detect',
+      proxyBypassRules: 'localhost;assigned-gateway.myking.test'
+    })
   })
 
   it('keeps the install-stamp managed gateway at highest priority', () => {

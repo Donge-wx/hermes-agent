@@ -6,6 +6,13 @@ export type MyKingEmployeeGatewayRoute = {
   readonly url: string
 }
 
+export type MyKingEmployeeRuntimeProxyConfig = {
+  readonly mode: 'auto_detect' | 'direct' | 'fixed_servers' | 'pac_script' | 'system'
+  readonly pacScript?: string
+  readonly proxyBypassRules?: string
+  readonly proxyRules?: string
+}
+
 export function resolveMyKingEmployeeGatewayRoute(input: {
   readonly binding: MyKingEmployeeBinding | null
   readonly managedEmployeeGatewayUrl: null | string
@@ -50,6 +57,32 @@ export function mergeMyKingEmployeeProxyBypassList(current: string, urls: readon
   }
 
   return entries.join(';')
+}
+
+export function resolveMyKingEmployeeRuntimeProxyConfig(input: {
+  readonly autoDetect: boolean
+  readonly noProxyServer: boolean
+  readonly pacScript: string
+  readonly proxyBypassRules: string
+  readonly proxyRules: string
+  readonly urls: readonly unknown[]
+}): MyKingEmployeeRuntimeProxyConfig {
+  if (input.noProxyServer) {
+    return { mode: 'direct' }
+  }
+
+  const proxyBypassRules = mergeMyKingEmployeeProxyBypassList(input.proxyBypassRules, input.urls)
+  const bypass = proxyBypassRules ? { proxyBypassRules } : {}
+
+  if (input.pacScript) {
+    return { mode: 'pac_script', pacScript: input.pacScript, ...bypass }
+  }
+
+  if (input.proxyRules) {
+    return { mode: 'fixed_servers', proxyRules: input.proxyRules, ...bypass }
+  }
+
+  return input.autoDetect ? { mode: 'auto_detect', ...bypass } : { mode: 'system', ...bypass }
 }
 
 export function preserveMyKingEmployeeManagedMarker(
