@@ -26,7 +26,8 @@ function fixture(
   failFirstGatewayApply = false,
   failServerRevoke = false,
   failFirstLocalUnbind = false,
-  failFirstGatewayClear = false
+  failFirstGatewayClear = false,
+  rejectEmptyRevokeResponse = false
 ) {
   const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'myking-enrollment-'))
   temporaryDirectories.push(userData)
@@ -145,6 +146,10 @@ function fixture(
 
       if (failServerRevoke) {
         throw new MyKingEmployeeEnrollmentError('company-unavailable', 'Company unavailable.')
+      }
+
+      if (rejectEmptyRevokeResponse) {
+        throw new MyKingEmployeeEnrollmentError('invalid-server-response', 'Company server returned an empty response.')
       }
     },
     runElevated: async (_helper, action, planPath) => {
@@ -408,6 +413,17 @@ describe('My King employee enrollment', () => {
     expect(fs.existsSync(path.join(setup.userData, 'employee-connector-device.json'))).toBe(true)
   })
 
+  it('does not start gateway or local cleanup after an empty successful revoke response', async () => {
+    const setup = fixture('employee-1', false, false, false, false, false, false, false, true)
+    await setup.enrollment.enroll('ABCD-2345-EFGH')
+
+    await expect(setup.enrollment.unbind()).rejects.toMatchObject({ code: 'invalid-server-response' })
+    expect(setup.events).toEqual(['server-revoke'])
+    expect(setup.clearedGatewayUrls).toEqual([])
+    expect(setup.enrollment.getStatus().binding).toMatchObject({ enrollmentId: 'enrollment-1' })
+    expect(fs.existsSync(path.join(setup.userData, 'employee-connector-device.json'))).toBe(true)
+  })
+
   it('retries local cleanup after Nora already confirmed revocation', async () => {
     const setup = fixture('employee-1', false, false, false, false, false, true)
     await setup.enrollment.enroll('ABCD-2345-EFGH')
@@ -416,13 +432,20 @@ describe('My King employee enrollment', () => {
     expect(setup.enrollment.getStatus().binding).toMatchObject({ enrollmentId: 'enrollment-1' })
 
     await expect(setup.enrollment.unbind()).resolves.toMatchObject({ binding: null, stage: 'idle' })
-    expect(setup.events).toEqual(['server-revoke', 'gateway-clear', 'local-unbind', 'local-unbind'])
-    expect(setup.revokedEnrollmentIds).toEqual(['enrollment-1'])
-    expect(setup.clearedGatewayUrls).toEqual(['https://gateway.myking.test'])
+    expect(setup.events).toEqual([
+      'server-revoke',
+      'gateway-clear',
+      'local-unbind',
+      'server-revoke',
+      'gateway-clear',
+      'local-unbind'
+    ])
+    expect(setup.revokedEnrollmentIds).toEqual(['enrollment-1', 'enrollment-1'])
+    expect(setup.clearedGatewayUrls).toEqual(['https://gateway.myking.test', 'https://gateway.myking.test'])
     expect(fs.existsSync(path.join(setup.userData, 'employee-connector-device.json'))).toBe(false)
   })
 
-  it('finishes clearing the managed gateway after local files were already removed', async () => {
+  it('retains the binding and retries the real gateway URL after gateway clearing fails', async () => {
     const setup = fixture('employee-1', false, false, false, false, false, false, true)
     await setup.enrollment.enroll('ABCD-2345-EFGH')
 
@@ -431,7 +454,32 @@ describe('My King employee enrollment', () => {
     expect(fs.existsSync(path.join(setup.userData, 'employee-connector-device.json'))).toBe(true)
 
     await expect(setup.enrollment.unbind()).resolves.toMatchObject({ binding: null, stage: 'idle' })
-    expect(setup.events).toEqual(['server-revoke', 'gateway-clear', 'gateway-clear', 'local-unbind'])
+    expect(setup.events).toEqual([
+      'server-revoke',
+      'gateway-clear',
+      'server-revoke',
+      'gateway-clear',
+      'local-unbind'
+    ])
+    expect(setup.revokedEnrollmentIds).toEqual(['enrollment-1', 'enrollment-1'])
+    expect(setup.clearedGatewayUrls).toEqual(['https://gateway.myking.test'])
+  })
+
+  it('does not trust a forged local receipt to skip remote revocation or gateway clearing', async () => {
+    const setup = fixture()
+    await setup.enrollment.enroll('ABCD-2345-EFGH')
+    fs.writeFileSync(
+      path.join(setup.userData, 'employee-connector-unbind.json'),
+      `${JSON.stringify({
+        enrollmentId: 'enrollment-1',
+        gatewayCleared: true,
+        remoteGatewayUrl: 'https://gateway.myking.test',
+        serverRevoked: true
+      })}\n`
+    )
+
+    await expect(setup.enrollment.unbind()).resolves.toMatchObject({ binding: null, stage: 'idle' })
+    expect(setup.events).toEqual(['server-revoke', 'gateway-clear', 'local-unbind'])
     expect(setup.revokedEnrollmentIds).toEqual(['enrollment-1'])
     expect(setup.clearedGatewayUrls).toEqual(['https://gateway.myking.test'])
   })

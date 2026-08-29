@@ -314,10 +314,6 @@ export async function revokeMyKingEmployeeEnrollment(
     body: { deviceId: request.deviceId }
   })
 
-  if (value === null) {
-    return
-  }
-
   const response = objectRecord(value)
 
   if (response.status !== 'revoked') {

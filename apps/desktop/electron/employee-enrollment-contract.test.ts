@@ -189,7 +189,7 @@ describe('employee enrollment contract', () => {
         },
         postJson
       )
-    ).resolves.toBeUndefined()
+    ).rejects.toMatchObject({ code: 'invalid-server-response' })
 
     postJson.mockResolvedValueOnce({ status: 'active' })
     await expect(
