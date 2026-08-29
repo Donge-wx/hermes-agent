@@ -1,4 +1,9 @@
-import { GatewayReauthRequiredError, isGatewayReauthRequired, resolveGatewayWsUrl } from '@hermes/shared'
+import {
+  GatewayReauthRequiredError,
+  isGatewayReauthRequired,
+  JsonRpcGatewayClient,
+  resolveGatewayWsUrl
+} from '@hermes/shared'
 import { describe, expect, it, vi } from 'vitest'
 
 const oauthConn = { authMode: 'oauth' as const, wsUrl: 'ws://host/api/ws?ticket=stale' }
@@ -112,5 +117,73 @@ describe('isGatewayReauthRequired', () => {
     expect(isGatewayReauthRequired(new Error('connection closed'))).toBe(false)
     expect(isGatewayReauthRequired(null)).toBe(false)
     expect(isGatewayReauthRequired('string')).toBe(false)
+  })
+})
+
+describe('JsonRpcGatewayClient concurrent connect', () => {
+  class DeferredSocket extends EventTarget {
+    readyState: number = WebSocket.CONNECTING
+
+    close() {
+      this.readyState = WebSocket.CLOSED
+      this.dispatchEvent(new Event('close'))
+    }
+
+    open() {
+      this.readyState = WebSocket.OPEN
+      this.dispatchEvent(new Event('open'))
+    }
+  }
+
+  it('waits for the in-flight handshake instead of reporting a second connect as successful', async () => {
+    const sockets: DeferredSocket[] = []
+    const client = new JsonRpcGatewayClient({
+      connectTimeoutMs: 1_000,
+      socketFactory: () => {
+        const socket = new DeferredSocket()
+        sockets.push(socket)
+
+        return socket as unknown as WebSocket
+      }
+    })
+
+    const first = client.connect('wss://gateway.example.com/api/ws?ticket=first')
+    const second = client.connect('wss://gateway.example.com/api/ws?ticket=second')
+    let secondSettled = false
+    void second.finally(() => {
+      secondSettled = true
+    })
+
+    await Promise.resolve()
+    expect(sockets).toHaveLength(1)
+    expect(secondSettled).toBe(false)
+
+    sockets[0].open()
+    await expect(Promise.all([first, second])).resolves.toEqual([undefined, undefined])
+  })
+
+  it('rejects every waiter when a connecting socket closes and permits a real retry', async () => {
+    const sockets: DeferredSocket[] = []
+    const client = new JsonRpcGatewayClient({
+      connectTimeoutMs: 1_000,
+      socketFactory: () => {
+        const socket = new DeferredSocket()
+        sockets.push(socket)
+
+        return socket as unknown as WebSocket
+      }
+    })
+
+    const first = client.connect('wss://gateway.example.com/api/ws?ticket=first')
+    const second = client.connect('wss://gateway.example.com/api/ws?ticket=second')
+    client.close()
+
+    const closed = await Promise.allSettled([first, second])
+    expect(closed.map(result => result.status)).toEqual(['rejected', 'rejected'])
+
+    const retry = client.connect('wss://gateway.example.com/api/ws?ticket=retry')
+    expect(sockets).toHaveLength(2)
+    sockets[1].open()
+    await expect(retry).resolves.toBeUndefined()
   })
 })

@@ -93,6 +93,7 @@ const DEFAULT_REQUEST_TIMEOUT_MS = 120_000
 const DEFAULT_CONNECT_TIMEOUT_MS = 15_000
 
 export class JsonRpcGatewayClient {
+  private connectPromise: Promise<void> | null = null
   private nextId = 0
   private pending = new Map<GatewayRequestId, PendingCall>()
   private socket: WebSocketLike | null = null
@@ -145,8 +146,12 @@ export class JsonRpcGatewayClient {
       throw invalidUrl()
     }
 
-    if (this.socket?.readyState === WebSocket.OPEN || this.state === 'connecting') {
+    if (this.socket?.readyState === WebSocket.OPEN) {
       return
+    }
+
+    if (this.state === 'connecting' && this.connectPromise) {
+      return this.connectPromise
     }
 
     this.setState('connecting')
@@ -176,7 +181,7 @@ export class JsonRpcGatewayClient {
       this.rejectAllPending(new Error(this.options.closedErrorMessage))
     })
 
-    await new Promise<void>((resolve, reject) => {
+    const connectPromise = new Promise<void>((resolve, reject) => {
       let settled = false
       let timer: ReturnType<typeof setTimeout> | undefined
 
@@ -187,6 +192,7 @@ export class JsonRpcGatewayClient {
 
         socket.removeEventListener('open', onOpen)
         socket.removeEventListener('error', onError)
+        socket.removeEventListener('close', onClose)
       }
 
       const onOpen = () => {
@@ -211,8 +217,19 @@ export class JsonRpcGatewayClient {
         reject(new Error(this.options.connectErrorMessage))
       }
 
+      const onClose = () => {
+        if (settled) {
+          return
+        }
+
+        settled = true
+        cleanup()
+        reject(new Error(this.options.closedErrorMessage))
+      }
+
       socket.addEventListener('open', onOpen, { once: true })
       socket.addEventListener('error', onError, { once: true })
+      socket.addEventListener('close', onClose, { once: true })
 
       if (this.options.connectTimeoutMs > 0) {
         timer = setTimeout(() => {
@@ -240,6 +257,16 @@ export class JsonRpcGatewayClient {
         }, this.options.connectTimeoutMs)
       }
     })
+
+    this.connectPromise = connectPromise
+
+    try {
+      await connectPromise
+    } finally {
+      if (this.connectPromise === connectPromise) {
+        this.connectPromise = null
+      }
+    }
   }
 
   close(): void {
