@@ -4,6 +4,7 @@ import {
   mergeMyKingEmployeeProxyBypassList,
   preserveMyKingEmployeeManagedMarker,
   removeMyKingEmployeeStaticGatewayCredential,
+  resolveMyKingEmployeeGatewayClearUrl,
   resolveMyKingEmployeeRuntimeProxyConfig,
   resolveMyKingEmployeeGatewayRoute
 } from './employee-gateway-route'
@@ -207,5 +208,31 @@ describe('My King employee gateway credential isolation', () => {
         personal: { url: 'https://personal.myking.test', token: { encoding: 'safeStorage', value: 'keep-me' } }
       }
     })
+  })
+
+  it('falls back to a saved employee-managed URL but never a normal remote URL', () => {
+    expect(
+      resolveMyKingEmployeeGatewayClearUrl(
+        {
+          remote: {
+            employeeManaged: true,
+            url: 'https://gateway.myking.test/',
+            token: { encoding: 'safeStorage', value: 'employee-secret' }
+          }
+        },
+        null
+      )
+    ).toBe('https://gateway.myking.test')
+    expect(
+      resolveMyKingEmployeeGatewayClearUrl(
+        {
+          remote: {
+            url: 'https://personal.myking.test',
+            token: { encoding: 'safeStorage', value: 'personal-secret' }
+          }
+        },
+        null
+      )
+    ).toBeNull()
   })
 })

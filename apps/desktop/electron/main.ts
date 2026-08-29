@@ -155,6 +155,7 @@ import {
   mergeMyKingEmployeeProxyBypassList,
   preserveMyKingEmployeeManagedMarker,
   removeMyKingEmployeeStaticGatewayCredential,
+  resolveMyKingEmployeeGatewayClearUrl,
   resolveMyKingEmployeeRuntimeProxyConfig,
   resolveMyKingEmployeeGatewayRoute
 } from './employee-gateway-route'
@@ -1815,16 +1816,16 @@ async function revokeMyKingEmployeeGateway(binding) {
 
 async function clearMyKingEmployeeGateway(assignedUrl) {
   await teardownPrimaryBackendAndWait({ soft: true })
+  const config = readDesktopConnectionConfig()
+  const clearUrl = resolveMyKingEmployeeGatewayClearUrl(config, assignedUrl)
 
-  if (assignedUrl) {
-    const normalizedAssignedUrl = normalizeRemoteBaseUrl(assignedUrl)
+  if (clearUrl) {
+    const normalizedAssignedUrl = normalizeRemoteBaseUrl(clearUrl)
 
     await clearOauthSession(undefined)
     oauthCookieWarmup = null
     _clearNativeTokens(normalizedAssignedUrl)
-    writeDesktopConnectionConfig(
-      removeMyKingEmployeeStaticGatewayCredential(readDesktopConnectionConfig(), normalizedAssignedUrl)
-    )
+    writeDesktopConnectionConfig(removeMyKingEmployeeStaticGatewayCredential(config, normalizedAssignedUrl))
   }
 
   sendConnectionApplied()

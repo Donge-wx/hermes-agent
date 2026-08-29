@@ -133,3 +133,18 @@ export function removeMyKingEmployeeStaticGatewayCredential(
       : {})
   }
 }
+
+export function resolveMyKingEmployeeGatewayClearUrl(
+  config: Record<string, unknown>,
+  assignedUrl: null | string
+): null | string {
+  const explicitUrl = assignedUrl ? parseMyKingPublicHttpsUrl(assignedUrl) : null
+
+  if (explicitUrl) {
+    return explicitUrl
+  }
+
+  const remote = record(config.remote)
+
+  return remote?.employeeManaged === true ? parseMyKingPublicHttpsUrl(remote.url) : null
+}

@@ -321,13 +321,13 @@ export function createMyKingEmployeeEnrollment(options: MyKingEmployeeEnrollment
 
         if (binding) {
           await options.revokeRemoteGateway(binding)
-          await options.clearRemoteGateway(binding.remoteGatewayUrl)
         }
 
         fs.writeFileSync(planPath, '{}\n', { encoding: 'utf8', mode: 0o600 })
         await options.runElevated(options.helperScriptPath, 'unbind', planPath)
         fs.rmSync(options.connectorPaths.bindingPath, { force: true })
         removeMyKingEmployeeDeviceId(options.userData)
+        await options.clearRemoteGateway(binding?.remoteGatewayUrl ?? null)
         fs.rmSync(planPath, { force: true })
         pending = null
 
