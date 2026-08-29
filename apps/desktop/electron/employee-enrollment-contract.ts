@@ -307,14 +307,18 @@ export async function revokeMyKingEmployeeEnrollment(
     throw new MyKingEmployeeEnrollmentError('invalid-revocation', 'The employee connection cannot be revoked.')
   }
 
-  const response = objectRecord(
-    await postJson({
-      url: `${baseUrl}/api/employee-enrollments/${encodeURIComponent(request.enrollmentId)}/revoke`,
-      authorization: `Bearer ${request.deviceToken}`,
-      timeoutMs: 15_000,
-      body: { deviceId: request.deviceId }
-    })
-  )
+  const value = await postJson({
+    url: `${baseUrl}/api/employee-enrollments/${encodeURIComponent(request.enrollmentId)}/revoke`,
+    authorization: `Bearer ${request.deviceToken}`,
+    timeoutMs: 15_000,
+    body: { deviceId: request.deviceId }
+  })
+
+  if (value === null) {
+    return
+  }
+
+  const response = objectRecord(value)
 
   if (response.status !== 'revoked') {
     throw new MyKingEmployeeEnrollmentError('invalid-server-response', 'Company server did not confirm revocation.')

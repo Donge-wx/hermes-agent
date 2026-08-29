@@ -178,6 +178,19 @@ describe('employee enrollment contract', () => {
       body: { deviceId: device.deviceId }
     })
 
+    postJson.mockResolvedValueOnce(null)
+    await expect(
+      revokeMyKingEmployeeEnrollment(
+        {
+          baseUrl: 'https://enroll.myking.test',
+          deviceId: device.deviceId,
+          deviceToken: 'device-token',
+          enrollmentId: 'enrollment-1'
+        },
+        postJson
+      )
+    ).resolves.toBeUndefined()
+
     postJson.mockResolvedValueOnce({ status: 'active' })
     await expect(
       revokeMyKingEmployeeEnrollment(

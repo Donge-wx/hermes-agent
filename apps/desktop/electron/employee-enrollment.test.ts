@@ -24,7 +24,8 @@ function fixture(
   failGatewayProbe = false,
   failFirstComplete = false,
   failFirstGatewayApply = false,
-  failServerRevoke = false
+  failServerRevoke = false,
+  failFirstLocalUnbind = false
 ) {
   const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'myking-enrollment-'))
   temporaryDirectories.push(userData)
@@ -37,6 +38,7 @@ function fixture(
   let probeCount = 0
   let completeCount = 0
   let gatewayApplyCount = 0
+  let localUnbindCount = 0
   const gatewayApplyBindingIds: (null | string)[] = []
   const gatewayProbeBindingIds: (null | string)[] = []
 
@@ -139,6 +141,12 @@ function fixture(
     runElevated: async (_helper, action, planPath) => {
       if (action === 'unbind') {
         events.push('local-unbind')
+        localUnbindCount += 1
+
+        if (failFirstLocalUnbind && localUnbindCount === 1) {
+          throw new MyKingEmployeeEnrollmentError('permission-required', 'System permission is required.')
+        }
+
         fs.rmSync(connectorPaths.baseDir, { recursive: true, force: true })
 
         return
@@ -389,5 +397,18 @@ describe('My King employee enrollment', () => {
     expect(setup.events).toEqual(['server-revoke'])
     expect(setup.clearedGatewayUrls).toEqual([])
     expect(fs.existsSync(path.join(setup.userData, 'employee-connector-device.json'))).toBe(true)
+  })
+
+  it('retries local cleanup after Nora already confirmed revocation', async () => {
+    const setup = fixture('employee-1', false, false, false, false, false, true)
+    await setup.enrollment.enroll('ABCD-2345-EFGH')
+
+    await expect(setup.enrollment.unbind()).rejects.toMatchObject({ code: 'permission-required' })
+    expect(setup.enrollment.getStatus().binding).toMatchObject({ enrollmentId: 'enrollment-1' })
+
+    await expect(setup.enrollment.unbind()).resolves.toMatchObject({ binding: null, stage: 'idle' })
+    expect(setup.events).toEqual(['server-revoke', 'local-unbind', 'server-revoke', 'local-unbind'])
+    expect(setup.revokedEnrollmentIds).toEqual(['enrollment-1', 'enrollment-1'])
+    expect(fs.existsSync(path.join(setup.userData, 'employee-connector-device.json'))).toBe(false)
   })
 })
