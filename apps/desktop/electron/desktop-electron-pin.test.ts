@@ -4,9 +4,9 @@
  * The Windows desktop install failed at "Building desktop app" because Electron
  * changed its install mechanism mid patch-series:
  *
- *     electron 40.9.3 .. 40.10.2  -> @electron/get@^2 + extract-zip@^2  (pure JS)
- *     electron 40.10.3 / 40.10.4  -> @electron/get@^5 +
- *                                    @electron-internal/extract-zip@^1 (native napi)
+ *     earlier Electron patches -> @electron/get@^2 + extract-zip@^2  (pure JS)
+ *     the validated patch       -> @electron/get@^5 +
+ *                                  @electron-internal/extract-zip@^1 (native napi)
  *
  * ``apps/desktop/package.json`` declared ``electronVersion: 40.9.3`` (the tested,
  * JS-extract build) but pinned the dependency loosely as ``electron: ^40.9.3``.

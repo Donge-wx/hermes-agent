@@ -10,9 +10,9 @@
  * That has now bitten twice on Windows. ``get-windows`` was added to
  * ``apps/desktop`` without an allow entry, so its node-pre-gyp install script
  * never downloaded the win32 binding and ``hermes desktop`` died in
- * ``stage-native-deps``. In the same window, a CVE sweep moved Electron to
- * 40.10.6 and left the ``electron@40.10.2`` pin behind, blocking Electron's
- * own postinstall on any clean install.
+ * ``stage-native-deps``. In the same window, a CVE sweep moved Electron
+ * without updating its versioned allow entry, blocking Electron's own
+ * postinstall on any clean install.
  *
  * Two contracts keep the allowlist honest:
  *
