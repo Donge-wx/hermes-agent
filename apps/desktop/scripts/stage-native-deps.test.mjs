@@ -635,3 +635,37 @@ test('win32-x64 staging fails when get-windows is absent', () => {
     /get-windows is not installed/
   )
 })
+
+test('win32-x64 cross-target staging provisions the published binding without mutating the source package', () => {
+  const tmp = fs.mkdtempSync(join(os.tmpdir(), 'hermes-stage-'))
+  try {
+    const srcRoot = join(tmp, 'get-windows')
+    const destRoot = join(tmp, 'dest')
+    makeFakeGetWindows(srcRoot, {
+      bindings: [{ dir: 'napi-9-darwin-unknown-arm64', platform: 'darwin' }]
+    })
+
+    let calls = 0
+    stageGetWindows({
+      platform: 'win32',
+      arch: 'x64',
+      resolveRoot: () => srcRoot,
+      destRoot,
+      provisionBinding: () => {
+        calls += 1
+        return Buffer.from([0x4d, 0x5a, 0x00, 0x00])
+      }
+    })
+
+    assert.equal(calls, 1)
+    assert.ok(
+      existsSync(join(destRoot, 'lib', 'binding', 'napi-9-win32-unknown-x64', 'node-get-windows.node'))
+    )
+    assert.ok(
+      !existsSync(join(srcRoot, 'lib', 'binding', 'napi-9-win32-unknown-x64')),
+      'cross-target provisioning must not write into node_modules'
+    )
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true })
+  }
+})

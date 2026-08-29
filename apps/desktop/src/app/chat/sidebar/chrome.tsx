@@ -127,7 +127,9 @@ export function SidebarRowLink({
 }: React.ComponentProps<'button'> & { labelClassName?: string }) {
   return (
     <RowButton className={cn('min-w-0 shrink bg-transparent p-0 text-left', className)} {...props}>
-      <span className={cn(rowLabel, labelClassName)}>{children}</span>
+      <span className={cn(rowLabel, labelClassName)} data-slot="sidebar-row-label">
+        {children}
+      </span>
     </RowButton>
   )
 }
@@ -139,7 +141,7 @@ export function SidebarRowLead({ className, ...props }: React.ComponentProps<'sp
 
 /** Standard row label typography. */
 export function SidebarRowLabel({ className, ...props }: React.ComponentProps<'span'>) {
-  return <span className={cn(rowLabel, className)} {...props} />
+  return <span className={cn(rowLabel, className)} data-slot="sidebar-row-label" {...props} />
 }
 
 /** What a group's sessions add up to, for the Show options that count something. */

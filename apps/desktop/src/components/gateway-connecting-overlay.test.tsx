@@ -82,6 +82,11 @@ describe('connecting overlay vs recovery surface', () => {
     expect(lockupWidth / lockupHeight).toBeCloseTo(2048 / 768, 3)
     expect(lockup.getAttribute('decoding')).toBe('sync')
     expect(lockup.getAttribute('fetchpriority')).toBe('high')
+    const loader = document.querySelector('[data-slot="gateway-boot-loader"]')
+
+    expect(loader?.querySelector('svg')).toBeTruthy()
+    expect(loader?.querySelectorAll('circle')).toHaveLength(70)
+    expect(loader?.querySelector('img')).toBeNull()
     expect(screen.getByText('Loading My King settings')).toBeTruthy()
     expect(screen.getByRole('progressbar', { name: 'Loading My King settings' }).getAttribute('aria-valuenow')).toBe(
       '42'

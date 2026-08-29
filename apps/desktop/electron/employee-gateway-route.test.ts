@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   mergeMyKingEmployeeProxyBypassList,
+  preserveMyKingEmployeeManagedMarker,
   removeMyKingEmployeeStaticGatewayCredential,
   resolveMyKingEmployeeGatewayRoute
 } from './employee-gateway-route'
@@ -11,6 +12,7 @@ const binding = {
   employeeId: 'employee-1',
   employeeName: '测试员工',
   deviceId: 'random-device-id',
+  enrollmentId: 'enrollment-1',
   remoteGatewayUrl: 'https://bound-gateway.myking.test',
   enrolledAt: '2026-08-27T00:00:00.000Z',
   lastCheckAt: null
@@ -47,9 +49,66 @@ describe('My King managed employee gateway route', () => {
   it('returns no managed route only when neither enterprise source exists', () => {
     expect(resolveMyKingEmployeeGatewayRoute({ binding: null, managedEmployeeGatewayUrl: null })).toBeNull()
   })
+
 })
 
 describe('My King employee gateway credential isolation', () => {
+  it('preserves the managed marker when a generic settings save keeps the assigned gateway', () => {
+    expect(
+      preserveMyKingEmployeeManagedMarker(
+        {
+          url: 'https://gateway.myking.test/',
+          employeeManaged: true,
+          token: { encoding: 'safeStorage', value: 'employee-secret' }
+        },
+        {
+          url: 'https://gateway.myking.test',
+          authMode: 'token',
+          token: { encoding: 'safeStorage', value: 'employee-secret' }
+        }
+      )
+    ).toEqual({
+      url: 'https://gateway.myking.test',
+      authMode: 'token',
+      employeeManaged: true,
+      token: { encoding: 'safeStorage', value: 'employee-secret' }
+    })
+  })
+
+  it('does not carry the managed marker to a different gateway', () => {
+    expect(
+      preserveMyKingEmployeeManagedMarker(
+        { url: 'https://gateway.myking.test', employeeManaged: true },
+        { url: 'https://personal.myking.test', authMode: 'token', token: 'personal-secret' }
+      )
+    ).toEqual({
+      url: 'https://personal.myking.test',
+      authMode: 'token',
+      token: 'personal-secret'
+    })
+  })
+
+  it('does not preserve the managed marker when the saved credential changes', () => {
+    expect(
+      preserveMyKingEmployeeManagedMarker(
+        {
+          url: 'https://gateway.myking.test',
+          employeeManaged: true,
+          token: { encoding: 'safeStorage', value: 'employee-secret' }
+        },
+        {
+          url: 'https://gateway.myking.test',
+          authMode: 'token',
+          token: { encoding: 'safeStorage', value: 'replacement-secret' }
+        }
+      )
+    ).toEqual({
+      url: 'https://gateway.myking.test',
+      authMode: 'token',
+      token: { encoding: 'safeStorage', value: 'replacement-secret' }
+    })
+  })
+
   it('removes only static credentials for the employee gateway during unbind', () => {
     const config = {
       mode: 'remote',

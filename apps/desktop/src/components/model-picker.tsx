@@ -97,6 +97,7 @@ export function ModelPickerDialog({
       <DialogContent
         bodyClassName="gap-0 overflow-hidden p-0"
         className={cn('max-h-[85vh] max-w-2xl', contentClassName)}
+        data-slot="model-picker"
       >
         <DialogHeader className="border-b border-border px-4 py-3">
           <DialogTitle>{copy.title}</DialogTitle>

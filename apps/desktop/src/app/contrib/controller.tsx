@@ -44,6 +44,7 @@ import { translateNow } from '@/i18n'
 import { NEW_SESSION_TITLE, sessionTitle as storedSessionTitle } from '@/lib/chat-runtime'
 import { Download, FileText, LayoutDashboard, PanelBottom, PanelTop, Terminal, Upload, Zap } from '@/lib/icons'
 import { type KeybindContribution, KEYBINDS_AREA } from '@/lib/keybinds/actions'
+import { isEmployeeFeatureAvailable } from '@/lib/managed-employee-policy'
 import { TRANSCRIPT_DIRECTIVE_AREA, type TranscriptDirectiveContribution } from '@/lib/transcript-directives'
 import { setYoloEnabled } from '@/lib/yolo-session'
 import { pruneComposerPopoutZones } from '@/store/composer-popout'
@@ -118,6 +119,7 @@ const renderWorkspacePane = () => <WiredPane part="chatRoutes" />
 // Boot-hidden panes mount behind display:none (instant-toggle contract) — defer
 // them to idle so they're off the first-paint path, warm before reveal.
 const idle = (node: ReactElement) => <IdleMount>{node}</IdleMount>
+const TERMINAL_AVAILABLE = isEmployeeFeatureAvailable('terminal')
 // The main tab carries the same session context menu as tile tabs (targets
 // the loaded primary session; no menu on a fresh draft).
 const wrapWorkspaceTab = (tab: ReactElement) => <WorkspaceTabMenu>{tab}</WorkspaceTabMenu>
@@ -434,8 +436,12 @@ const QUAD_TREE = split(
 registry.registerMany([
   { id: 'default', area: 'layouts', title: 'Default', order: 0, data: DEFAULT_TREE },
   { id: 'focus', area: 'layouts', title: 'Focus', order: 10, data: FOCUS_TREE },
-  { id: 'terminal-deck', area: 'layouts', title: 'Terminal deck', order: 20, data: TERMINAL_TREE },
-  { id: 'quad', area: 'layouts', title: 'Quad', order: 30, data: QUAD_TREE }
+  ...(TERMINAL_AVAILABLE
+    ? [
+        { id: 'terminal-deck', area: 'layouts', title: 'Terminal deck', order: 20, data: TERMINAL_TREE },
+        { id: 'quad', area: 'layouts', title: 'Quad', order: 30, data: QUAD_TREE }
+      ]
+    : [])
 ])
 
 declareDefaultTree(DEFAULT_TREE)
@@ -601,30 +607,38 @@ bindPaneVisibility(
   closeReview,
   () => openReview($reviewScopeCwd.get(), $reviewScopeTarget.get())
 )
+
 // ⌃` / statusbar toggle — the terminal COLLAPSES to a rail (tab stays), not
 // hides; PTYs stay alive while collapsed (see PersistentTerminal).
-bindToolPaneCollapse(
-  'terminal',
-  $terminalTakeover,
-  () => setTerminalTakeover(false),
-  () => setTerminalTakeover(true)
-)
+if (TERMINAL_AVAILABLE) {
+  bindToolPaneCollapse(
+    'terminal',
+    $terminalTakeover,
+    () => setTerminalTakeover(false),
+    () => setTerminalTakeover(true)
+  )
+} else {
+  setTerminalTakeover(false)
+}
+
 // ⌘K door onto the same pane the keybind and statusbar pill flip — was a
 // one-way "open" row under Go to, so it never showed on/off and couldn't hide.
 // Reads the TREE like every other pane toggle: `$terminalTakeover` stays true
 // behind a stacked sibling tab or a minimized zone, which would light the row
 // "on" for a terminal that isn't on screen.
-registry.register(
-  paletteToggle({
-    id: 'view.showTerminal',
-    label: 'Toggle terminal',
-    action: 'view.showTerminal',
-    icon: Terminal,
-    keywords: ['terminal', 'shell', 'console', 'pty'],
-    get: () => isPaneVisible('terminal'),
-    set: () => togglePaneVisible('terminal')
-  })
-)
+if (TERMINAL_AVAILABLE) {
+  registry.register(
+    paletteToggle({
+      id: 'view.showTerminal',
+      label: 'Toggle terminal',
+      action: 'view.showTerminal',
+      icon: Terminal,
+      keywords: ['terminal', 'shell', 'console', 'pty'],
+      get: () => isPaneVisible('terminal'),
+      set: () => togglePaneVisible('terminal')
+    })
+  )
+}
 
 // Logs are ⌘K-ONLY chrome: the pane contribution EXISTS only while $logsOpen
 // is on. Off (the default) keeps logs out of the registry and the tree
@@ -681,21 +695,23 @@ registerPaneOpener('logs', () => $logsOpen.set(true))
 syncLogsPane($logsOpen.get())
 $logsOpen.listen(syncLogsPane)
 
-registry.register(
-  paletteToggle({
-    id: 'logs.toggle',
-    label: 'Toggle logs',
-    icon: FileText,
-    keywords: ['logs', 'agent log', 'tail', 'debug'],
-    // On-screen, not the store's boolean. Summon-only keeps the two in step
-    // while logs sits in its own zone, but the user can still drag it into the
-    // terminal's strip or minimize its zone — and then `$logsOpen` reads true
-    // with nothing visible, so the row would show "on" and its press would
-    // spend itself re-asserting a value it already held.
-    get: () => isPaneVisible('logs'),
-    set: () => togglePaneVisible('logs')
-  })
-)
+if (isEmployeeFeatureAvailable('logs.raw')) {
+  registry.register(
+    paletteToggle({
+      id: 'logs.toggle',
+      label: 'Toggle logs',
+      icon: FileText,
+      keywords: ['logs', 'agent log', 'tail', 'debug'],
+      // On-screen, not the store's boolean. Summon-only keeps the two in step
+      // while logs sits in its own zone, but the user can still drag it into the
+      // terminal's strip or minimize its zone — and then `$logsOpen` reads true
+      // with nothing visible, so the row would show "on" and its press would
+      // spend itself re-asserting a value it already held.
+      get: () => isPaneVisible('logs'),
+      set: () => togglePaneVisible('logs')
+    })
+  )
+}
 
 // Hide-only chrome tabs (sessions / Bots) get a ⌘K toggle each — the palette
 // door onto the same show/hide the zone menu offers. Auto-registered from the

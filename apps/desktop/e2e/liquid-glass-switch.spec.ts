@@ -25,7 +25,7 @@ async function showCheckedLiquidGlassSwitch(fixture: MockBackendFixture): Promis
   await page.evaluate(() => {
     document.documentElement.setAttribute('data-hermes-theme', 'liquid-glass')
     document.documentElement.setAttribute('data-hermes-mode', 'light')
-    window.location.hash = '/settings?tab=config%3Amemory'
+    window.location.hash = '/settings?tab=notifications'
   })
 
   const track = page.locator('[data-slot="switch"]').first()

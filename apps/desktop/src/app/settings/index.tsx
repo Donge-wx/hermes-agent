@@ -27,6 +27,7 @@ import {
 } from '@/lib/icons'
 import { isEditableTarget } from '@/lib/keybinds/combo'
 import { typeToFocusChar } from '@/lib/keybinds/composer-focus-keys'
+import { isEmployeeFeatureAvailable, isEmployeeSettingsViewAvailable } from '@/lib/managed-employee-policy'
 import { cn } from '@/lib/utils'
 import { $commandPaletteOpen, openCommandPalettePage } from '@/store/command-palette'
 import { confirm } from '@/store/confirm'
@@ -53,7 +54,7 @@ import { PROVIDER_VIEWS, ProvidersSettings, type ProviderView } from './provider
 import { SessionsSettings } from './sessions-settings'
 import type { SettingsPageProps, SettingsView as SettingsViewId } from './types'
 
-const SETTINGS_VIEWS: readonly SettingsViewId[] = [
+const ALL_SETTINGS_VIEWS: readonly SettingsViewId[] = [
   ...SECTIONS.map(s => `config:${s.id}` as SettingsViewId),
   'providers',
   'gateway',
@@ -68,6 +69,8 @@ const SETTINGS_VIEWS: readonly SettingsViewId[] = [
   'sessions',
   'about'
 ]
+
+const SETTINGS_VIEWS = ALL_SETTINGS_VIEWS.filter(view => isEmployeeSettingsViewAvailable(view))
 
 export function SettingsView({ onClose, onConfigSaved, onMainModelChanged }: SettingsPageProps) {
   const { t } = useI18n()
@@ -88,7 +91,11 @@ export function SettingsView({ onClose, onConfigSaved, onMainModelChanged }: Set
     }
   }, [navigate, search])
 
-  const [activeView, setActiveView] = useRouteEnumParam('tab', SETTINGS_VIEWS, 'config:model' as SettingsViewId)
+  const [activeView, setActiveView] = useRouteEnumParam(
+    'tab',
+    SETTINGS_VIEWS,
+    'config:appearance' as SettingsViewId
+  )
 
   // Connections merged into the unified Gateways page: land old
   // `?tab=connections` routes/bookmarks there instead of a dead entry.
@@ -169,7 +176,7 @@ export function SettingsView({ onClose, onConfigSaved, onMainModelChanged }: Set
 
   const navGroups: OverlayNavGroup[] = useMemo(
     () => [
-      ...SECTIONS.map(s => {
+      ...SECTIONS.filter(s => isEmployeeSettingsViewAvailable(`config:${s.id}`)).map(s => {
         const view = `config:${s.id}` as SettingsViewId
 
         return {
@@ -284,7 +291,7 @@ export function SettingsView({ onClose, onConfigSaved, onMainModelChanged }: Set
         label: t.settings.nav.about,
         onSelect: () => setActiveView('about')
       }
-    ],
+    ].filter(group => isEmployeeSettingsViewAvailable(group.id)),
     [activeView, keysView, providerView, t, setActiveView, openProviderView, openKeysView]
   )
 
@@ -340,8 +347,8 @@ export function SettingsView({ onClose, onConfigSaved, onMainModelChanged }: Set
     </button>
   )
 
-  const navFooter = (
-    <>
+  const navFooter = isEmployeeFeatureAvailable('config.manage') ? (
+    <div className="flex items-center gap-1" data-slot="settings-config-admin-actions">
       <Tip label={t.settings.exportConfig}>
         <OverlayIconButton onClick={() => void exportConfig()}>
           <Download />
@@ -368,8 +375,8 @@ export function SettingsView({ onClose, onConfigSaved, onMainModelChanged }: Set
           <RefreshCw />
         </OverlayIconButton>
       </Tip>
-    </>
-  )
+    </div>
+  ) : null
 
   const activeSettingsContent =
     activeView === 'config:appearance' ? (

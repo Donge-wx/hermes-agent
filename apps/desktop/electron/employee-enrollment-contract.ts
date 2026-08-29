@@ -40,6 +40,8 @@ export interface MyKingEmployeeRedeemRequest {
 }
 
 export interface MyKingEmployeeRedeemResponse {
+  readonly challenge: string
+  readonly challengeExpiresAt: string
   readonly completionToken: string
   readonly employeeId: string
   readonly employeeName: string
@@ -57,6 +59,7 @@ export interface MyKingEmployeeRedeemResponse {
 
 export interface MyKingEmployeeCompleteRequest {
   readonly baseUrl: string
+  readonly challengeSignature: string
   readonly completionToken: string
   readonly deviceId: string
   readonly enrollmentId: string
@@ -65,6 +68,7 @@ export interface MyKingEmployeeCompleteRequest {
 
 export interface MyKingEmployeeReadyResponse {
   readonly employeeId: string
+  readonly gatewayAuth: { readonly token: string; readonly type: 'bearer' }
   readonly message: string
   readonly remoteGatewayUrl: string
   readonly status: 'ready'
@@ -78,6 +82,12 @@ export interface MyKingEmployeeHttpRequest {
 }
 
 export type MyKingEmployeePostJson = (request: MyKingEmployeeHttpRequest) => Promise<unknown>
+
+export interface MyKingEmployeeAccountLoginRequest {
+  readonly baseUrl: string
+  readonly email: string
+  readonly password: string
+}
 
 const ENROLLMENT_CODE_RE = /^[A-Za-z0-9](?:[A-Za-z0-9-]{6,126}[A-Za-z0-9])$/
 const SAFE_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,254}$/
@@ -128,6 +138,41 @@ export function parseMyKingEmployeeEnrollmentCode(rawValue: string): string | nu
   return ENROLLMENT_CODE_RE.test(value) ? value : null
 }
 
+export async function requestMyKingEmployeeAccountEnrollmentCode(
+  request: MyKingEmployeeAccountLoginRequest,
+  postJson: MyKingEmployeePostJson
+): Promise<string> {
+  const baseUrl = parseMyKingPublicHttpsUrl(request.baseUrl)
+  const email = request.email.trim().toLowerCase()
+
+  if (
+    !baseUrl ||
+    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
+    request.password.length < 8 ||
+    request.password.length > 128
+  ) {
+    throw new MyKingEmployeeEnrollmentError('invalid-credentials', 'The employee account or password is invalid.')
+  }
+
+  const login = objectRecord(
+    await postJson({
+      url: `${baseUrl}/api/auth/login`,
+      timeoutMs: 15_000,
+      body: { email, password: request.password }
+    })
+  )
+  const invitation = objectRecord(
+    await postJson({
+      url: `${baseUrl}/api/employee-enrollments/account`,
+      authorization: `Bearer ${requiredString(login, 'token')}`,
+      timeoutMs: 15_000,
+      body: {}
+    })
+  )
+
+  return requiredString(invitation, 'code', ENROLLMENT_CODE_RE)
+}
+
 export function redactMyKingEmployeeSecrets(rawValue: string): string {
   return rawValue
     .replace(/-----BEGIN (?:OPENSSH |EC |RSA )?PRIVATE KEY-----[\s\S]*?-----END (?:OPENSSH |EC |RSA )?PRIVATE KEY-----/g, '[REDACTED]')
@@ -147,6 +192,8 @@ export function parseMyKingEmployeeRedeemResponse(value: unknown): MyKingEmploye
   }
 
   return {
+    challenge: requiredString(root, 'challenge', SAFE_ID_RE),
+    challengeExpiresAt: requiredString(root, 'challengeExpiresAt'),
     enrollmentId: requiredString(root, 'enrollmentId', SAFE_ID_RE),
     employeeId: requiredString(root, 'employeeId', SAFE_ID_RE),
     employeeName: requiredString(root, 'employeeName'),
@@ -171,9 +218,19 @@ export function parseMyKingEmployeeReadyResponse(value: unknown): MyKingEmployee
     throw new MyKingEmployeeEnrollmentError('not-ready', 'Company server did not confirm that this device is ready.')
   }
 
+  const gatewayAuth = objectRecord(root.gatewayAuth)
+
+  if (requiredString(gatewayAuth, 'type') !== 'bearer') {
+    throw new MyKingEmployeeEnrollmentError('invalid-server-response', 'Company server returned invalid gateway authentication.')
+  }
+
   return {
     status: 'ready',
     employeeId: requiredString(root, 'employeeId', SAFE_ID_RE),
+    gatewayAuth: {
+      type: 'bearer',
+      token: requiredString(gatewayAuth, 'token')
+    },
     remoteGatewayUrl,
     message: requiredString(root, 'message')
   }
@@ -205,7 +262,12 @@ export async function completeMyKingEmployeeEnrollment(
 ): Promise<MyKingEmployeeReadyResponse> {
   const baseUrl = parseMyKingPublicHttpsUrl(request.baseUrl)
 
-  if (!baseUrl || !SAFE_ID_RE.test(request.enrollmentId) || request.sshHostPublicKeys.length === 0) {
+  if (
+    !baseUrl ||
+    !SAFE_ID_RE.test(request.enrollmentId) ||
+    !request.challengeSignature ||
+    request.sshHostPublicKeys.length === 0
+  ) {
     throw new MyKingEmployeeEnrollmentError('invalid-completion', 'The employee enrollment cannot be completed.')
   }
 
@@ -213,7 +275,11 @@ export async function completeMyKingEmployeeEnrollment(
     url: `${baseUrl}/api/employee-enrollments/${encodeURIComponent(request.enrollmentId)}/complete`,
     authorization: `Bearer ${request.completionToken}`,
     timeoutMs: 15_000,
-    body: { deviceId: request.deviceId, sshHostPublicKeys: [...request.sshHostPublicKeys] }
+    body: {
+      challengeSignature: request.challengeSignature,
+      deviceId: request.deviceId,
+      sshHostPublicKeys: [...request.sshHostPublicKeys]
+    }
   })
 
   return parseMyKingEmployeeReadyResponse(response)

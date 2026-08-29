@@ -74,9 +74,10 @@ Set-Content -LiteralPath (Join-Path $BaseDir 'employee-home.txt') -Value $Plan.e
 $SshKeyScan = Join-Path $env:WINDIR 'System32\OpenSSH\ssh-keyscan.exe'
 $SshKeygen = Join-Path $env:WINDIR 'System32\OpenSSH\ssh-keygen.exe'
 $KnownHosts = Join-Path $KeysDir 'known_hosts'
-& $SshKeyScan -T 10 -p $Plan.relay.port $Plan.relay.host 2>$null | Set-Content -LiteralPath $KnownHosts -Encoding ascii
+& $SshKeyScan -T 10 -t ed25519 -p $Plan.relay.port $Plan.relay.host 2>$null | Set-Content -LiteralPath $KnownHosts -Encoding ascii
 $Fingerprints = @(& $SshKeygen -E sha256 -lf $KnownHosts | ForEach-Object { ($_ -split '\s+')[1] })
-if ($Plan.relay.hostKeySha256 -notin $Fingerprints) { Remove-Item -LiteralPath $KnownHosts -Force; exit 66 }
+$UnexpectedFingerprints = @($Fingerprints | Where-Object { $_ -ne $Plan.relay.hostKeySha256 })
+if ($Fingerprints.Count -eq 0 -or $UnexpectedFingerprints.Count -gt 0) { Remove-Item -LiteralPath $KnownHosts -Force; exit 66 }
 
 $RunnerPath = Join-Path $BaseDir 'run-connector.ps1'
 $Runner = @"
@@ -85,7 +86,7 @@ $Runner = @"
 `$ReadyPath = '$($ControlDir.Replace("'", "''"))\ready'
 `$LogPath = '$($LogsDir.Replace("'", "''"))\connector.log'
 `$SshPath = '$env:WINDIR\System32\OpenSSH\ssh.exe'
-`$SshArgs = @('-NT', '-E', `$LogPath, '-i', '$($KeysDir.Replace("'", "''"))\relay_client', '-p', '$($Plan.relay.port)', '-R', '$($Plan.relay.remotePort):127.0.0.1:22', '-o', 'BatchMode=yes', '-o', 'ExitOnForwardFailure=yes', '-o', 'IdentitiesOnly=yes', '-o', 'ServerAliveInterval=30', '-o', 'ServerAliveCountMax=3', '-o', 'StrictHostKeyChecking=yes', '-o', 'UserKnownHostsFile=$($KeysDir.Replace("'", "''"))\known_hosts', '$($Plan.relay.user)@$($Plan.relay.host)')
+`$SshArgs = @('-NT', '-E', `$LogPath, '-i', '$($KeysDir.Replace("'", "''"))\relay_client', '-p', '$($Plan.relay.port)', '-R', '0.0.0.0:$($Plan.relay.remotePort):127.0.0.1:22', '-o', 'BatchMode=yes', '-o', 'ExitOnForwardFailure=yes', '-o', 'IdentitiesOnly=yes', '-o', 'ServerAliveInterval=30', '-o', 'ServerAliveCountMax=3', '-o', 'HostKeyAlgorithms=ssh-ed25519', '-o', 'StrictHostKeyChecking=yes', '-o', 'UserKnownHostsFile=$($KeysDir.Replace("'", "''"))\known_hosts', '$($Plan.relay.user)@$($Plan.relay.host)')
 Remove-Item -LiteralPath `$ReadyPath -Force -ErrorAction SilentlyContinue
 while ((Get-Content -LiteralPath `$EnabledPath -Raw -ErrorAction SilentlyContinue).Trim() -ne 'enabled') { Start-Sleep -Seconds 2 }
 while ((Get-Content -LiteralPath `$EnabledPath -Raw -ErrorAction SilentlyContinue).Trim() -eq 'enabled') {
@@ -97,7 +98,7 @@ while ((Get-Content -LiteralPath `$EnabledPath -Raw -ErrorAction SilentlyContinu
   if (-not `$SshProcess.HasExited) { New-Item -ItemType File -Path `$ReadyPath -Force | Out-Null }
   `$SshProcess.WaitForExit()
   Remove-Item -LiteralPath `$ReadyPath -Force -ErrorAction SilentlyContinue
-  Start-Sleep -Seconds 5
+  Start-Sleep -Seconds 30
 }
 "@
 Set-Content -LiteralPath $RunnerPath -Value $Runner -Encoding utf8

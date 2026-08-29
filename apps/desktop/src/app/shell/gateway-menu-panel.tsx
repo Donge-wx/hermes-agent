@@ -17,8 +17,10 @@ import type { StatusResponse } from '@/types/hermes'
 interface GatewayMenuPanelProps {
   gatewayState: string
   inferenceStatus: RuntimeReadinessResult | null
+  managementAvailable?: boolean
   onClose: () => void
   onOpenSystem: () => void
+  rawLogsAvailable?: boolean
   statusSnapshot: StatusResponse | null
 }
 
@@ -32,10 +34,14 @@ const LOG_NOISE_RE = /\bws (?:accepted|closed|response sent|ping|pong)\b/i
 
 // Live tail while the popover is mounted (i.e. open): poll on a tight cadence
 // and stop on unmount, instead of a global always-on status poll.
-function useGatewayLogTail(): string[] {
+function useGatewayLogTail(enabled: boolean): string[] {
   const [lines, setLines] = useState<string[]>([])
 
   useEffect(() => {
+    if (!enabled) {
+      return
+    }
+
     let cancelled = false
 
     // async: getLogs THROWS (not rejects) when the desktop bridge is missing
@@ -67,7 +73,7 @@ function useGatewayLogTail(): string[] {
       cancelled = true
       window.clearInterval(timer)
     }
-  }, [])
+  }, [enabled])
 
   return lines
 }
@@ -92,8 +98,10 @@ const trimLogLine = (raw: string) => raw.trim().replace(TIMESTAMP_RE, '').replac
 export function GatewayMenuPanel({
   gatewayState,
   inferenceStatus,
+  managementAvailable = true,
   onClose,
   onOpenSystem,
+  rawLogsAvailable = true,
   statusSnapshot
 }: GatewayMenuPanelProps) {
   const { t } = useI18n()
@@ -144,7 +152,7 @@ export function GatewayMenuPanel({
     : copy.disconnected
 
   const platforms = Object.entries(statusSnapshot?.gateway_platforms || {}).sort(([l], [r]) => l.localeCompare(r))
-  const recentLogs = useGatewayLogTail()
+  const recentLogs = useGatewayLogTail(rawLogsAvailable)
 
   // Keep the tail pinned to the latest line as it streams.
   const logScrollRef = useRef<HTMLDivElement>(null)
@@ -170,48 +178,50 @@ export function GatewayMenuPanel({
             {inferenceLabel}
           </span>
         </div>
-        <div className="flex shrink-0 items-center gap-0.5">
-          {!gatewayOpen && (
-            <Tip label={copy.reconnectGateway}>
+        {managementAvailable && (
+          <div className="flex shrink-0 items-center gap-0.5">
+            {!gatewayOpen && (
+              <Tip label={copy.reconnectGateway}>
+                <Button
+                  aria-label={copy.reconnectGateway}
+                  className="text-muted-foreground hover:text-foreground"
+                  disabled={reconnecting}
+                  onClick={reconnect}
+                  size="icon-xs"
+                  variant="ghost"
+                >
+                  <RefreshCw className={cn(reconnecting && 'animate-spin')} />
+                </Button>
+              </Tip>
+            )}
+            <Tip label={copy.openSystem}>
               <Button
-                aria-label={copy.reconnectGateway}
+                aria-label={copy.openSystem}
                 className="text-muted-foreground hover:text-foreground"
-                disabled={reconnecting}
-                onClick={reconnect}
+                onClick={openSystem}
                 size="icon-xs"
                 variant="ghost"
               >
-                <RefreshCw className={cn(reconnecting && 'animate-spin')} />
+                <LayoutDashboard />
               </Button>
             </Tip>
-          )}
-          <Tip label={copy.openSystem}>
-            <Button
-              aria-label={copy.openSystem}
-              className="text-muted-foreground hover:text-foreground"
-              onClick={openSystem}
-              size="icon-xs"
-              variant="ghost"
-            >
-              <LayoutDashboard />
-            </Button>
-          </Tip>
-          {/* Restart is the heavy, disruptive action: keep it visually distinct
-              (power icon, destructive hover) and separated from the benign
-              reconnect/system buttons so it can't be hit by mistake. */}
-          <span aria-hidden className="mx-1 h-4 w-px bg-border/70" />
-          <Tip label={t.commandCenter.restartGateway}>
-            <Button
-              aria-label={t.commandCenter.restartGateway}
-              className="text-muted-foreground hover:text-destructive"
-              onClick={restart}
-              size="icon-xs"
-              variant="ghost"
-            >
-              <Power />
-            </Button>
-          </Tip>
-        </div>
+            {/* Restart is the heavy, disruptive action: keep it visually distinct
+                (power icon, destructive hover) and separated from the benign
+                reconnect/system buttons so it can't be hit by mistake. */}
+            <span aria-hidden className="mx-1 h-4 w-px bg-border/70" />
+            <Tip label={t.commandCenter.restartGateway}>
+              <Button
+                aria-label={t.commandCenter.restartGateway}
+                className="text-muted-foreground hover:text-destructive"
+                onClick={restart}
+                size="icon-xs"
+                variant="ghost"
+              >
+                <Power />
+              </Button>
+            </Tip>
+          </div>
+        )}
       </div>
 
       {inferenceStatus?.reason && (
@@ -220,7 +230,7 @@ export function GatewayMenuPanel({
         </Section>
       )}
 
-      {recentLogs.length > 0 && (
+      {rawLogsAvailable && recentLogs.length > 0 && (
         <Section>
           <div className="flex items-center justify-between gap-2">
             <SectionLabel>{copy.recentActivity}</SectionLabel>

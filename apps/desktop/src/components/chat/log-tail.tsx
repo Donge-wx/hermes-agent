@@ -29,7 +29,7 @@ export function LogTail({ className, emptyLabel, lines }: LogTailProps) {
   }, [lines])
 
   return (
-    <div className={cn('group/logs relative h-full min-h-0', className)}>
+    <div className={cn('group/logs relative h-full min-h-0', className)} data-slot="log-tail">
       <CopyButton
         appearance="inline"
         className="absolute right-2.5 top-1.5 z-10 h-5 gap-0 rounded-md px-1 opacity-5 transition-opacity group-hover/logs:opacity-100 hover:opacity-100 focus-visible:opacity-100"
@@ -47,7 +47,10 @@ export function LogTail({ className, emptyLabel, lines }: LogTailProps) {
         ref={scrollRef}
       >
         {lines === null || lines.length === 0 ? (
-          <p className="px-2 py-1.5 font-mono text-[0.7rem] leading-relaxed text-muted-foreground/50">
+          <p
+            className="px-2 py-1.5 font-mono text-[0.7rem] leading-relaxed text-muted-foreground/50"
+            data-slot="log-tail-empty"
+          >
             {lines === null ? '…' : emptyLabel}
           </p>
         ) : (

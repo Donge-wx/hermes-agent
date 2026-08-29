@@ -58,22 +58,30 @@ async function openIsolatedBootSurface(options: BootSurfaceOptions): Promise<Boo
 
   await expect(stage).toBeVisible({ timeout: 30_000 })
   await expect(overlay).toBeVisible()
-  const lockup = page.getByRole('img', { name: BRAND_ACCESSIBLE_NAME })
+  const lockup = stage.getByRole('img', { name: BRAND_ACCESSIBLE_NAME }).first()
+  const loader = stage.locator('[data-slot="gateway-boot-loader"]')
 
   await expect(lockup).toBeVisible()
+  await expect(loader).toBeVisible()
+  if (options.reducedMotion === 'reduce') {
+    await expect(loader.locator('svg')).toBeHidden()
+  } else {
+    await expect(loader.locator('svg')).toBeVisible()
+  }
+  await expect(loader.locator('circle')).toHaveCount(70)
   await expect
     .poll(() =>
       lockup.evaluate(image => (image instanceof HTMLImageElement ? image.complete && image.naturalWidth > 0 : false))
     )
     .toBe(true)
 
-  const criticalImagePreload = await page.evaluate(() => {
-    const preload = document.querySelector<HTMLLinkElement>('link[rel="preload"][as="image"]')
+  const criticalImagePreloads = await page.evaluate(() => {
+    const preloads = [...document.querySelectorAll<HTMLLinkElement>('link[rel="preload"][as="image"]')]
 
-    return preload?.href.endsWith('/brand/my-king-lockup.png') ?? false
+    return preloads.map(preload => preload.href)
   })
 
-  expect(criticalImagePreload).toBe(true)
+  expect(criticalImagePreloads.some(href => href.endsWith('/brand/my-king-lockup.png'))).toBe(true)
   await expect(page.getByText("Let's get you setup with My King Agent")).toHaveCount(0)
 
   const centerIsBootOverlay = await page.evaluate(() => {
@@ -151,18 +159,18 @@ test('cold start presents a calm reduced-motion indicator', async () => {
   try {
     await expect(stage).toBeVisible()
 
-    const reducedMotion = await page.locator('.gateway-boot__loader').evaluate(loader => {
+    const reducedMotion = await page.locator('[data-slot="gateway-boot-loader"]').evaluate(loader => {
       const indicator = getComputedStyle(loader, '::after')
       const svg = loader.querySelector('svg')
 
       return {
-        animationName: indicator.animationName,
+        indicatorContent: indicator.content,
         svgDisplay: svg ? getComputedStyle(svg).display : null
       }
     })
 
     expect(reducedMotion.svgDisplay).toBe('none')
-    expect(reducedMotion.animationName).toContain('gateway-boot-calm-pulse')
+    expect(reducedMotion.indicatorContent).not.toBe('none')
     await page.screenshot({
       animations: 'allow',
       caret: 'hide',

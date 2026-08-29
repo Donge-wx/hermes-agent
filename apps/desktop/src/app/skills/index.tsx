@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 
 import { ArchiveSkillConfirmDialog } from '@/app/learning/archive-skill-confirm-dialog'
+import { MarkdownTextContent } from '@/components/assistant-ui/markdown-text'
 import { CodeEditor } from '@/components/chat/code-editor'
 import { PageLoader } from '@/components/page-loader'
 import { Badge } from '@/components/ui/badge'
@@ -28,6 +29,7 @@ import {
 import { useI18n } from '@/i18n'
 import { isDesktopToolsetVisible } from '@/lib/desktop-toolsets'
 import { compactNumber } from '@/lib/format'
+import { employeeVisibleBrandText, isEmployeeFeatureAvailable } from '@/lib/managed-employee-policy'
 import { queryClient } from '@/lib/query-client'
 import { invalidateSlashCompletions } from '@/lib/slash-completion-cache'
 import { normalize } from '@/lib/text'
@@ -894,12 +896,12 @@ export function SkillsView({
                           ) : calls > 0 ? (
                             `×${compactNumber(calls)}`
                           ) : (
-                            `${toolNames(toolset).length} tools`
+                            t.skills.toolsCount(toolNames(toolset).length)
                           )
                         }
                         onSelect={() => setSelectedToolset(toolset.name)}
                         onToggle={checked => void handleToggleToolset(toolset, checked)}
-                        subtitle={asText(toolset.description)}
+                        subtitle={employeeVisibleBrandText(asText(toolset.description))}
                         title={label}
                         toggleLabel={t.skills.toggleToolset(label, !toolset.enabled)}
                       />
@@ -925,7 +927,7 @@ export function SkillsView({
               on purpose — the picker fetches nothing; scope rides the
               `profile` prop into each install call, and remounting on scope
               change would reload the whole site for no data benefit. */}
-          {hubMounted && (
+          {hubMounted && isEmployeeFeatureAvailable('skills.marketplace') && (
             <EmbeddedHubPicker hidden={mode !== 'skills'} installedNames={installedSkillNames} profile={scopeProfile} />
           )}
         </div>
@@ -972,17 +974,21 @@ function DetailHeader({
   pills,
   title
 }: {
-  description: React.ReactNode
+  description: string
   pills?: React.ReactNode
   title: string
 }) {
   return (
-    <header>
+    <header data-slot="capability-detail-header">
       <div className="flex min-h-6 flex-wrap items-center gap-2">
         <h3 className="min-w-0 truncate text-[0.9375rem] font-semibold tracking-tight">{title}</h3>
         {pills}
       </div>
-      <p className="mt-1 text-[length:var(--conversation-caption-font-size)] leading-(--conversation-caption-line-height) text-(--ui-text-tertiary)">
+      <p
+        className="mt-1 text-[length:var(--conversation-caption-font-size)] leading-(--conversation-caption-line-height) text-(--ui-text-tertiary)"
+        data-slot="capability-detail-description"
+        title={description}
+      >
         {description}
       </p>
     </header>
@@ -1062,7 +1068,7 @@ function SkillDetail({
   return (
     <>
       <DetailHeader
-        description={asText(skill.description) || t.skills.noDescription}
+        description={employeeVisibleBrandText(asText(skill.description)) || t.skills.noDescription}
         pills={
           <>
             <PanelPill>{prettyName(categoryFor(skill))}</PanelPill>
@@ -1086,11 +1092,18 @@ function SkillDetail({
         </div>
       )}
       {parsed && parsed.meta.length > 0 && (
-        <div className="grid gap-1 rounded-lg border border-(--ui-stroke-tertiary) bg-(--ui-bg-quinary) p-3">
+        <div
+          className="grid gap-1 rounded-lg border border-(--ui-stroke-tertiary) bg-(--ui-bg-quinary) p-3"
+          data-slot="skill-metadata"
+        >
           {parsed.meta.map(([key, value]) => (
             <div className="flex gap-2 text-[0.68rem] leading-4" key={key}>
-              <span className="w-24 shrink-0 font-medium text-(--ui-text-tertiary)">{key}</span>
-              <span className="min-w-0 whitespace-pre-wrap break-words text-(--ui-text-secondary)">{value}</span>
+              <span className="w-24 shrink-0 font-medium text-(--ui-text-tertiary)">
+                {t.skills.metadataLabels[key] || employeeVisibleBrandText(key)}
+              </span>
+              <span className="min-w-0 whitespace-pre-wrap break-words text-(--ui-text-secondary)">
+                {employeeVisibleBrandText(value)}
+              </span>
             </div>
           ))}
         </div>
@@ -1098,12 +1111,16 @@ function SkillDetail({
       {contentQuery.isLoading ? (
         <CountSkeleton />
       ) : parsed ? (
-        <pre
-          className="overflow-auto whitespace-pre-wrap wrap-break-word rounded-lg border border-(--ui-stroke-tertiary) bg-(--ui-bg-quinary) p-3 font-mono text-[0.68rem] leading-relaxed"
+        <article
+          className="min-w-0 overflow-auto wrap-break-word"
           data-selectable-text="true"
+          data-slot="skill-body"
         >
-          {parsed.body.trim() || t.skills.noDescription}
-        </pre>
+          <MarkdownTextContent
+            isRunning={false}
+            text={employeeVisibleBrandText(parsed.body.trim()) || t.skills.noDescription}
+          />
+        </article>
       ) : null}
     </>
   )
@@ -1126,24 +1143,27 @@ function ToolsetDetail({
   const label = toolsetDisplayLabel(toolset)
 
   return (
-    <>
+    <section className="space-y-5" data-slot="toolset-detail">
       {/* "Configured" as a resting state is noise — only the warn state earns a pill. */}
       <DetailHeader
-        description={asText(toolset.description) || t.skills.noDescription}
+        description={employeeVisibleBrandText(asText(toolset.description)) || t.skills.noDescription}
         pills={!toolset.configured && <PanelPill tone="warn">{t.skills.needsKeys}</PanelPill>}
         title={label}
       />
       {tools.length > 0 && (
-        <div className="flex flex-wrap gap-1">
-          {tools.map(name => (
-            <ToolChip key={name}>
-              {name}
-              {(toolCalls[name] ?? 0) > 0 && (
-                <span className="ml-1 text-(--ui-text-quaternary)">×{compactNumber(toolCalls[name])}</span>
-              )}
-            </ToolChip>
-          ))}
-        </div>
+        <section data-slot="toolset-tools-section">
+          <h4 data-slot="toolset-tools-label">{t.skills.includedTools}</h4>
+          <div className="flex flex-wrap gap-1" data-slot="toolset-tools">
+            {tools.map(name => (
+              <ToolChip key={name}>
+                {name}
+                {(toolCalls[name] ?? 0) > 0 && (
+                  <span className="ml-1 text-(--ui-text-quaternary)">×{compactNumber(toolCalls[name])}</span>
+                )}
+              </ToolChip>
+            ))}
+          </div>
+        </section>
       )}
       {toolset.name === 'vision' && (
         // Vision has no provider matrix — model resolution runs through the
@@ -1173,6 +1193,6 @@ function ToolsetDetail({
         profile={profile}
         toolset={toolset.name}
       />
-    </>
+    </section>
   )
 }

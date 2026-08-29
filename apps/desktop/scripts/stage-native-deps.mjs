@@ -16,12 +16,14 @@ import {
   chmodSync,
   cpSync,
   existsSync,
+  mkdtempSync,
   mkdirSync,
   readdirSync,
   readFileSync,
   rmSync,
   writeFileSync
 } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { spawnSync } from 'node:child_process'
 import { isMain } from './utils.mjs'
 
@@ -437,7 +439,7 @@ const GET_WINDOWS_VERSION = '9.3.0'
 export function stageGetWindowsInto(
   srcRoot,
   destRoot,
-  { platform = process.platform, arch = process.arch, install } = {}
+  { platform = process.platform, arch = process.arch, install, provisionBinding } = {}
 ) {
   // The STAGED_WINDOWS_JS rewrite mirrors this exact version's export surface.
   // A version bump must fail the build here until the rewrite is re-verified —
@@ -496,6 +498,7 @@ export function stageGetWindowsInto(
         : []
     let bindingDirs = scanBindingDirs()
     let installAttempted = false
+    let provisionedBinding = false
     if (bindingDirs.length === 0 && arch === 'arm64') {
       // get-windows 9.3.0 publishes win32 prebuilds for ia32/x64 only.
       // The staged windows.js deliberately fails soft when binding/ is absent,
@@ -518,7 +521,35 @@ export function stageGetWindowsInto(
       install()
       bindingDirs = scanBindingDirs()
     }
-    if (bindingDirs.length === 0 && arch !== 'arm64') {
+    if (
+      bindingDirs.length === 0 &&
+      arch === 'x64' &&
+      typeof provisionBinding === 'function'
+    ) {
+      const bindingDir = `napi-9-${platform}-unknown-${arch}`
+      const destFile = join(
+        destRoot,
+        'lib',
+        'binding',
+        bindingDir,
+        'node-get-windows.node'
+      )
+      const binding = provisionBinding({ version: srcVersion, platform, arch })
+      if (!Buffer.isBuffer(binding) || binding.length === 0) {
+        throw new Error('[stage-native-deps] get-windows binding provisioner returned no binary')
+      }
+      mkdirSync(dirname(destFile), { recursive: true })
+      writeFileSync(destFile, binding)
+      const classified = classifyNativeBinary(destFile)
+      if (classified !== platform) {
+        throw new Error(
+          `[stage-native-deps] provisioned get-windows binding: expected ${platform}, ` +
+            `got ${classified ?? 'unknown'}`
+        )
+      }
+      provisionedBinding = true
+    }
+    if (bindingDirs.length === 0 && !provisionedBinding && arch !== 'arm64') {
       const reason = installAttempted
         ? `native installer completed without producing a win32-${arch} binding under lib/binding`
         : `has no win32-${arch} prebuilt binding under lib/binding`
@@ -576,15 +607,64 @@ export function installGetWindowsNativeBinding(
   }
 }
 
+export function downloadGetWindowsNativeBinding(
+  { version = GET_WINDOWS_VERSION, platform = 'win32', arch = 'x64', spawn = spawnSync } = {}
+) {
+  const bindingDir = `napi-9-${platform}-unknown-${arch}`
+  const archiveUrl =
+    `https://github.com/sindresorhus/get-windows/releases/download/v${version}/` +
+    `${bindingDir}.tar.gz`
+  const tempRoot = mkdtempSync(join(tmpdir(), 'myking-get-windows-'))
+  const archivePath = join(tempRoot, 'binding.tar.gz')
+
+  try {
+    const download = spawn('curl', ['-fL', archiveUrl, '-o', archivePath], {
+      stdio: 'pipe'
+    })
+    if (download.error || download.status !== 0) {
+      const detail = download.error?.message ?? String(download.stderr ?? '').trim()
+      throw new Error(
+        `[stage-native-deps] failed to download get-windows ${platform}-${arch} binding` +
+          (detail ? `: ${detail}` : '')
+      )
+    }
+
+    const extract = spawn('tar', ['-xzf', archivePath, '-C', tempRoot], {
+      stdio: 'pipe'
+    })
+    if (extract.error || extract.status !== 0) {
+      const detail = extract.error?.message ?? String(extract.stderr ?? '').trim()
+      throw new Error(
+        '[stage-native-deps] failed to extract get-windows binding' +
+          (detail ? `: ${detail}` : '')
+      )
+    }
+
+    const bindingPath = join(tempRoot, bindingDir, 'node-get-windows.node')
+    if (!existsSync(bindingPath)) {
+      throw new Error(
+        `[stage-native-deps] downloaded get-windows archive is missing ${bindingDir}/node-get-windows.node`
+      )
+    }
+    return readFileSync(bindingPath)
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true })
+  }
+}
+
 export function stageGetWindows(
   {
     platform = process.platform,
     arch = process.arch,
-    resolveRoot = resolveGetWindowsRoot
+    resolveRoot = resolveGetWindowsRoot,
+    destRoot = resolve(projectRoot, 'dist/node_modules/get-windows'),
+    provisionBinding =
+      platform === 'win32' && arch === 'x64' && process.platform !== 'win32'
+        ? downloadGetWindowsNativeBinding
+        : undefined
   } = {}
 ) {
   const srcRoot = resolveRoot()
-  const destRoot = resolve(projectRoot, 'dist/node_modules/get-windows')
 
   if (!srcRoot) {
     // npm may omit an optional dependency whose install script fails. That is
@@ -606,13 +686,19 @@ export function stageGetWindows(
     )
   }
 
-  // Only a win32 host can produce the win32 binding, so a cross-platform pack
-  // has nothing to gain from the native installer.
+  // A Windows host can use node-pre-gyp directly. Cross-platform packaging
+  // downloads the published target binding into temporary storage and stages
+  // it without mutating the source package under node_modules.
   const install =
     platform === 'win32' && process.platform === 'win32'
       ? () => installGetWindowsNativeBinding(srcRoot)
       : undefined
-  return stageGetWindowsInto(srcRoot, destRoot, { platform, arch, install })
+  return stageGetWindowsInto(srcRoot, destRoot, {
+    platform,
+    arch,
+    install,
+    provisionBinding
+  })
 }
 
 // Allow direct CLI invocation: node scripts/stage-native-deps.mjs [platform] [arch]

@@ -15,6 +15,10 @@ export function resolveApplicationIdentity(internalNameOverride?: string) {
   } as const
 }
 
+export function publicApplicationText(text: string): string {
+  return text.replace(/(?<![./\\])\bhermes\b(?![./\\])/gi, PUBLIC_APP_NAME)
+}
+
 export function buildApplicationMenuRoleLabels() {
   return {
     hide: `Hide ${PUBLIC_APP_NAME}`,

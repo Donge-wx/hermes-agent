@@ -81,10 +81,12 @@ export function MyKingEmployeeEnrollmentAssistant({ placement = 'settings' }: { 
   const copy = t.settings.gateway.employeeEnrollment
   const api: EnrollmentApi | undefined = window.hermesDesktop?.employeeEnrollment
   const [status, setStatus] = useState<MyKingEmployeeEnrollmentStatus | null>(null)
-  const [code, setCode] = useState('')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [diagnostics, setDiagnostics] = useState<readonly string[] | null>(null)
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false)
+  const [gateNode, setGateNode] = useState<HTMLDivElement | null>(null)
   const [gateDismissed, setGateDismissed] = useState(false)
   const [sawEnrollmentProgress, setSawEnrollmentProgress] = useState(false)
   const [unbindOpen, setUnbindOpen] = useState(false)
@@ -120,7 +122,7 @@ export function MyKingEmployeeEnrollmentAssistant({ placement = 'settings' }: { 
   const errorCode = status?.error ?? (status?.binding && !status.connectorReady ? 'secure-connection-failed' : null)
   const errorCopy = errorCode ? (copy.errors[errorCode] ?? copy.errors['connector-failed']) : null
   const stageCopy = status ? (copy.stages[status.stage] ?? copy.stages.idle) : copy.stages.idle
-  const canSubmit = code.trim().length > 0 && !busy
+  const canSubmit = email.trim().length > 0 && password.length >= 8 && !busy
 
   useEffect(() => {
     if (placement !== 'gate' || !status) {
@@ -157,15 +159,27 @@ export function MyKingEmployeeEnrollmentAssistant({ placement = 'settings' }: { 
     try {
       setStatus(await operation())
     } catch (error) {
-      setStatus(current => (current ? { ...current, error: enrollmentErrorCode(error), stage: 'error' } : current))
+      try {
+        if (!api) {
+          throw new Error('Employee enrollment is unavailable.')
+        }
+
+        setStatus(await api.getStatus())
+      } catch (statusError) {
+        if (!(statusError instanceof Error)) {
+          throw statusError
+        }
+
+        setStatus(current => (current ? { ...current, error: enrollmentErrorCode(error), stage: 'error' } : current))
+      }
     } finally {
       setSubmitting(false)
     }
   }
 
   const diagnosticsBody = useMemo(
-    () => (diagnostics && diagnostics.length > 0 ? diagnostics.join('\n') : copy.diagnosticsEmpty),
-    [copy.diagnosticsEmpty, diagnostics]
+    () => (diagnostics && diagnostics.length > 0 ? diagnostics.join('\n') : (errorCopy ?? copy.diagnosticsEmpty)),
+    [copy.diagnosticsEmpty, diagnostics, errorCopy]
   )
 
   if (!api || !status || !status.configured || status.managedGateway || (placement === 'gate' && gateDismissed)) {
@@ -209,40 +223,61 @@ export function MyKingEmployeeEnrollmentAssistant({ placement = 'settings' }: { 
 
           {errorCopy ? <ErrorBanner>{errorCopy}</ErrorBanner> : null}
 
-          <div className="employee-enrollment__entry">
+          <form
+            className="employee-enrollment__entry"
+            onSubmit={event => {
+              event.preventDefault()
+              if (!canSubmit || errorCode === 'permission-required') {
+                return
+              }
+
+              const credentials = { email: email.trim(), password }
+              setPassword('')
+              void run(() => api.login(credentials))
+            }}
+          >
             {errorCode === 'permission-required' ? (
-              <Button disabled={busy} onClick={() => void run(() => api.enroll(''))}>
+              <Button disabled={busy} onClick={() => void run(() => api.enroll(''))} type="button">
                 {copy.reauthorize}
               </Button>
             ) : (
               <>
-                <Input
-                  aria-label={copy.codePlaceholder}
-                  disabled={busy}
-                  onChange={event => setCode(event.target.value)}
-                  placeholder={copy.codePlaceholder}
-                  value={code}
-                />
-                <Button
-                  disabled={!canSubmit}
-                  onClick={() => {
-                    const submittedCode = code.trim()
-                    setCode('')
-                    void run(() => api.enroll(submittedCode))
-                  }}
-                >
+                <div className="employee-enrollment__credentials">
+                  <Input
+                    aria-label={copy.emailPlaceholder}
+                    autoComplete="username"
+                    disabled={busy}
+                    inputMode="email"
+                    onChange={event => setEmail(event.target.value)}
+                    placeholder={copy.emailPlaceholder}
+                    type="email"
+                    value={email}
+                  />
+                  <Input
+                    aria-label={copy.passwordPlaceholder}
+                    autoComplete="current-password"
+                    disabled={busy}
+                    onChange={event => setPassword(event.target.value)}
+                    placeholder={copy.passwordPlaceholder}
+                    type="password"
+                    value={password}
+                  />
+                </div>
+                <Button disabled={!canSubmit} type="submit">
                   {copy.connect}
                 </Button>
               </>
             )}
-          </div>
+          </form>
         </>
       )}
 
       <footer className="employee-enrollment__actions">
-        <Button disabled={busy} onClick={() => void run(api.check)} variant="text">
-          <RefreshCw /> {connected ? copy.recheck : copy.check}
-        </Button>
+        {connected ? (
+          <Button disabled={busy} onClick={() => void run(api.check)} variant="text">
+            <RefreshCw /> {copy.recheck}
+          </Button>
+        ) : null}
         <Button
           onClick={() => {
             setDiagnostics(null)
@@ -253,7 +288,7 @@ export function MyKingEmployeeEnrollmentAssistant({ placement = 'settings' }: { 
         >
           <FileText /> {copy.diagnostics}
         </Button>
-        {connected ? (
+        {status.binding ? (
           <Button onClick={() => setUnbindOpen(true)} variant="text">
             {copy.unbind}
           </Button>
@@ -261,7 +296,7 @@ export function MyKingEmployeeEnrollmentAssistant({ placement = 'settings' }: { 
       </footer>
 
       <Dialog onOpenChange={setDiagnosticsOpen} open={diagnosticsOpen}>
-        <DialogContent>
+        <DialogContent portalContainer={placement === 'gate' ? gateNode : null}>
           <DialogHeader>
             <DialogTitle icon={FileText}>{copy.diagnosticsTitle}</DialogTitle>
             <DialogDescription>{copy.diagnostics}</DialogDescription>
@@ -280,6 +315,7 @@ export function MyKingEmployeeEnrollmentAssistant({ placement = 'settings' }: { 
         onClose={() => setUnbindOpen(false)}
         onConfirm={() => run(api.unbind)}
         open={unbindOpen}
+        portalContainer={placement === 'gate' ? gateNode : null}
         title={copy.unbindTitle}
       />
     </section>
@@ -290,6 +326,7 @@ export function MyKingEmployeeEnrollmentAssistant({ placement = 'settings' }: { 
       className="employee-enrollment-gate fixed inset-0 z-(--z-crash) grid place-items-center"
       data-glass-opaque=""
       data-slot="employee-enrollment-gate"
+      ref={setGateNode}
     >
       {content}
     </div>

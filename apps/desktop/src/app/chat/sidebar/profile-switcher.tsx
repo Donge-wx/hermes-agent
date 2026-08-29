@@ -116,7 +116,15 @@ const stepThroughCells: Modifier = ({ containerNodeRect, draggingNodeRect, trans
 // The active profile pops in its own color — the "where am I" cue. Gateway
 // identity lives in the statusbar, so this strip remains entirely available to
 // profiles regardless of how many backends are registered.
-export function ProfileRail() {
+export function ProfileRail({ managementAvailable = true }: { managementAvailable?: boolean }) {
+  if (!managementAvailable) {
+    return null
+  }
+
+  return <ProfileRailContent />
+}
+
+function ProfileRailContent() {
   const { t } = useI18n()
   const p = t.profiles
   const profiles = useStore($profiles)

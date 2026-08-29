@@ -9,6 +9,7 @@ const $showAllProfiles = atom(false)
 
 const $connection = atom<null | {
   connectionId?: string
+  employeeManaged?: boolean
   mode?: 'local' | 'remote'
   profile?: string
   registryScoped?: boolean
@@ -122,6 +123,15 @@ describe('connection registry cache', () => {
     expect(ensureGatewayAgent).toHaveBeenCalledTimes(1)
     expect(ensureGatewayAgent).toHaveBeenCalledWith('homelab', 'default')
     expect(setLastUsed).toHaveBeenCalledWith('homelab')
+  })
+
+  it('does not replace an employee-managed primary with the local registry entry', async () => {
+    $connection.set({ employeeManaged: true, mode: 'remote' })
+
+    await initializeConnectionsRegistry()
+
+    expect(ensureGatewayAgent).not.toHaveBeenCalled()
+    expect(setLastUsed).not.toHaveBeenCalled()
   })
 
   it('uses only the resolved descriptor identity for the active gateway', () => {

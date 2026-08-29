@@ -60,6 +60,15 @@
   font-size: var(--lg-type-micro);
 }
 
+/* The Command Center is the persistent system entrypoint. Its sparse command
+   mark uses a 22px optical size while preserving its existing 28px
+   hit target and all non-Liquid-Glass themes. */
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] .lg-statusbar-command-glyph {
+  flex: 0 0 var(--lg-size-statusbar-command-glyph);
+  width: var(--lg-size-statusbar-command-glyph) !important;
+  height: var(--lg-size-statusbar-command-glyph) !important;
+}
+
 :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
   [data-slot='statusbar']
   > div:last-child

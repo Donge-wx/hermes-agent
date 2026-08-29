@@ -3767,7 +3767,7 @@ function PetTab({ image, onImage }) {
   if (!pets.length) {
     return jsx('div', {
       className: 'px-2 py-3 text-center text-xs text-(--ui-text-tertiary)',
-      children: 'No pets in the petdex gallery. Run `hermes pets` to explore.'
+      children: 'No pets in the petdex gallery. Use the backend CLI pets command to explore.'
     })
   }
 

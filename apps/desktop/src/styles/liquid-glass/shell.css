@@ -71,17 +71,17 @@
 
 :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
   [data-sidebar='menu-button']:not([data-active='true']):hover {
-  border-color: color-mix(in srgb, var(--lg-rim-outer) 42%, transparent);
+  border-color: transparent;
   background: color-mix(in srgb, var(--lg-hover-wash) 72%, var(--lg-glass-raised));
   color: var(--lg-ink);
-  box-shadow: var(--lg-shadow-navigation-hover);
+  box-shadow: none;
 }
 
 :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-sidebar='menu-button'][data-active='true'] {
-  border-color: color-mix(in srgb, var(--lg-blue) 12%, var(--lg-rim-outer));
+  border-color: transparent;
   background: var(--lg-selected-wash);
   color: var(--lg-ink);
-  box-shadow: var(--lg-shadow-contact);
+  box-shadow: var(--lg-shadow-selection-lens);
 }
 
 /* SESSIONS / BOTS and sibling pane tabs use a quiet lens, never an underline. */

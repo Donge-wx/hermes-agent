@@ -24,6 +24,11 @@ import {
 import { type Translations, useI18n } from '@/i18n'
 import { openExternalLink } from '@/lib/external-link'
 import { ExternalLink, Save, Trash2 } from '@/lib/icons'
+import {
+  employeeMessagingPlatformItems,
+  employeeMessagingPlatformName,
+  employeeVisibleBrandText
+} from '@/lib/managed-employee-policy'
 import { normalize } from '@/lib/text'
 import { cn } from '@/lib/utils'
 import { $changeEventsAvailable, $pairingChangeTick, $platformsChangeTick } from '@/store/live-sync'
@@ -34,6 +39,7 @@ import { runGatewayRestart } from '@/store/system-actions'
 import { useRefreshHotkey } from '../hooks/use-refresh-hotkey'
 import { useRouteEnumParam } from '../hooks/use-route-enum-param'
 import { DetailColumn, ListColumn, MasterDetail } from '../master-detail'
+import { PanelEmpty } from '../overlays/panel'
 import { PageSearchShell } from '../page-search-shell'
 import { CREDENTIAL_CONTROL_CLASS } from '../settings/credential-key-ui'
 import { ListRow } from '../settings/primitives'
@@ -116,11 +122,12 @@ const FIELD_COPY: Record<string, { advanced?: boolean }> = {
 function fieldCopy(field: MessagingEnvVarInfo, m: Translations['messaging']) {
   const copy = FIELD_COPY[field.key] || {}
   const localized = m.fieldCopy[field.key] || {}
+  const label = employeeVisibleBrandText(localized.label || field.prompt || field.key)
 
   return {
-    label: localized.label || field.prompt || field.key,
-    help: localized.help || field.description,
-    placeholder: localized.placeholder || field.prompt,
+    label,
+    help: employeeVisibleBrandText(localized.help || field.description),
+    placeholder: employeeVisibleBrandText(localized.placeholder || m.fieldPlaceholder(label)),
     advanced: Boolean(copy.advanced || field.advanced)
   }
 }
@@ -134,6 +141,7 @@ export function MessagingView({ setStatusbarItemGroup: _setStatusbarItemGroup, .
   // Both save/toggle toasts offer the same one-click restart.
   const restartGatewayAction = { label: t.commandCenter.restartGateway, onClick: () => void runGatewayRestart() }
   const [platforms, setPlatforms] = useState<MessagingPlatformInfo[] | null>(null)
+  const [loadError, setLoadError] = useState<null | string>(null)
 
   const [pairing, setPairing] = useState<{ approved: PairingUser[]; pending: PairingUser[] }>({
     approved: [],
@@ -157,10 +165,18 @@ export function MessagingView({ setStatusbarItemGroup: _setStatusbarItemGroup, .
 
       try {
         const result = await getMessagingPlatforms(scopeProfile)
-        setPlatforms(result.platforms)
+        setLoadError(null)
+        setPlatforms(
+          employeeMessagingPlatformItems(result.platforms).map(platform => ({
+            ...platform,
+            name: employeeMessagingPlatformName(platform)
+          }))
+        )
       } catch (err) {
         if (!silent) {
           notifyError(err, m.loadFailed)
+          setLoadError(err instanceof Error ? err.message : String(err))
+          setPlatforms(current => current ?? [])
         }
       } finally {
         if (!silent) {
@@ -211,6 +227,7 @@ export function MessagingView({ setStatusbarItemGroup: _setStatusbarItemGroup, .
 
     scopeSeenRef.current = scopeProfile
     setPlatforms(null)
+    setLoadError(null)
     setPairing({ approved: [], pending: [] })
     setEdits({})
   }, [scopeProfile])
@@ -432,15 +449,26 @@ export function MessagingView({ setStatusbarItemGroup: _setStatusbarItemGroup, .
     >
       {!platforms ? (
         <PageLoader label={m.loading} />
+      ) : loadError && platforms.length === 0 ? (
+        <PanelEmpty
+          action={
+            <Button onClick={() => void refreshAll()} size="sm" variant="secondary">
+              {t.common.retry}
+            </Button>
+          }
+          description={loadError}
+          icon="warning"
+          title={m.loadFailed}
+        />
       ) : (
         <div className="flex h-full min-h-0 flex-col">
           {/* Which profile's gateway this page configures (hidden for
               single-profile users). */}
           <SettingsProfileScope className="border-b border-(--ui-stroke-secondary) px-3 py-2" />
-          <div className="min-h-0 flex-1">
+          <div className="min-h-0 flex-1" data-slot="messaging-workspace">
             <MasterDetail>
               <ListColumn>
-                <ul className="space-y-1">
+                <ul className="space-y-1" data-slot="messaging-platform-list">
                   {visiblePlatforms.map(platform => (
                     <li key={platform.id}>
                       <PlatformRow
@@ -529,12 +557,19 @@ function PlatformRow({
         'row-hover flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:text-foreground',
         active ? 'bg-(--ui-row-active-background) text-foreground' : 'text-(--ui-text-secondary)'
       )}
+      data-selected={active ? 'true' : 'false'}
+      data-slot="messaging-platform-row"
       onClick={onSelect}
       type="button"
     >
       <PlatformAvatar platformId={platform.id} platformName={platform.name} />
       <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
-        <span className="truncate text-[length:var(--conversation-text-font-size)] font-normal">{platform.name}</span>
+        <span
+          className="min-w-0 whitespace-normal break-words text-[length:var(--conversation-text-font-size)] font-normal leading-tight"
+          data-slot="messaging-platform-name"
+        >
+          {platform.name}
+        </span>
         <span className="flex shrink-0 items-center gap-1.5">
           {/* Someone is waiting to be let in — the only way this page tells
               you so before you open the platform. */}
@@ -589,7 +624,7 @@ function PlatformDetail({
   const hiddenCount = advancedFields.length
 
   return (
-    <>
+    <div className="space-y-6" data-slot="messaging-platform-detail">
       <header className="flex items-start gap-3">
         <PlatformAvatar platformId={platform.id} platformName={platform.name} />
         <div className="min-w-0 flex-1">
@@ -671,7 +706,10 @@ function PlatformDetail({
 
       <section>
         <SectionTitle>{m.getCredentials}</SectionTitle>
-        <p className="mt-1 text-[length:var(--conversation-caption-font-size)] leading-(--conversation-caption-line-height) text-(--ui-text-tertiary)">
+        <p
+          className="mt-1 text-[length:var(--conversation-caption-font-size)] leading-(--conversation-caption-line-height) text-(--ui-text-tertiary)"
+          data-slot="platform-intro"
+        >
           {introCopy(platform, m)}
         </p>
         {platform.docs_url && (
@@ -703,7 +741,7 @@ function PlatformDetail({
 
       <section>
         <SectionTitle>{m.required}</SectionTitle>
-        <div className="mt-3 grid gap-1">
+        <div className="mt-3 grid gap-1" data-slot="messaging-field-group">
           {requiredFields.length > 0 ? (
             requiredFields.map(field => (
               <MessagingField
@@ -726,7 +764,7 @@ function PlatformDetail({
       {optionalFields.length > 0 && (
         <section>
           <SectionTitle>{m.recommended}</SectionTitle>
-          <div className="mt-3 grid gap-1">
+          <div className="mt-3 grid gap-1" data-slot="messaging-field-group">
             {optionalFields.map(field => (
               <MessagingField
                 edits={edits}
@@ -752,7 +790,7 @@ function PlatformDetail({
             <DisclosureCaret open={showAdvanced} size="0.875rem" />
           </button>
           {showAdvanced && (
-            <div className="mt-3 grid gap-1">
+            <div className="mt-3 grid gap-1" data-slot="messaging-field-group">
               {advancedFields.map(field => (
                 <MessagingField
                   edits={edits}
@@ -767,7 +805,7 @@ function PlatformDetail({
           )}
         </section>
       )}
-    </>
+    </div>
   )
 }
 
@@ -838,7 +876,7 @@ const PLATFORM_INTRO: Record<string, string> = {
   wecom_callback:
     'Set up a WeCom self-built app, expose its callback URL, and provide the corp ID, secret, agent ID, and AES key.',
   weixin:
-    "Run `hermes gateway setup`, select Weixin, then scan and confirm the QR code with a personal WeChat account. My King connects through Tencent's iLink Bot API and saves the credentials.",
+    "Open Gateway setup in My King, select Weixin, then scan and confirm the QR code with a personal WeChat account. My King connects through Tencent's iLink Bot API and saves the credentials.",
   qqbot: 'Register an app on the QQ Open Platform (q.qq.com) and copy the App ID and Client Secret.',
   api_server:
     'Expose My King as an OpenAI-compatible API. Set an auth key, then point Open WebUI / LobeChat / etc. at the host:port.',
@@ -868,53 +906,62 @@ function MessagingField({
   const fieldId = `messaging-field-${field.key}`
 
   return (
-    <ListRow
-      action={
-        <div className="flex items-center gap-2">
-          <Input
-            className={CREDENTIAL_CONTROL_CLASS}
-            id={fieldId}
-            onChange={event => onEdit(field.key, event.target.value)}
-            placeholder={field.is_set ? field.redacted_value || m.replaceValue : copy.placeholder}
-            type={field.is_password ? 'password' : 'text'}
-            value={edits[field.key] || ''}
-          />
-          {field.url && (
-            <Tip label={m.openDocs}>
-              <Button asChild className="size-8 shrink-0" variant="ghost">
-                <a href={field.url} rel="noreferrer" target="_blank">
-                  <ExternalLink className="size-3.5" />
-                </a>
-              </Button>
-            </Tip>
-          )}
-          {field.is_set && (
-            <Tip label={m.clearField(field.key)}>
-              <Button
-                className="size-8 shrink-0"
-                disabled={saving === `clear:${field.key}`}
-                onClick={() => onClear(field.key)}
-                variant="ghost"
-              >
-                <Trash2 className="size-3.5" />
-              </Button>
-            </Tip>
-          )}
-        </div>
-      }
-      description={copy.help}
-      title={
-        <span className="flex flex-wrap items-center gap-2">
-          <label htmlFor={fieldId}>{copy.label}</label>
-          {field.is_set && <span className="text-[0.66rem] font-medium text-primary">{m.saved}</span>}
-        </span>
-      }
-    />
+    <div data-slot="messaging-field">
+      <ListRow
+        action={
+          <div className="flex items-center gap-2">
+            <Input
+              className={CREDENTIAL_CONTROL_CLASS}
+              id={fieldId}
+              onChange={event => onEdit(field.key, event.target.value)}
+              placeholder={field.is_set ? field.redacted_value || m.replaceValue : copy.placeholder}
+              type={field.is_password ? 'password' : 'text'}
+              value={edits[field.key] || ''}
+            />
+            {field.url && (
+              <Tip label={m.openDocs}>
+                <Button asChild className="size-8 shrink-0" variant="ghost">
+                  <a href={field.url} rel="noreferrer" target="_blank">
+                    <ExternalLink className="size-3.5" />
+                  </a>
+                </Button>
+              </Tip>
+            )}
+            {field.is_set && (
+              <Tip label={m.clearField(field.key)}>
+                <Button
+                  className="size-8 shrink-0"
+                  disabled={saving === `clear:${field.key}`}
+                  onClick={() => onClear(field.key)}
+                  variant="ghost"
+                >
+                  <Trash2 className="size-3.5" />
+                </Button>
+              </Tip>
+            )}
+          </div>
+        }
+        description={copy.help}
+        title={
+          <span className="flex flex-wrap items-center gap-2">
+            <label htmlFor={fieldId}>{copy.label}</label>
+            {field.is_set && <span className="text-[0.66rem] font-medium text-primary">{m.saved}</span>}
+          </span>
+        }
+      />
+    </div>
   )
 }
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
-  return <h4 className="text-[0.7rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{children}</h4>
+  return (
+    <h4
+      className="text-[0.7rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground"
+      data-slot="messaging-section-title"
+    >
+      {children}
+    </h4>
+  )
 }
 
 function PlatformHint({ platform }: { platform: MessagingPlatformInfo }) {

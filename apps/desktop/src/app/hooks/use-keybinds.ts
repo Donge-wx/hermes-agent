@@ -19,6 +19,7 @@ import { findBarClaimsCombo } from '@/lib/find-in-page'
 import { contributedKeybindHandler, PROFILE_SLOT_COUNT, SESSION_SLOT_COUNT } from '@/lib/keybinds/actions'
 import { actionAllowedInInput, comboFromEvent, isEditableTarget } from '@/lib/keybinds/combo'
 import { composerFocusKeysAllowed, isComposerFocusSoftCombo, typeToFocusChar } from '@/lib/keybinds/composer-focus-keys'
+import { isEmployeeFeatureAvailable, isEmployeeRouteAvailable } from '@/lib/managed-employee-policy'
 import { openWorktreeDialog } from '@/store/coding-status'
 import { $commandPaletteOpen, openCommandPalettePage, toggleCommandPalette } from '@/store/command-palette'
 import {
@@ -128,6 +129,10 @@ export function useKeybinds(deps: KeybindRuntimeDeps): void {
     // ⌘1…⌘9 switch the FOCUSED zone's tab when it's a real tab strip; only a
     // single-pane (or unfocused) layout falls through to the profile switch.
     profileSwitchHandlers[`profile.switch.${slot}`] = () => {
+      if (!isEmployeeFeatureAvailable('profiles.manage')) {
+        return
+      }
+
       const pane = activateTreeTabSlot(slot)
 
       if (pane) {
@@ -205,12 +210,22 @@ export function useKeybinds(deps: KeybindRuntimeDeps): void {
     },
     'nav.commandCenter': deps.toggleCommandCenter,
     'nav.settings': () => navigate(SETTINGS_ROUTE),
-    'nav.profiles': () => navigate(PROFILES_ROUTE),
-    'nav.skills': () => navigateToWorkspacePage(navigate, SKILLS_ROUTE),
-    'nav.messaging': () => navigateToWorkspacePage(navigate, MESSAGING_ROUTE),
+    'nav.profiles': () => {
+      if (isEmployeeRouteAvailable(PROFILES_ROUTE)) {navigate(PROFILES_ROUTE)}
+    },
+    'nav.skills': () => {
+      if (isEmployeeRouteAvailable(SKILLS_ROUTE)) {navigateToWorkspacePage(navigate, SKILLS_ROUTE)}
+    },
+    'nav.messaging': () => {
+      if (isEmployeeRouteAvailable(MESSAGING_ROUTE)) {navigateToWorkspacePage(navigate, MESSAGING_ROUTE)}
+    },
     'nav.artifacts': () => navigateToWorkspacePage(navigate, ARTIFACTS_ROUTE),
-    'nav.cron': () => navigate(CRON_ROUTE),
-    'nav.agents': () => navigate(AGENTS_ROUTE),
+    'nav.cron': () => {
+      if (isEmployeeRouteAvailable(CRON_ROUTE)) {navigate(CRON_ROUTE)}
+    },
+    'nav.agents': () => {
+      if (isEmployeeRouteAvailable(AGENTS_ROUTE)) {navigate(AGENTS_ROUTE)}
+    },
 
     'session.new': () => {
       // Match the sidebar New Session button. A plain keyboard new chat should
@@ -250,7 +265,9 @@ export function useKeybinds(deps: KeybindRuntimeDeps): void {
     'view.showFiles': showFiles,
     'view.showBrowser': openBrowserTab,
     'view.toggleHud': () => toggleHud(hudTargetSessionId()),
-    'view.showTerminal': () => togglePaneVisible('terminal'),
+    'view.showTerminal': () => {
+      if (isEmployeeFeatureAvailable('terminal')) {togglePaneVisible('terminal')}
+    },
     // Create first so the pane's open-effect ensure sees a non-empty set and
     // doesn't also spawn one — net effect is exactly one fresh terminal.
     'view.newTerminal': () => {
@@ -289,12 +306,22 @@ export function useKeybinds(deps: KeybindRuntimeDeps): void {
 
     'appearance.toggleMode': () => setMode(resolvedMode === 'dark' ? 'light' : 'dark'),
 
-    'profile.default': switchToDefaultProfile,
+    'profile.default': () => {
+      if (isEmployeeFeatureAvailable('profiles.manage')) {switchToDefaultProfile()}
+    },
     ...profileSwitchHandlers,
-    'profile.next': () => cycleProfile(1),
-    'profile.prev': () => cycleProfile(-1),
-    'profile.toggleAll': toggleShowAllProfiles,
-    'profile.create': requestProfileCreate
+    'profile.next': () => {
+      if (isEmployeeFeatureAvailable('profiles.manage')) {cycleProfile(1)}
+    },
+    'profile.prev': () => {
+      if (isEmployeeFeatureAvailable('profiles.manage')) {cycleProfile(-1)}
+    },
+    'profile.toggleAll': () => {
+      if (isEmployeeFeatureAvailable('profiles.manage')) {toggleShowAllProfiles()}
+    },
+    'profile.create': () => {
+      if (isEmployeeFeatureAvailable('profiles.manage')) {requestProfileCreate()}
+    }
   }
 
   // A keyboard-driven overlay closing hands typing back to the composer: Radix

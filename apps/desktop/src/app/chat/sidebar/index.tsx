@@ -26,6 +26,12 @@ import { useContributions } from '@/contrib/react/use-contributions'
 import { searchSessions, type SessionInfo, type SessionSearchResult } from '@/hermes'
 import { useI18n } from '@/i18n'
 import { comboTokens } from '@/lib/keybinds/combo'
+import {
+  employeeFeatureItems,
+  employeeMessagingSessionItems,
+  isEmployeeFeatureAvailable,
+  isEmployeeRouteAvailable
+} from '@/lib/managed-employee-policy'
 import { resolveProfileColor } from '@/lib/profile-color'
 import { sessionMatchesSearch } from '@/lib/session-search'
 import { normalizeSessionSource, sessionSourceLabel } from '@/lib/session-source'
@@ -550,15 +556,26 @@ export function ChatSidebar({
   )
 
   const visibleMessagingSessions = useMemo(
-    () => filterSessionsByProfileScope(messagingSessions, profileScope),
+    () => employeeMessagingSessionItems(filterSessionsByProfileScope(messagingSessions, profileScope)),
     [messagingSessions, profileScope]
   )
 
+  const pinnableCronSessions = useMemo(
+    () => employeeFeatureItems('cron.manage', visibleCronSessions),
+    [visibleCronSessions]
+  )
+
+  const pinnableMessagingSessions = useMemo(
+    () => employeeFeatureItems('messaging.manage', visibleMessagingSessions),
+    [visibleMessagingSessions]
+  )
+
   // Index sessions by every id a pin might be stored under — recents, cron,
-  // AND messaging, since all three can be pinned (see session-index.ts).
+  // AND messaging when those managed features are available (see
+  // session-index.ts). The data remains intact when employee policy hides it.
   const sessionByAnyId = useMemo(
-    () => buildSessionByAnyId(visibleSessions, visibleCronSessions, visibleMessagingSessions),
-    [visibleSessions, visibleCronSessions, visibleMessagingSessions]
+    () => buildSessionByAnyId(visibleSessions, pinnableCronSessions, pinnableMessagingSessions),
+    [visibleSessions, pinnableCronSessions, pinnableMessagingSessions]
   )
 
   // Local pin ids first (hand-picked order), then server-flagged pins the
@@ -570,10 +587,17 @@ export function ChatSidebar({
       resolvePinnedSessions(
         pinnedSessionIds,
         sessionByAnyId,
-        [...visibleSessions, ...cronSessions, ...messagingSessions],
+        [...visibleSessions, ...pinnableCronSessions, ...pinnableMessagingSessions],
         unconfirmedPinWrites
       ),
-    [pinnedSessionIds, sessionByAnyId, visibleSessions, cronSessions, messagingSessions, unconfirmedPinWrites]
+    [
+      pinnedSessionIds,
+      sessionByAnyId,
+      visibleSessions,
+      pinnableCronSessions,
+      pinnableMessagingSessions,
+      unconfirmedPinWrites
+    ]
   )
 
   // Every id a pin is reachable under: the raw stored ids, plus BOTH identities
@@ -1470,7 +1494,7 @@ export function ChatSidebar({
         <SidebarGroup className="shrink-0 p-0 pb-2 pt-[calc(var(--titlebar-height)+0.375rem)]">
           <SidebarGroupContent>
             <SidebarMenu className="gap-px">
-              {[...SIDEBAR_NAV, ...contributedNav].map(item => {
+              {[...SIDEBAR_NAV.filter(item => !item.route || isEmployeeRouteAvailable(item.route)), ...contributedNav].map(item => {
                 const isInteractive = Boolean(item.action) || Boolean(item.route)
 
                 const active =
@@ -1829,6 +1853,7 @@ export function ChatSidebar({
 
             {!trimmedQuery &&
               !worktreeGroupingActive &&
+              isEmployeeFeatureAvailable('messaging.manage') &&
               messagingGroups.map(group => {
                 const visible = messagingVisible[group.sourceId] ?? NON_SESSION_INITIAL_ROWS
                 const shownSessions = group.sessions.slice(0, visible)
@@ -1873,7 +1898,10 @@ export function ChatSidebar({
                 )
               })}
 
-            {!trimmedQuery && !worktreeGroupingActive && cronJobs.length > 0 && (
+            {!trimmedQuery &&
+              !worktreeGroupingActive &&
+              isEmployeeFeatureAvailable('cron.manage') &&
+              cronJobs.length > 0 && (
               <SidebarCronJobsSection
                 jobs={cronJobs}
                 label={s.cronJobs}
@@ -1890,7 +1918,7 @@ export function ChatSidebar({
         {!showSessionSections && <SidebarBlankState onNewProject={openProjectCreate} />}
 
         <div className="shrink-0 px-0.5 pb-1 pt-0.5">
-          <ProfileRail />
+          <ProfileRail managementAvailable={isEmployeeFeatureAvailable('profiles.manage')} />
         </div>
       </SidebarContent>
       <ProjectDialog />

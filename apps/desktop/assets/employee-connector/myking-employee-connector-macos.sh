@@ -109,9 +109,15 @@ fi
 /bin/chmod 600 "$base_dir/keys/relay_client.pub"
 
 candidate_hosts="$base_dir/keys/known_hosts.candidate"
-/usr/bin/ssh-keyscan -T 10 -p "$relay_port" "$relay_host" > "$candidate_hosts" 2>/dev/null
+/usr/bin/ssh-keyscan -T 10 -t ed25519 -p "$relay_port" "$relay_host" > "$candidate_hosts" 2>/dev/null
 
-if ! /usr/bin/ssh-keygen -E sha256 -lf "$candidate_hosts" | /usr/bin/awk '{print $2}' | /usr/bin/grep -Fqx -- "$relay_fingerprint"; then
+if [ ! -s "$candidate_hosts" ]; then
+  /bin/rm -f "$candidate_hosts"
+  exit 66
+fi
+
+candidate_fingerprints=$(/usr/bin/ssh-keygen -E sha256 -lf "$candidate_hosts" | /usr/bin/awk '{print $2}')
+if [ -z "$candidate_fingerprints" ] || /usr/bin/printf '%s\n' "$candidate_fingerprints" | /usr/bin/grep -Fvx -- "$relay_fingerprint" >/dev/null; then
   /bin/rm -f "$candidate_hosts"
   exit 66
 fi
@@ -136,7 +142,7 @@ enabled() { [ -f "\$enabled_path" ] && /usr/bin/grep -Fqx -- 'enabled' "\$enable
 while ! enabled; do /bin/sleep 2; done
 while enabled; do
   /bin/rm -f "\$ready_path"
-  /usr/bin/ssh -NT -i '$base_dir/keys/relay_client' -p '$relay_port' -R '$remote_port:127.0.0.1:22' -o 'BatchMode=yes' -o 'ExitOnForwardFailure=yes' -o 'IdentitiesOnly=yes' -o 'ServerAliveInterval=30' -o 'ServerAliveCountMax=3' -o 'StrictHostKeyChecking=yes' -o 'UserKnownHostsFile=$base_dir/keys/known_hosts' '$relay_user@$relay_host' &
+  /usr/bin/ssh -NT -i '$base_dir/keys/relay_client' -p '$relay_port' -R '0.0.0.0:$remote_port:127.0.0.1:22' -o 'BatchMode=yes' -o 'ExitOnForwardFailure=yes' -o 'IdentitiesOnly=yes' -o 'ServerAliveInterval=30' -o 'ServerAliveCountMax=3' -o 'HostKeyAlgorithms=ssh-ed25519' -o 'StrictHostKeyChecking=yes' -o 'UserKnownHostsFile="$base_dir/keys/known_hosts"' '$relay_user@$relay_host' &
   ssh_pid=\$!
   /bin/sleep 2
   if /bin/kill -0 "\$ssh_pid" >/dev/null 2>&1; then
@@ -146,7 +152,7 @@ while enabled; do
   wait "\$ssh_pid" || true
   ssh_pid=''
   /bin/rm -f "\$ready_path"
-  /bin/sleep 5
+  /bin/sleep 30
 done
 EOF
 /bin/chmod 700 "$wrapper_path"

@@ -261,7 +261,8 @@ describe('SkillsView toolset management', () => {
     // the one-line description.
     await waitFor(() => expect(getSkillContent).toHaveBeenCalled())
     expect(getSkillContent.mock.calls[0][0]).toBe('web-research')
-    expect(await screen.findByText('version')).toBeTruthy()
+    expect(await screen.findByText('版本')).toBeTruthy()
+    expect(screen.queryByText('version')).toBeNull()
     expect(await screen.findByText('1.2.0')).toBeTruthy()
     expect(await screen.findByText(/Deep research steps/)).toBeTruthy()
   })

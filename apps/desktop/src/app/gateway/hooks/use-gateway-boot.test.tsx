@@ -1,6 +1,7 @@
 import { act, cleanup, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { DesktopBootProgress } from '@/global'
 import { $desktopBoot } from '@/store/boot'
 import { closeSecondaryGateways, isActivePrimary } from '@/store/gateway'
 import { reconnectGateway } from '@/store/gateway-reconnect'
@@ -113,7 +114,7 @@ function fakeDesktop() {
       running: true as boolean,
       timestamp: Date.now()
     })),
-    onBootProgress: vi.fn(() => () => undefined),
+    onBootProgress: vi.fn((_callback: (progress: DesktopBootProgress) => void) => () => undefined),
     onBackendExit: vi.fn(() => () => undefined),
     onConnectionApplied: vi.fn(callback => {
       connectionApplied = callback
@@ -301,6 +302,43 @@ describe('useGatewayBoot remote reconnect loop (real hook, fake socket)', () => 
     expect(fetchSpy).not.toHaveBeenCalled()
     expect(FakeWebSocket.instances).toHaveLength(1)
     expect($gatewayState.get()).toBe('open')
+  })
+
+  it('localizes the employee enrollment requirement from main-process boot progress', async () => {
+    const rawError = 'Connect this device with My King Employee Enrollment before opening the company gateway.'
+    const desktop = fakeDesktop()
+
+    desktop.getConnection = vi.fn(() => new Promise(() => undefined))
+    desktop.getBootProgress = vi.fn(async () => ({
+      error: rawError,
+      fakeMode: false,
+      message: rawError,
+      phase: 'backend.error',
+      progress: 32,
+      retryable: false,
+      running: false,
+      timestamp: Date.now()
+    }))
+    desktop.onBootProgress = vi.fn(callback => {
+      callback({
+        error: rawError,
+        fakeMode: false,
+        message: rawError,
+        phase: 'backend.error',
+        progress: 32,
+        running: false,
+        timestamp: Date.now()
+      })
+
+      return () => undefined
+    })
+    ;(window as { hermesDesktop?: unknown }).hermesDesktop = desktop
+
+    render(<Harness />)
+    await flushAsync()
+
+    expect($desktopBoot.get().error).toContain('公司员工账号')
+    expect($desktopBoot.get().error).not.toContain('Connect this device')
   })
 
   it('INITIAL boot against a dead VPS: getConnection hangs (waitForHermes) → app sits in the connecting combo, then fails', async () => {

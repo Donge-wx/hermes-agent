@@ -27,6 +27,7 @@ export interface MyKingEmployeeBinding {
   readonly deviceId: string
   readonly employeeId: string
   readonly employeeName: string
+  readonly enrollmentId: string
   readonly enrolledAt: string
   readonly lastCheckAt: null | string
   readonly remoteGatewayUrl: string
@@ -163,6 +164,10 @@ declare global {
       getBootProgress: () => Promise<DesktopBootProgress>
       employeeEnrollment?: {
         getStatus: () => Promise<MyKingEmployeeEnrollmentStatus>
+        login: (credentials: {
+          readonly email: string
+          readonly password: string
+        }) => Promise<MyKingEmployeeEnrollmentStatus>
         enroll: (code: string) => Promise<MyKingEmployeeEnrollmentStatus>
         check: () => Promise<MyKingEmployeeEnrollmentStatus>
         diagnostics: () => Promise<{ readonly lines: readonly string[]; readonly path: string }>
@@ -699,6 +704,7 @@ export interface DesktopPluginProfileRoute {
 export interface HermesConnection {
   baseUrl: string
   darwinMajor?: number
+  employeeManaged?: boolean
   isFullscreen: boolean
   // The live, RESOLVED connection mode. Only ever 'local' or 'remote' — a
   // 'cloud' saved-config entry resolves to a 'remote' connection under the hood

@@ -23,6 +23,7 @@ export interface MyKingEmployeeBinding {
   readonly deviceId: string
   readonly employeeId: string
   readonly employeeName: string
+  readonly enrollmentId: string
   readonly enrolledAt: string
   readonly lastCheckAt: null | string
   readonly remoteGatewayUrl: string
@@ -119,7 +120,10 @@ export async function assertSafeMyKingRelayHost(
       return LOCAL_HOSTS.has(address) || address.startsWith('127.') || machineAddresses.has(address)
     })
   ) {
-    throw new Error('My King relay host resolves to this employee computer.')
+    throw new MyKingEmployeeEnrollmentError(
+      'central-host-blocked',
+      'This device is the company relay host and cannot be enrolled as an employee computer.'
+    )
   }
 }
 
@@ -187,6 +191,7 @@ export function readMyKingEmployeeBinding(bindingPath: string): MyKingEmployeeBi
       typeof binding.employeeId !== 'string' ||
       typeof binding.employeeName !== 'string' ||
       typeof binding.deviceId !== 'string' ||
+      typeof binding.enrollmentId !== 'string' ||
       typeof binding.remoteGatewayUrl !== 'string' ||
       typeof binding.enrolledAt !== 'string'
     ) {
@@ -198,6 +203,7 @@ export function readMyKingEmployeeBinding(bindingPath: string): MyKingEmployeeBi
       employeeId: binding.employeeId,
       employeeName: binding.employeeName,
       deviceId: binding.deviceId,
+      enrollmentId: binding.enrollmentId,
       remoteGatewayUrl: binding.remoteGatewayUrl,
       enrolledAt: binding.enrolledAt,
       lastCheckAt: typeof binding.lastCheckAt === 'string' ? binding.lastCheckAt : null

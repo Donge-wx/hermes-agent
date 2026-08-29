@@ -13,6 +13,7 @@ import { type Translations, useI18n } from '@/i18n'
 import { isDesktopFsRemoteMode } from '@/lib/desktop-fs'
 import { guardGuestPointers } from '@/lib/guest-pointer-guard'
 import { openPreviewTargetInBrowser, remoteHtmlPreviewDocument } from '@/lib/local-preview'
+import { isEmployeeFeatureAvailable } from '@/lib/managed-employee-policy'
 import { isRemoteGateway } from '@/lib/media'
 import { reachablePreviewUrl } from '@/lib/preview-reach'
 import { rafCoalesce } from '@/lib/raf-coalesce'
@@ -953,6 +954,7 @@ export function PreviewPane({ embedded = false, onRestartServer, reloadRequest =
             canGoBack={history.back}
             canGoForward={history.forward}
             consoleOpen={consoleOpen}
+            developerToolsAvailable={isEmployeeFeatureAvailable('developerTools')}
             devToolsOpen={devtoolsOpen}
             loading={loading}
             onBack={goBack}

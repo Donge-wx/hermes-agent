@@ -16,6 +16,7 @@ import type {
 } from '@/global'
 import { checkHermesUpdate, getActionStatus, updateHermes } from '@/hermes'
 import { translateNow } from '@/i18n'
+import { MANAGED_UPDATES_EXTERNALLY, managedUpdatesDisabledResult } from '@/lib/managed-update-policy'
 import { persistString, storedString } from '@/lib/storage'
 import { $connectionsRegistry, refreshConnectionsRegistry } from '@/store/connections'
 import { dismissNotification, notify } from '@/store/notifications'
@@ -63,6 +64,10 @@ export const $updateOverlayTarget = atom<UpdateTarget>('client')
 export const setUpdateOverlayOpen = (open: boolean) => $updateOverlayOpen.set(open)
 
 export const openUpdateOverlayFor = (target: UpdateTarget) => {
+  if (MANAGED_UPDATES_EXTERNALLY) {
+    return
+  }
+
   $updateOverlayTarget.set(target)
   $updateOverlayOpen.set(true)
   void (target === 'backend' ? checkBackendUpdates() : checkUpdates())
@@ -148,6 +153,12 @@ function isInstallMethodToastSnoozed(): boolean {
  * doesn't nag on every thread switch.
  */
 export function reportBackendContract(contract: number | undefined): void {
+  if (MANAGED_UPDATES_EXTERNALLY) {
+    dismissNotification(SKEW_TOAST_ID)
+
+    return
+  }
+
   if ((contract ?? 0) >= REQUIRED_BACKEND_CONTRACT) {
     dismissNotification(SKEW_TOAST_ID)
     // Backend caught up — forget any prior snooze so a future regression warns
@@ -179,6 +190,12 @@ export function reportBackendContract(contract: number | undefined): void {
 }
 
 export function reportInstallMethodWarning(message: string | undefined): void {
+  if (MANAGED_UPDATES_EXTERNALLY) {
+    dismissNotification(INSTALL_METHOD_TOAST_ID)
+
+    return
+  }
+
   if (!message) {
     dismissNotification(INSTALL_METHOD_TOAST_ID)
 
@@ -206,6 +223,12 @@ export function reportInstallMethodWarning(message: string | undefined): void {
  * on every new commit. The snooze is persisted, so it survives relaunches too.
  */
 export function maybeNotifyUpdateAvailable(status: DesktopUpdateStatus | null) {
+  if (MANAGED_UPDATES_EXTERNALLY) {
+    dismissNotification(UPDATE_TOAST_ID)
+
+    return
+  }
+
   if (!status || status.supported === false || status.error || !status.targetSha) {
     return
   }
@@ -248,6 +271,10 @@ export function maybeNotifyUpdateAvailable(status: DesktopUpdateStatus | null) {
 }
 
 export function openUpdatesWindow(): void {
+  if (MANAGED_UPDATES_EXTERNALLY) {
+    return
+  }
+
   openUpdateOverlayFor(isRemoteMode() ? 'backend' : 'client')
 }
 
@@ -264,6 +291,10 @@ export function openUpdatesWindow(): void {
  * updating the backend forever while the GUI itself went stale.
  */
 export function startActiveUpdate(): void {
+  if (MANAGED_UPDATES_EXTERNALLY) {
+    return
+  }
+
   if (hasMultipleUpdateTargets()) {
     $updateOverlayOpen.set(true)
     void applyEverythingUpdate()
@@ -286,6 +317,10 @@ export function startActiveUpdate(): void {
  * triggers the everything-flow.
  */
 export function requestActiveUpdate(): void {
+  if (MANAGED_UPDATES_EXTERNALLY) {
+    return
+  }
+
   if (hasMultipleUpdateTargets()) {
     const clientStatus = $updateStatus.get()
     const backendStatus = $backendUpdateStatus.get()
@@ -363,6 +398,10 @@ function mapBackendCheck(res: BackendUpdateCheckResponse): DesktopUpdateStatus {
 }
 
 export async function checkBackendUpdates(): Promise<DesktopUpdateStatus | null> {
+  if (MANAGED_UPDATES_EXTERNALLY) {
+    return $backendUpdateStatus.get()
+  }
+
   if (!isRemoteMode() || $backendUpdateChecking.get()) {
     return $backendUpdateStatus.get()
   }
@@ -392,6 +431,10 @@ export async function checkBackendUpdates(): Promise<DesktopUpdateStatus | null>
 }
 
 export async function checkUpdates(): Promise<DesktopUpdateStatus | null> {
+  if (MANAGED_UPDATES_EXTERNALLY) {
+    return $updateStatus.get()
+  }
+
   const bridge = window.hermesDesktop?.updates
 
   if (!bridge || $updateChecking.get()) {
@@ -427,6 +470,10 @@ export async function checkUpdates(): Promise<DesktopUpdateStatus | null> {
 }
 
 export async function applyUpdates(opts: DesktopUpdateApplyOptions = {}): Promise<DesktopUpdateApplyResult> {
+  if (MANAGED_UPDATES_EXTERNALLY) {
+    return managedUpdatesDisabledResult()
+  }
+
   const bridge = window.hermesDesktop?.updates
 
   if (!bridge) {
@@ -757,6 +804,10 @@ async function runBackendUpdate(): Promise<DesktopUpdateApplyResult> {
 }
 
 export function applyBackendUpdate(): Promise<DesktopUpdateApplyResult> {
+  if (MANAGED_UPDATES_EXTERNALLY) {
+    return Promise.resolve(managedUpdatesDisabledResult())
+  }
+
   if (backendUpdateInFlight) {
     return backendUpdateInFlight
   }
@@ -832,6 +883,10 @@ export function hasMultipleUpdateTargets(): boolean {
 let updateEverythingInFlight: Promise<void> | null = null
 
 export function applyEverythingUpdate(): Promise<void> {
+  if (MANAGED_UPDATES_EXTERNALLY) {
+    return Promise.resolve()
+  }
+
   if (updateEverythingInFlight) {
     return updateEverythingInFlight
   }
@@ -950,6 +1005,14 @@ export function startUpdatePoller(): void {
     return
   }
 
+  if (MANAGED_UPDATES_EXTERNALLY) {
+    pollerStarted = true
+    void refreshDesktopVersion()
+    window.addEventListener('focus', onFocus)
+
+    return
+  }
+
   const bridge = window.hermesDesktop?.updates
 
   if (!bridge) {
@@ -1008,6 +1071,13 @@ function onFocus() {
   }
 
   lastFocusAt = now
+
+  if (MANAGED_UPDATES_EXTERNALLY) {
+    void refreshDesktopVersion()
+
+    return
+  }
+
   void checkUpdates()
   void checkBackendUpdates()
   void refreshDesktopVersion()

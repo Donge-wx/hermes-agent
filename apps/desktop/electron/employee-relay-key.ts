@@ -1,4 +1,5 @@
 import crypto from 'node:crypto'
+import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -98,4 +99,18 @@ export function generateMyKingRelayKeyStaging(userData: string): MyKingRelayKeyS
   })
 
   return { directory, privateKeyPath, publicKey }
+}
+
+export function signMyKingEnrollmentChallenge(privateKeyPath: string, challenge: string): string {
+  const executable =
+    process.platform === 'win32'
+      ? path.win32.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'OpenSSH', 'ssh-keygen.exe')
+      : 'ssh-keygen'
+
+  return execFileSync(executable, ['-Y', 'sign', '-f', privateKeyPath, '-n', 'myking-enrollment'], {
+    encoding: 'utf8',
+    input: challenge,
+    stdio: ['pipe', 'pipe', 'ignore'],
+    windowsHide: true
+  }).trim()
 }

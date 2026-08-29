@@ -23,6 +23,241 @@
   line-height: var(--lg-line-control);
 }
 
+/* Credentials are one continuous settings list. Each row keeps its label,
+   state dot, and field in one readable line instead of pushing an unframed
+   placeholder across a large empty right-hand region. */
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='credential-list'] {
+  width: min(100%, var(--lg-measure-credential-list));
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='credential-row'] {
+  min-height: var(--lg-size-credential-row);
+  border-block-end: var(--lg-stroke-hairline) solid color-mix(in srgb, var(--lg-rim-outer) 58%, transparent);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='credential-row'] > :first-child {
+  padding: var(--lg-space-lg) var(--lg-space-sm);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='credential-row']
+  > :first-child
+  > :first-child {
+  grid-template-columns: minmax(0, var(--lg-measure-credential-label)) minmax(0, 1fr);
+  column-gap: var(--lg-space-2xl);
+  row-gap: var(--lg-space-lg);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='credential-row'][data-expanded='true']
+  > :first-child {
+  border-radius: 0;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--lg-blue-soft) 34%, transparent), transparent 82%);
+  box-shadow: inset var(--lg-stroke-focus) 0 0 color-mix(in srgb, var(--lg-blue) 72%, transparent);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='credential-row']
+  [data-slot='input'] {
+  height: var(--lg-size-control-compact) !important;
+  padding-inline: var(--lg-space-lg) !important;
+  border: var(--lg-stroke-hairline) solid var(--lg-rim-outer) !important;
+  border-radius: var(--lg-radius-control) !important;
+  background:
+    linear-gradient(125deg, color-mix(in srgb, var(--lg-white) 56%, transparent), transparent 54%),
+    var(--lg-glass-raised) !important;
+  box-shadow: var(--lg-shadow-input) !important;
+  color: var(--lg-ink) !important;
+  font-size: var(--lg-type-caption);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='credential-row']
+  [data-slot='input']:hover:not(:focus) {
+  border-color: var(--lg-rim-strong) !important;
+  box-shadow: var(--lg-shadow-input) !important;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='credential-row']
+  [data-slot='input']:focus {
+  border-color: var(--lg-rim-outer) !important;
+  box-shadow: var(--lg-shadow-input-focus) !important;
+}
+
+/* Account providers are one raised list, not two rows followed by a detached
+   disclosure floating in the page. The shared onboarding rows keep their
+   behavior while this settings surface owns grouping, seams, and elevation. */
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='provider-account-list'] {
+  width: min(100%, var(--lg-measure-provider-list));
+  overflow: hidden;
+  padding: var(--lg-stroke-hairline);
+  border-radius: var(--lg-radius-panel);
+  background: var(--lg-rim-outer);
+  box-shadow: var(--lg-shadow-segmented-well);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='provider-account-list']
+  > :is([data-slot='provider-account-row'], [data-slot='provider-account-disclosure']) {
+  min-height: var(--lg-size-provider-row);
+  border: 0;
+  border-block-end: var(--lg-stroke-hairline) solid color-mix(in srgb, var(--lg-rim-outer) 62%, transparent);
+  border-radius: 0;
+  background: color-mix(in srgb, var(--lg-content-raised) 88%, var(--lg-glass-raised));
+  box-shadow: none;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='provider-account-list']
+  > :last-child {
+  border-block-end-color: transparent;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='provider-account-row']
+  > :first-child {
+  width: 100%;
+  min-height: var(--lg-size-provider-row);
+  padding: var(--lg-space-lg) var(--lg-space-2xl);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='provider-account-row'][data-kind='featured'] {
+  background:
+    linear-gradient(128deg, color-mix(in srgb, var(--lg-white) 70%, transparent), transparent 56%),
+    color-mix(in srgb, var(--lg-blue-soft) 62%, var(--lg-glass-raised));
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='provider-account-row'][data-kind='featured']
+  .arc-border {
+  display: none;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='provider-account-list']
+  > :is([data-slot='provider-account-row'], [data-slot='provider-account-disclosure']):hover {
+  background-color: color-mix(in srgb, var(--lg-hover-wash) 68%, var(--lg-content-raised));
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='provider-account-disclosure'] {
+  color: var(--lg-ink-secondary);
+  font-size: var(--lg-type-caption);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='provider-account-disclosure']:focus-visible {
+  position: relative;
+  z-index: 1;
+  outline: var(--lg-stroke-focus) solid var(--lg-focus-ring);
+  outline-offset: calc(-1 * var(--lg-stroke-focus));
+}
+
+/* Gateway modes share one selection surface. The outer material owns the
+   elevation; choices are internal panes separated by a hairline. */
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='settings-content']
+  .auto-rows-fr:has(> .selectable-card) {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--lg-stroke-hairline);
+  overflow: hidden;
+  padding: var(--lg-stroke-hairline);
+  border-radius: var(--lg-radius-panel);
+  background: var(--lg-rim-outer);
+  box-shadow: var(--lg-shadow-segmented-well);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='settings-content']
+  .auto-rows-fr
+  > .selectable-card {
+  min-height: var(--lg-size-gateway-choice);
+  padding: var(--lg-space-xl) var(--lg-space-2xl);
+  border: 0;
+  border-radius: 0;
+  background: color-mix(in srgb, var(--lg-content-raised) 88%, var(--lg-glass-raised));
+  box-shadow: none;
+  transition:
+    color var(--lg-duration-fast) var(--lg-ease-out),
+    background-color var(--lg-duration-fast) var(--lg-ease-out),
+    box-shadow var(--lg-duration-state) var(--lg-ease-out);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='settings-content']
+  .auto-rows-fr
+  > .selectable-card
+  > div {
+  gap: var(--lg-space-sm);
+  font-size: var(--lg-type-body);
+  line-height: var(--lg-line-control);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='settings-content']
+  .auto-rows-fr
+  > .selectable-card
+  > div
+  > svg {
+  width: var(--lg-size-icon-glyph);
+  height: var(--lg-size-icon-glyph);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='settings-content']
+  .auto-rows-fr
+  > .selectable-card
+  > p {
+  margin-block-start: var(--lg-space-md);
+  font-size: var(--lg-type-caption);
+  line-height: var(--lg-line-body);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='settings-content']
+  .auto-rows-fr
+  > .selectable-card:not(:disabled):hover {
+  background: color-mix(in srgb, var(--lg-hover-wash) 68%, var(--lg-content-raised));
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='settings-content']
+  .auto-rows-fr
+  > .selectable-card-active {
+  background:
+    linear-gradient(128deg, color-mix(in srgb, var(--lg-white) 72%, transparent), transparent 54%),
+    color-mix(in srgb, var(--lg-blue-soft) 74%, var(--lg-glass-raised));
+  box-shadow: none;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='settings-content']
+  .auto-rows-fr
+  > .selectable-card:focus-visible {
+  z-index: 1;
+  outline: var(--lg-stroke-focus) solid var(--lg-focus-ring);
+  outline-offset: calc(-1 * var(--lg-stroke-focus));
+}
+
+@media (max-width: 64rem) {
+  :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+    [data-slot='credential-row']
+    > :first-child
+    > :first-child {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+}
+
 :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='model-reasoning-label'] {
   flex: none;
   white-space: nowrap;
@@ -66,13 +301,690 @@
   border-radius: var(--lg-radius-micro);
 }
 
+/* Master/detail pages keep the existing list, selection, toggle, resize, and
+   scroll behavior. Liquid Glass only replaces Hermes' compressed geometry. */
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='master-detail'] {
+  min-inline-size: 0;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='master-list-column'] {
+  gap: var(--lg-space-sm);
+  padding: var(--lg-space-lg);
+  border-inline-end: var(--lg-stroke-hairline) solid color-mix(in srgb, var(--lg-rim-outer) 58%, transparent);
+  background: color-mix(in srgb, var(--lg-glass-navigation-well) 54%, transparent);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='master-list-strip'] {
+  min-height: var(--lg-size-control-compact);
+  height: auto;
+  margin: 0;
+  padding-inline: var(--lg-space-lg) var(--lg-space-sm);
+  font-size: var(--lg-type-micro);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='cap-row'] {
+  min-height: var(--lg-size-nav-row);
+  height: auto;
+  border: var(--lg-stroke-hairline) solid transparent;
+  border-radius: var(--lg-radius-control);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='cap-row'][data-has-subtitle='true'] {
+  min-height: calc(var(--lg-size-nav-row) + var(--lg-space-lg));
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='cap-row']:hover {
+  border-color: transparent;
+  background: var(--lg-hover-wash);
+  box-shadow: none;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='cap-row'][data-selected='true'] {
+  border-color: transparent;
+  background:
+    linear-gradient(128deg, color-mix(in srgb, var(--lg-white) 72%, transparent), transparent 58%),
+    var(--lg-selected-wash-strong);
+  box-shadow: var(--lg-shadow-selection-lens);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='cap-row'][data-selected='true']
+  [data-slot='cap-row-title'] {
+  color: var(--lg-ink);
+  font-weight: 600;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='cap-row'][data-selected='true']
+  [data-slot='cap-row-subtitle'] {
+  color: var(--lg-ink-secondary);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='cap-row'][data-enabled='false']:not([data-selected='true'])
+  [data-slot='cap-row-title'] {
+  color: var(--lg-ink-tertiary);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='cap-row-title'] {
+  font-size: var(--lg-type-control);
+  line-height: var(--lg-line-control);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='cap-row-subtitle'] {
+  gap: var(--lg-space-xs);
+  color: var(--lg-ink-tertiary);
+  font-size: var(--lg-type-micro);
+  line-height: var(--lg-line-control);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='cap-row-meta'] {
+  padding: var(--lg-space-nano) var(--lg-space-sm);
+  border-radius: var(--lg-radius-pill);
+  background: var(--lg-glass-raised);
+  font-size: var(--lg-type-micro);
+  line-height: var(--lg-line-control);
+  box-shadow: var(--lg-shadow-badge);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='detail-column-content'],
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='detail-column-footer'] {
+  width: min(100%, var(--lg-measure-detail));
+  max-width: var(--lg-measure-detail);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='detail-column-content'] {
+  padding: var(--lg-space-3xl) clamp(var(--lg-space-2xl), 3vw, var(--lg-space-4xl)) var(--lg-space-4xl);
+  font-size: var(--lg-type-body);
+  line-height: var(--lg-line-body);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='detail-column-footer'] {
+  padding: var(--lg-space-lg) clamp(var(--lg-space-2xl), 3vw, var(--lg-space-4xl)) var(--lg-space-2xl);
+  color: var(--lg-ink-tertiary);
+  font-size: var(--lg-type-micro);
+  line-height: var(--lg-line-control);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='detail-column-action-bar'] {
+  min-height: calc(var(--lg-size-control) + var(--lg-space-2xl));
+  padding: var(--lg-space-sm) clamp(var(--lg-space-2xl), 3vw, var(--lg-space-4xl));
+  border-top: var(--lg-stroke-hairline) solid color-mix(in srgb, var(--lg-rim-outer) 58%, transparent);
+  background: color-mix(in srgb, var(--lg-glass-chrome) 82%, var(--lg-content));
+  backdrop-filter: var(--lg-backdrop-input);
+  -webkit-backdrop-filter: var(--lg-backdrop-input);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='detail-column-action-bar'] > div {
+  max-width: var(--lg-measure-detail);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='messaging-platform-row'] {
+  min-height: calc(var(--lg-size-nav-row) + var(--lg-space-sm));
+  padding: var(--lg-space-sm) var(--lg-space-lg);
+  border: var(--lg-stroke-hairline) solid transparent;
+  border-radius: var(--lg-radius-control);
+  font-size: var(--lg-type-control);
+  line-height: var(--lg-line-control);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='messaging-platform-row']:hover {
+  border-color: transparent;
+  background: var(--lg-hover-wash);
+  box-shadow: none;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='messaging-platform-row'][data-selected='true'] {
+  border-color: transparent;
+  background: var(--lg-selected-wash);
+  box-shadow: var(--lg-shadow-selection-lens);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='messaging-platform-name'] {
+  font-size: var(--lg-type-control);
+  line-height: var(--lg-line-control);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='messaging-platform-detail'] {
+  color: var(--lg-ink-secondary);
+  font-size: var(--lg-type-body);
+  line-height: var(--lg-line-body);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='messaging-platform-detail']
+  > header
+  h3 {
+  color: var(--lg-ink);
+  font-size: var(--lg-type-detail-heading);
+  line-height: var(--lg-line-detail-heading);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='messaging-section-title'] {
+  color: var(--lg-ink-secondary);
+  font-size: var(--lg-type-micro);
+  line-height: var(--lg-line-control);
+  letter-spacing: 0.08em;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='messaging-field'] {
+  padding-block: var(--lg-space-sm) var(--lg-space-lg);
+  border-bottom: var(--lg-stroke-hairline) solid var(--lg-seam-soft);
+  border-radius: 0;
+  background: transparent;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='capability-detail-header'] h3 {
+  color: var(--lg-ink);
+  font-size: var(--lg-type-detail-heading);
+  line-height: var(--lg-line-detail-heading);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='capability-detail-header'] {
+  padding-block-end: var(--lg-space-2xl);
+  border-block-end: var(--lg-stroke-hairline) solid var(--lg-seam-soft);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='capability-detail-description'] {
+  display: -webkit-box;
+  max-width: var(--lg-measure-capability-summary);
+  overflow: hidden;
+  color: var(--lg-ink-secondary);
+  font-size: var(--lg-type-caption);
+  line-height: var(--lg-line-body) !important;
+  text-wrap: pretty;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: var(--lg-lines-capability-summary);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='toolset-tools'] {
+  max-width: var(--lg-measure-capability-summary);
+  gap: var(--lg-space-sm);
+  padding-block-end: var(--lg-space-2xl);
+  border-block-end: var(--lg-stroke-hairline) solid var(--lg-seam-soft);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='toolset-tools-label'] {
+  margin-block-end: var(--lg-space-md);
+  color: var(--lg-ink-tertiary);
+  font-size: var(--lg-type-micro);
+  font-weight: 600;
+  line-height: var(--lg-line-control);
+  letter-spacing: 0.04em;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='toolset-tools'] > span {
+  display: inline-flex;
+  min-height: var(--lg-size-tool-chip);
+  align-items: center;
+  padding-inline: var(--lg-space-lg);
+  border: var(--lg-stroke-hairline) solid color-mix(in srgb, var(--lg-rim-outer) 72%, transparent);
+  border-radius: var(--lg-radius-pill);
+  background: color-mix(in srgb, var(--lg-glass-raised) 88%, transparent);
+  color: var(--lg-ink-secondary);
+  font-size: var(--lg-type-micro);
+  box-shadow: var(--lg-shadow-badge);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='skill-metadata'] {
+  gap: var(--lg-space-sm);
+  padding: var(--lg-space-xl) 0 var(--lg-space-2xl);
+  border: 0;
+  border-bottom: var(--lg-stroke-hairline) solid var(--lg-seam-soft);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='skill-metadata'] > div {
+  font-size: var(--lg-type-micro);
+  line-height: var(--lg-line-body);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='skill-body'] {
+  max-height: min(58vh, var(--lg-measure-skill-body));
+  padding: var(--lg-space-2xl) 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--lg-ink-secondary);
+  font-size: var(--lg-type-body);
+  line-height: var(--lg-line-body);
+  box-shadow: none;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='skill-body']
+  :is(h1, h2, h3) {
+  color: var(--lg-ink);
+  line-height: var(--lg-line-detail-heading);
+  text-wrap: balance;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='mcp-workspace']
+  [data-slot='mcp-catalog-description'] {
+  color: var(--lg-ink-secondary);
+  font-size: var(--lg-type-caption);
+  line-height: var(--lg-line-body);
+  text-wrap: pretty;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='mcp-workspace']
+  [data-slot='mcp-catalog-title'] {
+  color: var(--lg-ink);
+  font-size: var(--lg-type-body);
+  line-height: var(--lg-line-control);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='mcp-workspace']
+  [data-slot='mcp-catalog-tag'],
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='mcp-workspace']
+  [data-slot='mcp-catalog-env-label'] {
+  color: var(--lg-ink-tertiary);
+  font-size: var(--lg-type-micro);
+  line-height: var(--lg-line-control);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='mcp-workspace']
+  [data-slot='mcp-catalog-row'] {
+  min-height: calc(var(--lg-size-nav-row) + var(--lg-space-3xl));
+  padding: var(--lg-space-lg) var(--lg-space-xl);
+  border-block-end: var(--lg-stroke-hairline) solid var(--lg-seam-list);
+  border-radius: 0;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='mcp-workspace']
+  [data-slot='mcp-catalog-row']:hover {
+  background: color-mix(in srgb, var(--lg-hover-wash) 68%, transparent);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='mcp-workspace']
+  [data-slot='mcp-avatar'] {
+  width: var(--lg-size-icon-control);
+  height: var(--lg-size-icon-control);
+  border-radius: var(--lg-radius-control);
+  box-shadow: var(--lg-shadow-badge);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='mcp-workspace']
+  [data-slot='mcp-catalog-tag'] {
+  padding: var(--lg-space-nano) var(--lg-space-sm);
+  border-radius: var(--lg-radius-micro);
+  background: color-mix(in srgb, var(--lg-blue-soft) 48%, var(--lg-glass-raised));
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='mcp-workspace']
+  [data-slot='mcp-catalog-env-input'] {
+  min-height: var(--lg-size-control-compact);
+  font-size: var(--lg-type-micro);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='mcp-workspace']
+  [data-slot='mcp-catalog-install'] {
+  min-height: var(--lg-size-menu-row-compact);
+  padding-inline: var(--lg-space-lg);
+  color: var(--lg-blue-hover);
+  font-size: var(--lg-type-micro);
+  font-weight: 600;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='mcp-workspace']
+  [data-slot='detail-pane'] {
+  background: color-mix(in srgb, var(--lg-white) 34%, transparent);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='mcp-workspace']
+  [data-slot='json-document-editor'] {
+  background: color-mix(in srgb, var(--lg-content-raised) 86%, var(--lg-glass-raised));
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='mcp-workspace']
+  [data-slot='json-document-editor-header'] {
+  min-height: var(--lg-size-control-compact);
+  height: var(--lg-size-control-compact);
+  padding-inline: var(--lg-space-xl);
+  border-block-end: var(--lg-stroke-hairline) solid var(--lg-seam-soft);
+  background: color-mix(in srgb, var(--lg-glass-chrome) 72%, transparent);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='mcp-workspace']
+  [data-slot='json-document-editor-body'] {
+  background:
+    linear-gradient(128deg, color-mix(in srgb, var(--lg-white) 42%, transparent), transparent 48%),
+    var(--lg-content-raised);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='mcp-workspace']
+  [data-slot='detail-pane-header'] {
+  min-height: var(--lg-size-control-compact);
+  border-bottom: var(--lg-stroke-hairline) solid var(--lg-seam-soft);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='mcp-workspace']
+  [data-slot='detail-pane-title'] {
+  color: var(--lg-ink-secondary);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='mcp-workspace']
+  [data-slot='detail-pane-actions']
+  > span {
+  gap: var(--lg-stroke-hairline);
+  padding: var(--lg-space-nano);
+  border-radius: var(--lg-radius-pill);
+  background: color-mix(in srgb, var(--lg-rim-outer) 48%, transparent);
+  box-shadow: var(--lg-shadow-segmented-well);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='mcp-workspace']
+  [data-slot='detail-pane-actions']
+  button[data-active] {
+  min-width: var(--lg-size-control-compact);
+  height: calc(var(--lg-size-control-compact) - var(--lg-space-lg));
+  padding-inline: var(--lg-space-sm);
+  border-radius: var(--lg-radius-pill);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='mcp-workspace']
+  [data-slot='detail-pane-actions']
+  button[data-active='true'] {
+  background: var(--lg-glass-raised);
+  color: var(--lg-ink);
+  box-shadow: var(--lg-shadow-contact);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='mcp-workspace']
+  [data-slot='detail-pane-actions']
+  button[data-active]
+  > span {
+  text-decoration: none;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='mcp-workspace']
+  [data-slot='detail-pane-header']
+  :is([data-slot='detail-pane-title'], button) {
+  font-size: var(--lg-type-micro) !important;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='mcp-workspace']
+  [data-slot='log-tail-empty'] {
+  color: var(--lg-ink-tertiary);
+  font-size: var(--lg-type-micro);
+  line-height: var(--lg-line-control);
+}
+
+/* The serverless state is guidance above the catalog, not the primary content
+   of the entire rail. Keep its full copy and action while allowing the first
+   catalog rows to remain visible in the desktop viewport. */
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='mcp-workspace']
+  > aside
+  [data-slot='panel-empty'] {
+  min-height: var(--lg-size-mcp-empty);
+  max-height: var(--lg-size-mcp-empty);
+  padding: var(--lg-space-lg);
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='mcp-workspace']
+  > aside
+  [data-slot='panel-empty']
+  > div {
+  display: grid;
+  width: 100%;
+  max-width: none;
+  grid-template-areas:
+    'glyph title action'
+    'glyph description action';
+  grid-template-columns: var(--lg-size-state-glyph-compact) minmax(0, 1fr) auto;
+  gap: var(--lg-space-xs) var(--lg-space-lg);
+  align-items: center;
+  text-align: start;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='mcp-workspace']
+  > aside
+  [data-slot='panel-empty-glyph'] {
+  width: var(--lg-size-state-glyph-compact);
+  height: var(--lg-size-state-glyph-compact);
+  grid-area: glyph;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='mcp-workspace']
+  > aside
+  [data-slot='panel-empty-title'] {
+  grid-area: title;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='mcp-workspace']
+  > aside
+  [data-slot='panel-empty-description'] {
+  grid-area: description;
+}
+
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='mcp-workspace']
+  > aside
+  [data-slot='panel-empty-action'] {
+  grid-area: action;
+  margin: 0;
+}
+
+@media (min-width: 47.51rem) {
+  :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+    [data-slot='master-detail'][data-split='rail'] {
+    grid-template-columns:
+      minmax(var(--lg-measure-master-rail-min), var(--md-split, var(--lg-measure-master-rail-default)))
+      minmax(0, 1fr);
+  }
+
+  :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+    [data-slot='master-detail'][data-split='wide'] {
+    grid-template-columns:
+      minmax(var(--lg-measure-master-wide-min), var(--md-split, var(--lg-track-master-wide-default)))
+      minmax(0, 1fr);
+  }
+}
+
 /* Media conditions cannot consume CSS custom properties. */
 @media (max-width: 47.5rem) {
+  :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+    [data-slot='settings-content']
+    .auto-rows-fr:has(> .selectable-card) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+    [data-slot='settings-content']
+    .auto-rows-fr
+    > .selectable-card {
+    min-height: var(--lg-size-gateway-choice-narrow);
+  }
+
+  :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='master-detail'] {
+    grid-template-rows: var(--lg-measure-master-stack) minmax(0, 1fr);
+  }
+
+  :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+    [data-slot='messaging-workspace']
+    [data-slot='master-detail'] {
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='messaging-platform-list'] {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--lg-space-sm);
+  }
+
+  :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+    [data-slot='messaging-platform-list']
+    [data-slot='messaging-platform-row'] {
+    height: 100%;
+  }
+
+  :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='mcp-workspace'] {
+    grid-template-rows: var(--lg-measure-mcp-stack) minmax(0, 1fr);
+  }
+
+  :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+    [data-slot='mcp-workspace']
+    > aside
+    [data-slot='panel-empty'] {
+    padding: var(--lg-space-lg);
+  }
+
+  :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+    [data-slot='mcp-workspace']
+    > aside
+    [data-slot='panel-empty']
+    > div {
+    display: grid;
+    width: 100%;
+    max-width: none;
+    grid-template-areas:
+      'glyph title action'
+      'glyph description action';
+    grid-template-columns: var(--lg-size-state-glyph-compact) minmax(0, 1fr) auto;
+    gap: var(--lg-space-xs) var(--lg-space-lg);
+    align-items: center;
+    text-align: start;
+  }
+
+  :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+    [data-slot='mcp-workspace']
+    > aside
+    [data-slot='panel-empty-glyph'] {
+    width: var(--lg-size-state-glyph-compact);
+    height: var(--lg-size-state-glyph-compact);
+    grid-area: glyph;
+  }
+
+  :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+    [data-slot='mcp-workspace']
+    > aside
+    [data-slot='panel-empty-title'] {
+    grid-area: title;
+  }
+
+  :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+    [data-slot='mcp-workspace']
+    > aside
+    [data-slot='panel-empty-description'] {
+    grid-area: description;
+  }
+
+  :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+    [data-slot='mcp-workspace']
+    > aside
+    [data-slot='panel-empty-action'] {
+    grid-area: action;
+    margin: 0;
+  }
+
+  :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+    [data-slot='mcp-workspace']
+    > aside
+    [data-slot='page-loader'] {
+    min-height: var(--lg-size-state-glyph-compact);
+    height: auto;
+    padding: var(--lg-space-lg);
+  }
+
+  :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+    [data-slot='mcp-workspace']
+    > aside
+    [data-slot='page-loader']
+    > div {
+    width: 100%;
+    max-width: none;
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: var(--lg-space-lg);
+    text-align: start;
+  }
+
+  :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+    [data-slot='mcp-workspace']
+    > aside
+    [data-slot='page-loader-glyph'] {
+    width: var(--lg-size-state-glyph-compact);
+    height: var(--lg-size-state-glyph-compact);
+    flex: none;
+  }
+
+  :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+    [data-slot='mcp-workspace']
+    > aside
+    [data-slot='page-loader-glyph']
+    > svg {
+    width: var(--lg-size-icon-control-large);
+    height: var(--lg-size-icon-control-large);
+  }
+
+  :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+    [data-slot='messaging-platform-detail']
+    > :not(:last-child) {
+    margin-block-end: var(--lg-space-2xl);
+  }
+
+  :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='messaging-field-group'] {
+    margin-block-start: var(--lg-space-sm);
+  }
+
   :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='settings-row'] > div {
     min-height: 0;
   }
 
   :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='theme-card'] {
     min-height: var(--lg-size-theme-card-narrow);
+  }
+}
+
+@media (max-width: 32rem) {
+  :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+    [data-slot='mcp-workspace']
+    > aside
+    [data-slot='panel-empty']
+    > div {
+    grid-template-areas:
+      'glyph title'
+      'glyph description'
+      'action action';
+    grid-template-columns: var(--lg-size-state-glyph-compact) minmax(0, 1fr);
+  }
+
+  :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+    [data-slot='mcp-workspace']
+    > aside
+    [data-slot='panel-empty-action'] {
+    justify-self: start;
   }
 }

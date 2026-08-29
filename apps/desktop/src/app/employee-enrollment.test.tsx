@@ -25,6 +25,7 @@ function renderAssistant(
 
   const employeeEnrollment = {
     getStatus: vi.fn().mockResolvedValue(status),
+    login: vi.fn().mockResolvedValue(status),
     enroll: vi.fn().mockResolvedValue(status),
     check: vi.fn().mockResolvedValue(status),
     diagnostics: vi.fn().mockResolvedValue({ lines: [], path: '/private/connector.log' }),
@@ -70,41 +71,45 @@ describe('My King employee enrollment assistant', () => {
     const ordinary = renderAssistant({ ...IDLE_STATUS, configured: false })
 
     await waitFor(() => expect(ordinary.employeeEnrollment.getStatus).toHaveBeenCalledTimes(1))
-    expect(screen.queryByText('连接公司智能体')).toBeNull()
+    expect(screen.queryByText('连接 AI Work OS')).toBeNull()
     ordinary.unmount()
 
     const managed = renderAssistant({ ...IDLE_STATUS, managedGateway: true })
 
     await waitFor(() => expect(managed.employeeEnrollment.getStatus).toHaveBeenCalledTimes(1))
-    expect(screen.queryByText('连接公司智能体')).toBeNull()
+    expect(screen.queryByText('连接 AI Work OS')).toBeNull()
   })
 
-  it('submits and immediately clears a one-time code while showing the real stage', async () => {
+  it('submits an employee account, immediately clears the password, and shows the real stage', async () => {
     let finishEnrollment: ((status: MyKingEmployeeEnrollmentStatus) => void) | null = null
 
-    const enroll = vi.fn(
+    const login = vi.fn(
       () =>
         new Promise<MyKingEmployeeEnrollmentStatus>(resolve => {
           finishEnrollment = resolve
         })
     )
 
-    const view = renderAssistant(IDLE_STATUS, { enroll })
-    const input = (await screen.findByPlaceholderText('一次性绑定码')) as HTMLInputElement
+    const view = renderAssistant(IDLE_STATUS, { login })
+    const email = (await screen.findByPlaceholderText('员工账号')) as HTMLInputElement
+    const password = screen.getByPlaceholderText('密码') as HTMLInputElement
 
-    fireEvent.change(input, { target: { value: 'ABCD-2345-EFGH' } })
-    fireEvent.click(screen.getByRole('button', { name: '连接公司' }))
+    fireEvent.change(email, { target: { value: 'employee@wysd.com' } })
+    fireEvent.change(password, { target: { value: 'correct-password' } })
+    fireEvent.click(screen.getByRole('button', { name: '登录并连接' }))
 
-    expect(enroll).toHaveBeenCalledWith('ABCD-2345-EFGH')
-    expect(input.value).toBe('')
+    expect(login).toHaveBeenCalledWith({ email: 'employee@wysd.com', password: 'correct-password' })
+    expect(email.value).toBe('employee@wysd.com')
+    expect(password.value).toBe('')
+    expect(screen.queryByPlaceholderText('一次性绑定码')).toBeNull()
 
     act(() => {
       view.emit({ ...IDLE_STATUS, stage: 'configuring-secure-connection' })
     })
     expect(screen.getAllByText('正在配置本机安全连接')).toHaveLength(2)
-    expect(screen.getByText('邀请验证完成')).toBeTruthy()
+    expect(screen.getByText('员工账号验证完成')).toBeTruthy()
     expect(screen.getByText('员工身份已确认')).toBeTruthy()
-    expect(screen.queryByText('正在验证邀请')).toBeNull()
+    expect(screen.queryByText('正在验证员工账号')).toBeNull()
     expect(screen.getByText('验证设备隔离')).toBeTruthy()
     expect(screen.queryByText('正在验证设备隔离')).toBeNull()
     expect(screen.queryByText(/%/)).toBeNull()
@@ -115,17 +120,89 @@ describe('My King employee enrollment assistant', () => {
   })
 
   it('shows a real interface failure and never presents a false success state', async () => {
-    const error = Object.assign(new Error('request failed'), { code: 'company-unavailable' })
-    const view = renderAssistant(IDLE_STATUS, { enroll: vi.fn().mockRejectedValue(error) })
-
-    fireEvent.change((await screen.findByPlaceholderText('一次性绑定码')) as HTMLInputElement, {
-      target: { value: 'ABCD-2345-EFGH' }
+    const failedStatus = { ...IDLE_STATUS, error: 'company-unavailable', stage: 'error' as const }
+    const getStatus = vi.fn().mockResolvedValueOnce(IDLE_STATUS).mockResolvedValue(failedStatus)
+    const view = renderAssistant(IDLE_STATUS, {
+      login: vi.fn().mockRejectedValue(new Error('request failed')),
+      getStatus
     })
-    fireEvent.click(screen.getByRole('button', { name: '连接公司' }))
+
+    fireEvent.change((await screen.findByPlaceholderText('员工账号')) as HTMLInputElement, {
+      target: { value: 'employee@wysd.com' }
+    })
+    fireEvent.change(screen.getByPlaceholderText('密码'), { target: { value: 'wrong-password' } })
+    fireEvent.click(screen.getByRole('button', { name: '登录并连接' }))
 
     expect(await screen.findByText('公司服务器暂时不可用，请稍后重试。')).toBeTruthy()
+    expect(getStatus).toHaveBeenCalledTimes(2)
     expect(screen.queryByText('My King 已连接')).toBeNull()
     expect(view.employeeEnrollment.check).not.toHaveBeenCalled()
+  })
+
+  it('repairs an existing employee binding by signing in again with the employee account', async () => {
+    const disconnected: MyKingEmployeeEnrollmentStatus = {
+      ...IDLE_STATUS,
+      binding: {
+        deviceId: 'random-device-id',
+        employeeId: 'employee-1',
+        employeeName: '测试员工',
+        enrollmentId: 'enrollment-1',
+        enrolledAt: '2026-08-28T08:29:29.000Z',
+        lastCheckAt: null,
+        remoteGatewayUrl: 'https://gateway.myking.test',
+        version: 1
+      },
+      error: 'secure-connection-failed',
+      stage: 'error'
+    }
+    const login = vi.fn().mockResolvedValue({ ...disconnected, error: null, stage: 'configuring-secure-connection' })
+
+    renderAssistant(disconnected, { login })
+
+    expect(await screen.findByText('安全连接启动失败，请重新连接。')).toBeTruthy()
+    fireEvent.change(screen.getByPlaceholderText('员工账号'), { target: { value: 'employee@wysd.com' } })
+    fireEvent.change(screen.getByPlaceholderText('密码'), { target: { value: 'correct-password' } })
+    expect(screen.getByRole('button', { name: '断开本机' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '登录并连接' }))
+    await waitFor(() =>
+      expect(login).toHaveBeenCalledWith({ email: 'employee@wysd.com', password: 'correct-password' })
+    )
+  })
+
+  it('keeps diagnostics above the blocking enrollment gate', async () => {
+    const disconnected: MyKingEmployeeEnrollmentStatus = {
+      ...IDLE_STATUS,
+      binding: {
+        deviceId: 'random-device-id',
+        employeeId: 'employee-1',
+        employeeName: '测试员工',
+        enrollmentId: 'enrollment-1',
+        enrolledAt: '2026-08-28T08:29:29.000Z',
+        lastCheckAt: null,
+        remoteGatewayUrl: 'https://gateway.myking.test',
+        version: 1
+      },
+      error: 'secure-connection-failed',
+      stage: 'error'
+    }
+    const diagnostics = vi.fn().mockResolvedValue({
+      lines: ['connector failed before authentication'],
+      path: '/private/connector.log'
+    })
+
+    renderAssistant(disconnected, { diagnostics })
+
+    const gate = (await screen.findByText('安全连接启动失败，请重新连接。')).closest(
+      '[data-slot="employee-enrollment-gate"]'
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: '查看诊断信息' }))
+
+    const dialog = await screen.findByRole('dialog')
+
+    expect(diagnostics).toHaveBeenCalledTimes(1)
+    expect(gate?.contains(dialog)).toBe(true)
+    expect(screen.getByText('connector failed before authentication')).toBeTruthy()
   })
 
   it('retries a pending system authorization without asking for the code again', async () => {
@@ -136,9 +213,7 @@ describe('My King employee enrollment assistant', () => {
 
     expect(enroll).toHaveBeenCalledWith('')
     await screen.findAllByText('正在配置本机安全连接')
-    const input = screen.getByPlaceholderText('一次性绑定码') as HTMLInputElement
-    expect(input.value).toBe('')
-    expect(input.disabled).toBe(true)
+    expect((screen.getByPlaceholderText('员工账号') as HTMLInputElement).disabled).toBe(true)
   })
 
   it('renders verified employee facts and supports diagnostics plus confirmed unbind', async () => {
@@ -147,6 +222,7 @@ describe('My King employee enrollment assistant', () => {
         deviceId: 'random-device-id',
         employeeId: 'employee-1',
         employeeName: '测试员工',
+        enrollmentId: 'enrollment-1',
         enrolledAt: '2026-08-27T01:00:00.000Z',
         lastCheckAt: '2026-08-27T01:30:00.000Z',
         remoteGatewayUrl: 'https://gateway.myking.test',
@@ -181,9 +257,9 @@ describe('My King employee enrollment assistant', () => {
     const close = screen.getAllByRole('button', { name: '关闭' }).find(button => button.textContent === '关闭')
     expect(close).toBeTruthy()
     fireEvent.click(close as HTMLButtonElement)
-    fireEvent.click(screen.getByRole('button', { name: '解除绑定' }))
-    expect(await screen.findByText('解除这台员工电脑的绑定？')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: '解除绑定' }))
+    fireEvent.click(screen.getByRole('button', { name: '断开本机' }))
+    expect(await screen.findByText('从这台电脑退出 My King？')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '断开本机' }))
 
     await waitFor(() => expect(unbind).toHaveBeenCalledTimes(1))
   })
@@ -194,6 +270,7 @@ describe('My King employee enrollment assistant', () => {
         deviceId: 'random-device-id',
         employeeId: 'employee-1',
         employeeName: '测试员工',
+        enrollmentId: 'enrollment-1',
         enrolledAt: '2026-08-27T01:00:00.000Z',
         lastCheckAt: '2026-08-27T01:30:00.000Z',
         remoteGatewayUrl: 'https://gateway.myking.test',
@@ -208,7 +285,7 @@ describe('My King employee enrollment assistant', () => {
 
     const view = renderAssistant(IDLE_STATUS)
 
-    await screen.findByText('连接公司智能体')
+    await screen.findByText('连接 AI Work OS')
     act(() => view.emit({ ...IDLE_STATUS, stage: 'connecting-remote-gateway' }))
     act(() => view.emit(connected))
     expect(screen.getByText('My King 已连接')).toBeTruthy()
@@ -221,6 +298,7 @@ describe('My King employee enrollment assistant', () => {
         deviceId: 'random-device-id',
         employeeId: 'employee-1',
         employeeName: '测试员工',
+        enrollmentId: 'enrollment-1',
         enrolledAt: '2026-08-27T01:00:00.000Z',
         lastCheckAt: '2026-08-27T01:30:00.000Z',
         remoteGatewayUrl: 'https://gateway.myking.test',

@@ -143,6 +143,7 @@ contextBridge.exposeInMainWorld('hermesDesktop', {
   getBootProgress: () => ipcRenderer.invoke('hermes:boot-progress:get'),
   employeeEnrollment: {
     getStatus: () => ipcRenderer.invoke('myking:employee-enrollment:status'),
+    login: credentials => ipcRenderer.invoke('myking:employee-enrollment:login', credentials),
     enroll: code => ipcRenderer.invoke('myking:employee-enrollment:enroll', code),
     check: () => ipcRenderer.invoke('myking:employee-enrollment:check'),
     diagnostics: () => ipcRenderer.invoke('myking:employee-enrollment:diagnostics'),

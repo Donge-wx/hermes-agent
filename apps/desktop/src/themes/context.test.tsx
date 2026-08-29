@@ -15,7 +15,7 @@ const bloomberg = (foreground: string) => ({
 
 const cssVar = (name: string) => window.document.documentElement.style.getPropertyValue(name)
 
-describe('ThemeProvider ← backend skin sync', () => {
+describe('managed My King ThemeProvider ← backend skin sync', () => {
   beforeEach(() => {
     window.localStorage.clear()
     __resetBackendSkinSync()
@@ -23,7 +23,7 @@ describe('ThemeProvider ← backend skin sync', () => {
 
   afterEach(cleanup)
 
-  it('applies an activated backend skin', () => {
+  it('keeps Liquid Glass when the backend activates another skin', () => {
     render(
       <ThemeProvider>
         <div />
@@ -32,11 +32,11 @@ describe('ThemeProvider ← backend skin sync', () => {
 
     act(() => ingestBackendSkin(bloomberg('#ff9f0a'), { apply: true }))
 
-    expect(cssVar('--theme-foreground')).toBe('#ff9f0a')
-    expect(cssVar('--theme-background-seed')).toBe('#000000')
+    expect(window.document.documentElement.dataset.hermesTheme).toBe('liquid-glass')
+    expect(cssVar('--theme-foreground')).not.toBe('#ff9f0a')
   })
 
-  it('repaints an in-place edit of the ACTIVE skin (same name, new palette)', () => {
+  it('ignores an in-place edit of a non-branded backend skin', () => {
     render(
       <ThemeProvider>
         <div />
@@ -44,13 +44,13 @@ describe('ThemeProvider ← backend skin sync', () => {
     )
 
     act(() => ingestBackendSkin(bloomberg('#ff9f0a'), { apply: true }))
-    expect(cssVar('--theme-foreground')).toBe('#ff9f0a')
+    const brandedForeground = cssVar('--theme-foreground')
 
     // Recolor the same skin file. The same-name apply guard correctly no-ops
     // (protects manual desktop picks), so the repaint must come from the
     // registry update reaching the active theme derivation.
     act(() => ingestBackendSkin(bloomberg('#ff2d95'), { apply: true }))
-    expect(cssVar('--theme-foreground')).toBe('#ff2d95')
+    expect(cssVar('--theme-foreground')).toBe(brandedForeground)
   })
 
   it('does not repaint an edit to an INACTIVE skin', () => {
@@ -67,7 +67,7 @@ describe('ThemeProvider ← backend skin sync', () => {
     act(() =>
       ingestBackendSkin({ name: 'forest', colors: { background: '#001100', ui_text: '#66ff66' } }, { apply: false })
     )
-    expect(cssVar('--theme-foreground')).toBe('#ff9f0a')
+    expect(window.document.documentElement.dataset.hermesTheme).toBe('liquid-glass')
   })
 })
 
@@ -125,14 +125,14 @@ describe('ThemeProvider highlight preview', () => {
       </ThemeProvider>
     )
 
-  it('paints the previewed theme without persisting it', () => {
+  it('does not preview a non-branded theme', () => {
     renderProbe()
 
     const committed = ctx.themeName
 
     act(() => ctx.previewTheme('everforest', 'dark'))
 
-    expect(cssVar('--theme-foreground')).toBe(everforestTheme.darkColors!.foreground)
+    expect(cssVar('--theme-foreground')).not.toBe(everforestTheme.darkColors!.foreground)
     // The commit surface does not change. The context name and the stored
     // preference keep their values.
     expect(ctx.themeName).toBe(committed)
@@ -142,21 +142,23 @@ describe('ThemeProvider highlight preview', () => {
   it('clearThemePreview repaints the committed appearance', () => {
     renderProbe()
 
+    const brandedForeground = cssVar('--theme-foreground')
+
     act(() => ctx.previewTheme('everforest', 'dark'))
-    expect(cssVar('--theme-foreground')).toBe(everforestTheme.darkColors!.foreground)
+    expect(cssVar('--theme-foreground')).toBe(brandedForeground)
 
     act(() => ctx.clearThemePreview())
     expect(cssVar('--theme-foreground')).not.toBe(everforestTheme.darkColors!.foreground)
   })
 
-  it('a commit replaces the preview and persists', () => {
+  it('coerces a non-branded commit to Liquid Glass', () => {
     renderProbe()
 
     act(() => ctx.previewTheme('everforest', 'dark'))
     act(() => ctx.setTheme('mono'))
 
-    expect(ctx.themeName).toBe('mono')
-    expect(skinPref.resolve('default')).toBe('mono')
+    expect(ctx.themeName).toBe('liquid-glass')
+    expect(skinPref.resolve('default')).toBe('liquid-glass')
     expect(cssVar('--theme-foreground')).not.toBe(everforestTheme.darkColors!.foreground)
   })
 
@@ -167,5 +169,11 @@ describe('ThemeProvider highlight preview', () => {
 
     act(() => ctx.previewTheme('does-not-exist', 'dark'))
     expect(cssVar('--theme-foreground')).toBe(painted)
+  })
+
+  it('exposes only Liquid Glass in every theme picker', () => {
+    renderProbe()
+
+    expect(ctx.availableThemes.map(theme => theme.name)).toEqual(['liquid-glass'])
   })
 })

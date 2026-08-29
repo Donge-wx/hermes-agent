@@ -4,7 +4,7 @@ import path from 'node:path'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { resolveMyKingEmployeeConnectorPaths } from './employee-connector'
+import { readMyKingEmployeeBinding, resolveMyKingEmployeeConnectorPaths } from './employee-connector'
 import { createMyKingEmployeeEnrollment, type MyKingEmployeeEnrollmentStage } from './employee-enrollment'
 import { MyKingEmployeeEnrollmentError, type MyKingEmployeeHttpRequest } from './employee-enrollment-contract'
 
@@ -22,7 +22,8 @@ function fixture(
   employeeId = 'employee-1',
   failFirstPrepare = false,
   failGatewayProbe = false,
-  failFirstComplete = false
+  failFirstComplete = false,
+  failFirstGatewayApply = false
 ) {
   const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'myking-enrollment-'))
   temporaryDirectories.push(userData)
@@ -32,6 +33,9 @@ function fixture(
   let prepareCount = 0
   let probeCount = 0
   let completeCount = 0
+  let gatewayApplyCount = 0
+  const gatewayApplyBindingIds: (null | string)[] = []
+  const gatewayProbeBindingIds: (null | string)[] = []
 
   const connectorPaths = {
     ...resolveMyKingEmployeeConnectorPaths({ platform: 'darwin', userData }),
@@ -43,7 +47,14 @@ function fixture(
 
   const enrollment = createMyKingEmployeeEnrollment({
     appVersion: '2.0.0',
-    applyRemoteGateway: async () => undefined,
+    applyRemoteGateway: async () => {
+      gatewayApplyCount += 1
+      gatewayApplyBindingIds.push(readMyKingEmployeeBinding(connectorPaths.bindingPath)?.enrollmentId ?? null)
+
+      if (failFirstGatewayApply && gatewayApplyCount === 1) {
+        throw new Error('credential persistence failed')
+      }
+    },
     arch: 'arm64',
     baseUrl: 'https://enroll.myking.test',
     clearRemoteGateway: async url => {
@@ -64,8 +75,18 @@ function fixture(
     postJson: async request => {
       calls.push(request)
 
+      if (request.url.endsWith('/api/auth/login')) {
+        return { token: 'nora-session-token' }
+      }
+
+      if (request.url.endsWith('/api/employee-enrollments/account')) {
+        return { code: 'ABCD-2345-EFGH' }
+      }
+
       if (request.url.endsWith('/redeem')) {
         return {
+          challenge: `challenge-token-${calls.length}`,
+          challengeExpiresAt: '2026-08-28T12:10:00.000Z',
           enrollmentId: `enrollment-${calls.length}`,
           employeeId,
           employeeName: '测试员工',
@@ -91,12 +112,14 @@ function fixture(
       return {
         status: 'ready',
         employeeId,
+        gatewayAuth: { type: 'bearer', token: 'device-token' },
         remoteGatewayUrl: 'https://gateway.myking.test',
         message: '已连接公司智能体'
       }
     },
     probeRemoteGateway: async () => {
       probeCount += 1
+      gatewayProbeBindingIds.push(readMyKingEmployeeBinding(connectorPaths.bindingPath)?.enrollmentId ?? null)
 
       if (failGatewayProbe && probeCount === 1) {
         throw new Error('network offline')
@@ -127,7 +150,17 @@ function fixture(
     userData
   })
 
-  return { calls, clearedGatewayUrls, connectorPaths, enrollment, prepareCount: () => prepareCount, stages, userData }
+  return {
+    calls,
+    clearedGatewayUrls,
+    connectorPaths,
+    enrollment,
+    gatewayApplyBindingIds,
+    gatewayProbeBindingIds,
+    prepareCount: () => prepareCount,
+    stages,
+    userData
+  }
 }
 
 describe('My King employee enrollment', () => {
@@ -148,7 +181,27 @@ describe('My King employee enrollment', () => {
     ])
     expect(setup.calls).toHaveLength(2)
     expect(setup.prepareCount()).toBe(1)
+    expect(setup.gatewayApplyBindingIds).toEqual([null])
+    expect(setup.gatewayProbeBindingIds).toEqual(['enrollment-1'])
     expect(status.binding?.lastCheckAt).toMatch(/^\d{4}-\d{2}-\d{2}T/)
+  })
+
+  it('uses an employee account to obtain an internal code and then runs the existing secure enrollment', async () => {
+    const setup = fixture()
+
+    const status = await setup.enrollment.login({
+      email: 'employee@wysd.com',
+      password: 'correct-password'
+    })
+
+    expect(status.stage).toBe('connected')
+    expect(setup.calls.map(call => new URL(call.url).pathname)).toEqual([
+      '/api/auth/login',
+      '/api/employee-enrollments/account',
+      '/api/employee-enrollments/redeem',
+      '/api/employee-enrollments/enrollment-3/complete'
+    ])
+    expect(setup.prepareCount()).toBe(1)
   })
 
   it('coalesces concurrent enrollment attempts into one background task', async () => {
@@ -194,6 +247,23 @@ describe('My King employee enrollment', () => {
     expect(setup.enrollment.getStatus()).toMatchObject({ error: 'gateway-unreachable', stage: 'error' })
   })
 
+  it('does not leave a completed binding without a persisted gateway credential', async () => {
+    const setup = fixture('employee-1', false, false, false, true)
+
+    await expect(
+      setup.enrollment.login({ email: 'employee@wysd.com', password: 'correct-password' })
+    ).rejects.toMatchObject({ code: 'gateway-unreachable' })
+    expect(setup.enrollment.getStatus().binding).toBeNull()
+
+    const status = await setup.enrollment.login({
+      email: 'employee@wysd.com',
+      password: 'correct-password'
+    })
+
+    expect(status.stage).toBe('connected')
+    expect(setup.calls.filter(call => call.url.endsWith('/api/auth/login'))).toHaveLength(2)
+  })
+
   it('rechecks a completed binding after a temporary gateway outage without redeeming again', async () => {
     const setup = fixture('employee-1', false, true)
 
@@ -226,6 +296,8 @@ describe('My King employee enrollment', () => {
       postJson: async request => {
         if (request.url.endsWith('/redeem')) {
           return {
+            challenge: 'challenge-token-fail',
+            challengeExpiresAt: '2026-08-28T12:10:00.000Z',
             enrollmentId: 'enrollment-fail',
             employeeId: 'employee-1',
             employeeName: '测试员工',

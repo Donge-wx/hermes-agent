@@ -133,7 +133,9 @@ describe('relay identity', () => {
   it('rejects a relay hostname that resolves to the employee computer', async () => {
     const lookup = async () => [{ address: '192.0.2.50', family: 4 }]
 
-    await expect(assertSafeMyKingRelayHost('relay.company.test', lookup, new Set(['192.0.2.50']))).rejects.toThrow()
+    await expect(assertSafeMyKingRelayHost('relay.company.test', lookup, new Set(['192.0.2.50']))).rejects.toMatchObject({
+      code: 'central-host-blocked'
+    })
   })
 })
 
@@ -148,6 +150,7 @@ describe('employee binding isolation', () => {
       employeeId: 'employee-1',
       employeeName: '测试员工',
       deviceId: 'a-random-device-id',
+      enrollmentId: 'enrollment-1',
       remoteGatewayUrl: 'https://gateway.myking.test',
       enrolledAt: '2026-08-27T00:00:00.000Z',
       lastCheckAt: null
@@ -160,12 +163,38 @@ describe('employee binding isolation', () => {
 })
 
 describe('packaged connector helper contracts', () => {
+  it('requests the employee relay port on the public bind address on both platforms', () => {
+    expect(MAC_HELPER).toContain("-R '0.0.0.0:$remote_port:127.0.0.1:22'")
+    expect(WINDOWS_HELPER).toContain("'-R', '0.0.0.0:$($Plan.relay.remotePort):127.0.0.1:22'")
+  })
+
   it('pins the relay host key and never disables strict SSH verification on either platform', () => {
     for (const helper of [MAC_HELPER, WINDOWS_HELPER]) {
       expect(helper).toContain('StrictHostKeyChecking=yes')
+      expect(helper).toContain('HostKeyAlgorithms=ssh-ed25519')
       expect(helper).not.toContain('StrictHostKeyChecking=no')
       expect(helper).toContain('hostKeySha256')
     }
+
+    const knownHostsOption = MAC_HELPER.match(/-o '(UserKnownHostsFile="\$base_dir\/keys\/known_hosts")'/)?.[1]
+    if (!knownHostsOption) {
+      throw new Error('macOS connector must pass its spaced known_hosts path as one SSH option')
+    }
+    const effectiveSshConfig = execFileSync(
+      '/usr/bin/ssh',
+      ['-G', '-o', knownHostsOption.replace('$base_dir', '/tmp/My King Employee Connector'), 'relay.example.com'],
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }
+    )
+    expect(effectiveSshConfig).toContain(
+      'userknownhostsfile /tmp/My King Employee Connector/keys/known_hosts'
+    )
+    expect(MAC_HELPER).toContain('ssh-keyscan -T 10 -t ed25519 -p')
+    expect(WINDOWS_HELPER).toContain('& $SshKeyScan -T 10 -t ed25519 -p')
+  })
+
+  it('backs off after a failed relay connection instead of hot-looping through the shared Funnel source', () => {
+    expect(MAC_HELPER).toContain('/bin/sleep 30')
+    expect(WINDOWS_HELPER).toContain('Start-Sleep -Seconds 30')
   })
 
   it('keeps authorized keys and background startup idempotent', () => {

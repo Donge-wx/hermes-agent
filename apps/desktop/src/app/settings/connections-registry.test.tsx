@@ -18,6 +18,7 @@ const remove = vi.fn()
 const setLaunchMode = vi.fn()
 const setPrimary = vi.fn()
 const test = vi.fn()
+const updateAll = vi.fn()
 
 const registry: DesktopConnectionsRegistry = {
   connections: [
@@ -57,7 +58,7 @@ beforeEach(() => {
   test.mockResolvedValue({ ok: true, reachable: true })
   Object.defineProperty(window, 'hermesDesktop', {
     configurable: true,
-    value: { connections: { list, remove, save, setLaunchMode, setPrimary, test } }
+    value: { connections: { list, remove, save, setLaunchMode, setPrimary, test, updateAll } }
   })
 })
 
@@ -68,6 +69,18 @@ afterEach(() => {
 })
 
 describe('ConnectionsRegistrySection', () => {
+  it('does not expose a bulk backend update control when the legacy bridge is available', async () => {
+    // Given a registry with several connections and an old bridge that still exposes fan-out updates.
+    render(<ConnectionsRegistrySection />)
+
+    // When the registry finishes loading.
+    await screen.findByText('Homelab')
+
+    // Then connection management remains available, but no employee-facing bulk update action is rendered.
+    expect(screen.queryByRole('button', { name: 'Update all' })).toBeNull()
+    expect(updateAll).not.toHaveBeenCalled()
+  })
+
   it('distinguishes the current connection from the registry primary', async () => {
     render(<ConnectionsRegistrySection />)
 

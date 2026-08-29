@@ -22,7 +22,7 @@ const APP = (() => {
     const appPath = path.join(RELEASE_ROOT, `mac-${ARCH}`, 'My King.app')
     return {
       appPath,
-      binary: path.join(appPath, 'Contents', 'MacOS', 'Hermes'),
+      binary: path.join(appPath, 'Contents', 'MacOS', 'My King'),
       resourcesPath: path.join(appPath, 'Contents', 'Resources'),
       asarPath: path.join(appPath, 'Contents', 'Resources', 'app.asar'),
       unpackedDistIndex: path.join(appPath, 'Contents', 'Resources', 'app.asar.unpacked', 'dist', 'index.html')
@@ -32,7 +32,7 @@ const APP = (() => {
     const unpacked = path.join(RELEASE_ROOT, 'win-unpacked')
     return {
       appPath: unpacked,
-      binary: path.join(unpacked, 'Hermes.exe'),
+      binary: path.join(unpacked, 'My-King.exe'),
       resourcesPath: path.join(unpacked, 'resources'),
       asarPath: path.join(unpacked, 'resources', 'app.asar'),
       unpackedDistIndex: path.join(unpacked, 'resources', 'app.asar.unpacked', 'dist', 'index.html')
@@ -42,25 +42,23 @@ const APP = (() => {
   const unpacked = path.join(RELEASE_ROOT, 'linux-unpacked')
   return {
     appPath: unpacked,
-    binary: path.join(unpacked, 'Hermes'),
+    binary: path.join(unpacked, 'my-king'),
     resourcesPath: path.join(unpacked, 'resources'),
     asarPath: path.join(unpacked, 'resources', 'app.asar'),
     unpackedDistIndex: path.join(unpacked, 'resources', 'app.asar.unpacked', 'dist', 'index.html')
   }
 })()
 
-// Default HERMES_HOME for non-sandboxed runs -- matches main.ts's
-// resolveHermesHome(). On Windows it's %LOCALAPPDATA%\hermes; elsewhere
-// it's ~/.hermes. The fresh-install sandbox launchFresh() sets its own
-// HERMES_HOME and never touches this.
-const DEFAULT_HERMES_HOME = (() => {
+// Default My King runtime root for non-sandboxed runs. Packaged My King
+// ignores inherited HERMES_HOME, so this matches main.ts's owned default.
+const DEFAULT_MY_KING_HOME = (() => {
   if (PLATFORM === 'win32' && process.env.LOCALAPPDATA) {
-    return path.join(process.env.LOCALAPPDATA, 'hermes')
+    return path.join(process.env.LOCALAPPDATA, 'myking')
   }
-  return path.join(os.homedir(), '.hermes')
+  return path.join(os.homedir(), '.myking')
 })()
-const VENV_ROOT = path.join(DEFAULT_HERMES_HOME, 'hermes-agent', 'venv')
-const FRESH_SANDBOX_ROOT = path.join(os.tmpdir(), 'hermes-desktop-fresh-install')
+const VENV_ROOT = path.join(DEFAULT_MY_KING_HOME, 'hermes-agent', 'venv')
+const FRESH_SANDBOX_ROOT = path.join(os.tmpdir(), 'my-king-desktop-fresh-install')
 
 function die(message) {
   console.error(`\n${message}`)
@@ -124,7 +122,7 @@ function ensurePackagedApp() {
 
 function resolveDmgPath() {
   if (!exists(RELEASE_ROOT)) {
-    return path.join(RELEASE_ROOT, `Hermes-${PACKAGE_JSON.version}-${ARCH}.dmg`)
+    return path.join(RELEASE_ROOT, `My-King-${PACKAGE_JSON.version}-${ARCH}.dmg`)
   }
 
   const prefix = `My-King-${PACKAGE_JSON.version}`
@@ -149,7 +147,7 @@ function resolveNsisPath() {
   if (!exists(RELEASE_ROOT)) return null
   const candidates = fs
     .readdirSync(RELEASE_ROOT)
-    .filter(name => /\.exe$/i.test(name) && /win/i.test(name))
+    .filter(name => /^My-King-.+\.exe$/i.test(name) && /win/i.test(name))
     .sort((a, b) => {
       const aMtime = fs.statSync(path.join(RELEASE_ROOT, a)).mtimeMs
       const bMtime = fs.statSync(path.join(RELEASE_ROOT, b)).mtimeMs
@@ -241,8 +239,8 @@ function launchFresh() {
   }
 
   const sandbox = fs.mkdtempSync(`${FRESH_SANDBOX_ROOT}-`)
-  const userDataDir = path.join(sandbox, 'electron-user-data')
-  const hermesHome = path.join(sandbox, 'hermes-home')
+  const userDataDir = path.join(sandbox, 'my-king-user-data')
+  const hermesHome = path.join(userDataDir, 'hermes-home')
   const cwd = path.join(sandbox, 'workspace')
 
   fs.mkdirSync(userDataDir, { recursive: true })
@@ -260,7 +258,7 @@ function launchFresh() {
   env.HERMES_DESKTOP_IGNORE_EXISTING = '1'
   env.HERMES_DESKTOP_TEST_MODE = 'fresh-install'
   env.HERMES_DESKTOP_USER_DATA_DIR = userDataDir
-  env.HERMES_HOME = hermesHome
+  delete env.HERMES_HOME
   delete env.HERMES_DESKTOP_HERMES
   delete env.HERMES_DESKTOP_HERMES_ROOT
 
@@ -275,15 +273,15 @@ function launchFresh() {
   console.log('\nFresh install sandbox:')
   console.log(`  root: ${sandbox}`)
   console.log(`  electron userData: ${userDataDir}`)
-  console.log(`  HERMES_HOME: ${hermesHome}`)
+  console.log(`  My King runtime: ${hermesHome}`)
   console.log(`  cwd: ${cwd}`)
 
   return { runtimeRoot: path.join(hermesHome, 'hermes-agent', 'venv') }
 }
 
-// Validate the packaged bundle matches the thin-installer architecture:
-//   - The Hermes Agent Python payload is NOT shipped (it's fetched at first
-//     launch via install.ps1's stage protocol).
+// Validate the packaged bundle matches the managed offline architecture:
+//   - Python, backend source, and core server dependencies are shipped.
+//   - First launch never needs install.ps1/install.sh or PyPI/GitHub.
 //   - install-stamp.json IS shipped in resources/ with a valid commit + branch.
 //   - node-pty IS shipped inside app.asar.unpacked/dist/node_modules/node-pty
 //     with package.json + lib/ + at least one .node binary (the renderer's
@@ -295,14 +293,24 @@ function validateBundle() {
     die(`Missing packaged app binary: ${APP.binary}`)
   }
 
-  // Negative assertion: the OLD fat-installer factory payload must NOT be
-  // present anymore. If a stray ship of hermes_cli sneaks back in we want
-  // to fail loudly rather than re-introduce the 400MB delta we just removed.
-  const staleFactoryMarker = path.join(APP.resourcesPath, 'hermes-agent', 'hermes_cli', 'main.py')
-  if (exists(staleFactoryMarker)) {
-    die(
-      `Thin-installer regression: factory-payload file should NOT be in the package: ${staleFactoryMarker}`
-    )
+  const runtimeRoot = path.join(APP.resourcesPath, 'my-king-runtime')
+  const backendMarker = path.join(runtimeRoot, 'backend', 'hermes_cli', 'main.py')
+  const python = PLATFORM === 'win32'
+    ? path.join(runtimeRoot, 'python', 'python.exe')
+    : path.join(runtimeRoot, 'python', 'bin', 'python3.11')
+  const sitePackages = PLATFORM === 'win32'
+    ? path.join(runtimeRoot, 'python', 'Lib', 'site-packages')
+    : path.join(runtimeRoot, 'python', 'lib', 'python3.11', 'site-packages')
+
+  for (const required of [
+    backendMarker,
+    python,
+    path.join(sitePackages, 'fastapi', '__init__.py'),
+    path.join(sitePackages, 'uvicorn', '__init__.py')
+  ]) {
+    if (!exists(required)) {
+      die(`Managed offline runtime is incomplete: ${required}`)
+    }
   }
 
   // Positive assertion: install-stamp.json carries a sane commit + branch
@@ -360,7 +368,7 @@ function validateBundle() {
 
   // Renderer payload check (either unpacked or in the asar)
   if (exists(APP.unpackedDistIndex)) {
-    return { stamp, nodeBinaries }
+    return { stamp, nodeBinaries, runtimeRoot }
   }
   if (!exists(APP.asarPath)) {
     die(`Missing renderer payload: neither ${APP.unpackedDistIndex} nor ${APP.asarPath} exists`)
@@ -373,7 +381,7 @@ function validateBundle() {
   if (!normalized.includes('dist/index.html')) {
     die(`Missing renderer payload file in app.asar: ${APP.asarPath} (expected dist/index.html)`)
   }
-  return { stamp, nodeBinaries }
+  return { stamp, nodeBinaries, runtimeRoot }
 }
 
 function printArtifacts(options = {}) {
@@ -403,6 +411,7 @@ function help() {
   npm run test:desktop:fresh     # build packaged app, launch with temp userData + HERMES_HOME
   npm run test:desktop:dmg       # (macOS only) build DMG and open it
   npm run test:desktop:nsis      # (win32 only) build NSIS installer
+  node scripts/test-desktop.mjs validate  # validate an existing packaged My King bundle only
   npm run test:desktop:all       # build installer, validate app payload, print paths
 
 Fast rerun (skip rebuild if the packaged app already exists):
@@ -427,6 +436,8 @@ if (MODE === 'existing') {
   printArtifacts()
 } else if (MODE === 'nsis') {
   ensureNsis()
+  printArtifacts(validateBundle())
+} else if (MODE === 'validate') {
   printArtifacts(validateBundle())
 } else if (MODE === 'all') {
   if (PLATFORM === 'darwin') {

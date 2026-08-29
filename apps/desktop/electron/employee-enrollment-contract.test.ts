@@ -4,11 +4,14 @@ import {
   completeMyKingEmployeeEnrollment,
   parseMyKingEmployeeEnrollmentCode,
   parseMyKingEmployeeRedeemResponse,
+  requestMyKingEmployeeAccountEnrollmentCode,
   redactMyKingEmployeeSecrets,
   redeemMyKingEmployeeInvitation
 } from './employee-enrollment-contract'
 
 const redeemResponse = {
+  challenge: 'challenge-token-1',
+  challengeExpiresAt: '2026-08-28T12:10:00.000Z',
   enrollmentId: 'enrollment-1',
   employeeId: 'employee-1',
   employeeName: '测试员工',
@@ -34,6 +37,36 @@ const device = {
 }
 
 describe('employee enrollment contract', () => {
+  it('uses the employee account only to obtain an internal one-time enrollment code', async () => {
+    const postJson = vi
+      .fn()
+      .mockResolvedValueOnce({ token: 'nora-session-token' })
+      .mockResolvedValueOnce({ code: 'ABCD-2345-EFGH' })
+
+    await expect(
+      requestMyKingEmployeeAccountEnrollmentCode(
+        {
+          baseUrl: 'https://enroll.myking.test',
+          email: 'employee@wysd.com',
+          password: 'correct-password'
+        },
+        postJson
+      )
+    ).resolves.toBe('ABCD-2345-EFGH')
+
+    expect(postJson).toHaveBeenNthCalledWith(1, {
+      url: 'https://enroll.myking.test/api/auth/login',
+      timeoutMs: 15_000,
+      body: { email: 'employee@wysd.com', password: 'correct-password' }
+    })
+    expect(postJson).toHaveBeenNthCalledWith(2, {
+      url: 'https://enroll.myking.test/api/employee-enrollments/account',
+      authorization: 'Bearer nora-session-token',
+      timeoutMs: 15_000,
+      body: {}
+    })
+  })
+
   it('rejects an illegal binding code before the Nora request', async () => {
     const postJson = vi.fn()
 
@@ -76,6 +109,7 @@ describe('employee enrollment contract', () => {
     const postJson = vi.fn().mockResolvedValue({
       status: 'ready',
       employeeId: 'employee-1',
+      gatewayAuth: { type: 'bearer', token: 'device-token' },
       remoteGatewayUrl: 'https://gateway.myking.test',
       message: '已连接公司智能体'
     })
@@ -84,6 +118,7 @@ describe('employee enrollment contract', () => {
       completeMyKingEmployeeEnrollment(
         {
           baseUrl: 'https://enroll.myking.test',
+          challengeSignature: '-----BEGIN SSH SIGNATURE-----\nsignature\n-----END SSH SIGNATURE-----',
           enrollmentId: 'enrollment-1',
           completionToken: 'short-lived-completion-token',
           deviceId: device.deviceId,
@@ -93,11 +128,23 @@ describe('employee enrollment contract', () => {
       )
     ).resolves.toMatchObject({ status: 'ready', employeeId: 'employee-1' })
 
+    expect(postJson).toHaveBeenCalledWith({
+      url: 'https://enroll.myking.test/api/employee-enrollments/enrollment-1/complete',
+      authorization: 'Bearer short-lived-completion-token',
+      timeoutMs: 15_000,
+      body: {
+        challengeSignature: '-----BEGIN SSH SIGNATURE-----\nsignature\n-----END SSH SIGNATURE-----',
+        deviceId: device.deviceId,
+        sshHostPublicKeys: [`ssh-ed25519 ${'B'.repeat(44)} host`]
+      }
+    })
+
     postJson.mockResolvedValueOnce({ status: 'pending' })
     await expect(
       completeMyKingEmployeeEnrollment(
         {
           baseUrl: 'https://enroll.myking.test',
+          challengeSignature: '-----BEGIN SSH SIGNATURE-----\nsignature\n-----END SSH SIGNATURE-----',
           enrollmentId: 'enrollment-1',
           completionToken: 'short-lived-completion-token',
           deviceId: device.deviceId,
@@ -116,6 +163,7 @@ describe('employee enrollment contract', () => {
       })
     ).toThrow()
   })
+
 })
 
 describe('employee enrollment secret redaction', () => {

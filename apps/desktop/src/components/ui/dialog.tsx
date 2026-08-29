@@ -68,6 +68,7 @@ function DialogContent({
   children,
   showCloseButton = true,
   fitContent = false,
+  portalContainer,
   banner,
   bannerTone = 'error',
   onOpenAutoFocus,
@@ -78,6 +79,7 @@ function DialogContent({
   // default fixed `max-w-lg`. For content that has no intrinsic width (grids,
   // full-width inputs) pair it with a `min-w-*` in `className`.
   fitContent?: boolean
+  portalContainer?: HTMLElement | null
   // Layout and scroll classes for the inner body box: padding, gap, display,
   // overflow. `className` styles the OUTER shell: position, size, border, and
   // background. The note on the shell below explains this split.
@@ -126,7 +128,7 @@ function DialogContent({
   // dialog's rounded bottom edge.
   if (banner) {
     return (
-      <DialogPortal>
+      <DialogPortal container={portalContainer ?? undefined}>
         <DialogOverlay />
         <DialogPrimitive.Content
           className={cn(
@@ -172,7 +174,7 @@ function DialogContent({
   }
 
   return (
-    <DialogPortal>
+    <DialogPortal container={portalContainer ?? undefined}>
       <DialogOverlay />
       <DialogPrimitive.Content
         className={cn(

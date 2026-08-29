@@ -100,11 +100,11 @@ export interface Sandbox {
 
 export function createSandbox(prefix: string): Sandbox {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), `hermes-e2e-${prefix}-${Math.random()}`))
-  const hermesHome = path.join(root, 'hermes-home')
   const userDataDir = path.join(root, 'electron-user-data')
+  const hermesHome = path.join(userDataDir, 'hermes-home')
 
-  fs.mkdirSync(hermesHome, { recursive: true })
   fs.mkdirSync(userDataDir, { recursive: true })
+  fs.mkdirSync(hermesHome, { recursive: true })
 
   // Write a fixed window-state.json so the Electron window opens at a
   // consistent size — helps with visual regression screenshots.  The
@@ -779,6 +779,27 @@ export async function waitForAppReady(fixture: MockBackendFixture | NoProviderFi
 
       if (visible) {break}
       await page.waitForTimeout(500)
+    }
+  }
+}
+
+/**
+ * Warm API surfaces whose first cold response can legitimately outlast the
+ * interactive 15-second request ceiling. Visual tests call this before route
+ * navigation so they capture the settled product surface, not its cold-start
+ * loader or retry state.
+ */
+export async function waitForDesktopApis(page: Page, paths: readonly string[]): Promise<void> {
+  for (const path of paths) {
+    const deadline = Date.now() + 90_000
+
+    for (;;) {
+      try {
+        await page.evaluate(apiPath => window.hermesDesktop.api({ method: 'GET', path: apiPath }), path)
+        break
+      } catch (error) {
+        if (Date.now() >= deadline) throw error
+      }
     }
   }
 }

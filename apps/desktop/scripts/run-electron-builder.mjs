@@ -51,11 +51,11 @@ if (shouldUseLocalElectronDist(process.platform, cliArgs) && dist && fs.existsSy
   args.push(`-c.electronDist=${dist}`)
 } else {
   console.warn(
-    "[run-electron-builder] no local electron dist; electron-builder will fetch " +
+    "[run-electron-builder] no target-compatible local electron dist; electron-builder will fetch " +
       "via @electron/get (electronVersion + ELECTRON_MIRROR)."
   )
 }
-args.push(...process.argv.slice(2))
+args.push(...cliArgs)
 
 const result = spawnSync(process.execPath, [electronBuilderCli(), ...args], {
   stdio: "inherit",

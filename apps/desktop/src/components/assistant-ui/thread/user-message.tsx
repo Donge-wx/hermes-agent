@@ -55,8 +55,8 @@ export function StickyHumanMessageContainer({
 
 // Shared "user bubble" base. Both the read-only message and the inline
 // edit composer render the same bubble surface (rounded glass card);
-// they only differ in border weight, cursor, and padding-right (the
-// read-only view reserves room for the restore icon).
+// they only differ in border weight and cursor. Liquid Glass places the
+// restore/stop action in a separate slot outside the read-only bubble.
 //
 // no-drag: sticky bubbles park at --sticky-human-top (~4px), sliding under the
 // titlebar's [-webkit-app-region:drag] strips (app-shell.tsx). Electron resolves
@@ -529,7 +529,11 @@ export const UserMessage: FC<{
                   </ActionBarPrimitive.Edit>
                 )}
                 {(showStop || showRestore) && (
-                  <div className="pointer-events-none absolute right-2 bottom-2 z-10 flex items-center justify-center opacity-0 transition-opacity group-hover/user-message:opacity-100 group-focus-within/user-message:opacity-100">
+                  <div
+                    className="pointer-events-none absolute right-2 bottom-2 z-10 flex items-center justify-center opacity-0 transition-opacity group-hover/user-message:opacity-100 group-focus-within/user-message:opacity-100"
+                    data-action={showStop ? 'stop' : 'restore'}
+                    data-slot="aui_user-message-primary-action"
+                  >
                     {showStop ? (
                       <button
                         aria-label={copy.stop}
@@ -539,7 +543,6 @@ export const UserMessage: FC<{
                           event.stopPropagation()
                           void onCancel?.()
                         }}
-                        title={copy.stop}
                         type="button"
                       >
                         {StopGlyph}
@@ -561,7 +564,6 @@ export const UserMessage: FC<{
                           event.preventDefault()
                           event.stopPropagation()
                         }}
-                        title={copy.restoreFromHere}
                         type="button"
                       >
                         <Codicon name="discard" size="0.875rem" />

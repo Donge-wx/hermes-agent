@@ -30,10 +30,9 @@
         --preboot-stage-shadow:
           0 0.125rem 0.25rem rgb(33 62 93 / 14%), 0 1rem 2.5rem rgb(46 83 120 / 18%),
           inset 0 0.0625rem 0 rgb(255 255 255 / 88%);
-        --preboot-loader-track: rgb(79 117 153 / 14%);
-        --preboot-brand-purple: #8764e8;
-        --preboot-brand-cyan: #27c6e9;
-        --preboot-brand-blue: #1675ec;
+        --preboot-loader-violet: #7357e6;
+        --preboot-loader-cyan: #27c6e9;
+        --preboot-loader-blue: #0071e3;
         --preboot-stage-blur: 1.5rem;
         --preboot-stage-width: 34rem;
         --preboot-lockup-width: min(21rem, 72vw);
@@ -64,7 +63,6 @@
         --preboot-stage-shadow:
           0 0.125rem 0.25rem rgb(0 0 0 / 28%), 0 1rem 2.5rem rgb(0 0 0 / 36%),
           inset 0 0.0625rem 0 rgb(255 255 255 / 18%);
-        --preboot-loader-track: rgb(189 218 245 / 16%);
       }
 
       .pre-react-boot-frame {
@@ -142,38 +140,47 @@
         position: relative;
         display: block;
         width: var(--preboot-loader-width);
-        height: auto;
+        aspect-ratio: 1;
         overflow: visible;
+        filter: drop-shadow(0 0.5rem 0.9rem rgb(0 113 227 / 20%));
       }
 
-      .pre-react-boot__loader-track,
-      .pre-react-boot__loader-accent {
+      .pre-react-boot__loader-guide {
         fill: none;
+        stroke: rgb(0 113 227 / 12%);
         stroke-linecap: round;
-        stroke-linejoin: round;
-        stroke-width: 5;
+        stroke-width: 4.8;
       }
 
-      .pre-react-boot__loader-track {
-        stroke: var(--preboot-loader-track);
+      .pre-react-boot__loader-particles {
+        animation: pre-react-boot-particle-breathe 1.8s ease-in-out infinite;
+        transform-box: fill-box;
+        transform-origin: center;
       }
 
-      .pre-react-boot__brand-stop--purple {
-        stop-color: var(--preboot-brand-purple);
+      .pre-react-boot__particle:nth-child(3n + 1) {
+        fill: var(--preboot-loader-violet);
       }
 
-      .pre-react-boot__brand-stop--cyan {
-        stop-color: var(--preboot-brand-cyan);
+      .pre-react-boot__particle:nth-child(3n + 2) {
+        fill: var(--preboot-loader-cyan);
       }
 
-      .pre-react-boot__brand-stop--blue {
-        stop-color: var(--preboot-brand-blue);
+      .pre-react-boot__particle:nth-child(3n) {
+        fill: var(--preboot-loader-blue);
       }
 
-      .pre-react-boot__loader-accent {
-        stroke: url('#pre-react-boot-gradient');
-        stroke-dasharray: 34 66;
-        stroke-dashoffset: 8;
+      @keyframes pre-react-boot-particle-breathe {
+        0%,
+        100% {
+          filter: saturate(92%);
+          transform: scale(0.96);
+        }
+
+        50% {
+          filter: saturate(118%);
+          transform: scale(1.04);
+        }
       }
 
       @media (max-width: 40rem), (max-height: 38rem) {
@@ -182,6 +189,14 @@
           --preboot-stage-padding-block: 1.5rem;
           --preboot-lockup-width: min(18rem, 76vw);
           --preboot-loader-width: 4.5rem;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .pre-react-boot__loader-particles {
+          animation: none;
+          filter: none;
+          transform: none;
         }
       }
     </style>
@@ -238,16 +253,48 @@
             src="./brand/my-king-lockup.png"
             width="2048"
           />
-          <svg aria-hidden="true" class="pre-react-boot__loader" fill="none" role="presentation" viewBox="0 0 100 64">
-            <defs>
-              <linearGradient id="pre-react-boot-gradient" x1="12" x2="88" y1="16" y2="48">
-                <stop class="pre-react-boot__brand-stop--purple" offset="0" />
-                <stop class="pre-react-boot__brand-stop--cyan" offset="0.48" />
-                <stop class="pre-react-boot__brand-stop--blue" offset="1" />
-              </linearGradient>
-            </defs>
-            <path class="pre-react-boot__loader-track" d="M17 32c9-21 24-21 33 0s24 21 33 0-24-21-33 0-24 21-33 0Z" />
-            <path class="pre-react-boot__loader-accent" d="M17 32c9-21 24-21 33 0s24 21 33 0-24-21-33 0-24 21-33 0Z" />
+          <svg
+            aria-hidden="true"
+            class="pre-react-boot__loader"
+            data-loader="lemniscate-bloom"
+            fill="none"
+            role="presentation"
+            viewBox="0 0 100 100"
+          >
+            <path
+              class="pre-react-boot__loader-guide"
+              d="M75.6 50C68 32 58 32 50 50S32 68 24.4 50 42 32 50 50s18 18 25.6 0Z"
+            />
+            <g class="pre-react-boot__loader-particles">
+              <circle class="pre-react-boot__particle" cx="75.60" cy="50.00" r="1.17" opacity="0.21" />
+              <circle class="pre-react-boot__particle" cx="73.78" cy="55.29" r="1.24" opacity="0.24" />
+              <circle class="pre-react-boot__particle" cx="69.41" cy="58.42" r="1.31" opacity="0.27" />
+              <circle class="pre-react-boot__particle" cx="64.41" cy="58.99" r="1.39" opacity="0.30" />
+              <circle class="pre-react-boot__particle" cx="59.91" cy="57.74" r="1.46" opacity="0.33" />
+              <circle class="pre-react-boot__particle" cx="56.13" cy="55.52" r="1.53" opacity="0.36" />
+              <circle class="pre-react-boot__particle" cx="52.92" cy="52.85" r="1.60" opacity="0.39" />
+              <circle class="pre-react-boot__particle" cx="50.00" cy="50.00" r="1.67" opacity="0.41" />
+              <circle class="pre-react-boot__particle" cx="47.08" cy="47.15" r="1.74" opacity="0.44" />
+              <circle class="pre-react-boot__particle" cx="43.87" cy="44.48" r="1.81" opacity="0.47" />
+              <circle class="pre-react-boot__particle" cx="40.09" cy="42.26" r="1.89" opacity="0.50" />
+              <circle class="pre-react-boot__particle" cx="35.59" cy="41.01" r="1.96" opacity="0.53" />
+              <circle class="pre-react-boot__particle" cx="30.59" cy="41.58" r="2.03" opacity="0.56" />
+              <circle class="pre-react-boot__particle" cx="26.22" cy="44.71" r="2.10" opacity="0.59" />
+              <circle class="pre-react-boot__particle" cx="24.40" cy="50.00" r="2.17" opacity="0.62" />
+              <circle class="pre-react-boot__particle" cx="26.22" cy="55.29" r="2.24" opacity="0.65" />
+              <circle class="pre-react-boot__particle" cx="30.59" cy="58.42" r="2.31" opacity="0.68" />
+              <circle class="pre-react-boot__particle" cx="35.59" cy="58.99" r="2.39" opacity="0.71" />
+              <circle class="pre-react-boot__particle" cx="40.09" cy="57.74" r="2.46" opacity="0.74" />
+              <circle class="pre-react-boot__particle" cx="43.87" cy="55.52" r="2.53" opacity="0.77" />
+              <circle class="pre-react-boot__particle" cx="47.08" cy="52.85" r="2.60" opacity="0.79" />
+              <circle class="pre-react-boot__particle" cx="50.00" cy="50.00" r="2.67" opacity="0.82" />
+              <circle class="pre-react-boot__particle" cx="52.92" cy="47.15" r="2.74" opacity="0.85" />
+              <circle class="pre-react-boot__particle" cx="56.13" cy="44.48" r="2.81" opacity="0.88" />
+              <circle class="pre-react-boot__particle" cx="59.91" cy="42.26" r="2.89" opacity="0.91" />
+              <circle class="pre-react-boot__particle" cx="64.41" cy="41.01" r="2.96" opacity="0.94" />
+              <circle class="pre-react-boot__particle" cx="69.41" cy="41.58" r="3.03" opacity="0.97" />
+              <circle class="pre-react-boot__particle" cx="73.78" cy="44.71" r="3.10" opacity="1.00" />
+            </g>
           </svg>
         </div>
       </div>

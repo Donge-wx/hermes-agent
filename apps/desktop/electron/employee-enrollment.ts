@@ -19,13 +19,16 @@ import {
 import {
   completeMyKingEmployeeEnrollment,
   MyKingEmployeeEnrollmentError,
+  type MyKingEmployeeAccountLoginRequest,
   type MyKingEmployeeEnrollmentStage,
   type MyKingEmployeeEnrollmentStatus,
   type MyKingEmployeePostJson,
   type MyKingEmployeeRedeemResponse,
   parseMyKingEmployeeEnrollmentCode,
+  requestMyKingEmployeeAccountEnrollmentCode,
   redeemMyKingEmployeeInvitation
 } from './employee-enrollment-contract'
+import { signMyKingEnrollmentChallenge } from './employee-relay-key'
 
 export type { MyKingEmployeeEnrollmentStage, MyKingEmployeeEnrollmentStatus } from './employee-enrollment-contract'
 
@@ -37,7 +40,7 @@ interface PendingCompletion {
 
 export interface MyKingEmployeeEnrollmentOptions {
   readonly appVersion: string
-  readonly applyRemoteGateway: (url: string) => Promise<void>
+  readonly applyRemoteGateway: (url: string, deviceToken: string) => Promise<void>
   readonly arch: 'arm64' | 'x64'
   readonly baseUrl: null | string
   readonly clearRemoteGateway: (url: string | null) => Promise<void>
@@ -138,6 +141,10 @@ export function createMyKingEmployeeEnrollment(options: MyKingEmployeeEnrollment
     const ready = await completeMyKingEmployeeEnrollment(
       {
         baseUrl: options.baseUrl,
+        challengeSignature: signMyKingEnrollmentChallenge(
+          prepared.staging.privateKeyPath,
+          prepared.redeem.challenge
+        ),
         enrollmentId: prepared.redeem.enrollmentId,
         completionToken: prepared.redeem.completionToken,
         deviceId,
@@ -154,22 +161,31 @@ export function createMyKingEmployeeEnrollment(options: MyKingEmployeeEnrollment
     }
 
     const completed = pending
-    pending = null
 
     const binding: MyKingEmployeeBinding = {
       version: 1,
       employeeId: ready.employeeId,
       employeeName: completed.redeem.employeeName,
       deviceId,
+      enrollmentId: completed.redeem.enrollmentId,
       remoteGatewayUrl: ready.remoteGatewayUrl,
       enrolledAt: new Date().toISOString(),
       lastCheckAt: null
     }
 
-    writeMyKingEmployeeBinding(options.connectorPaths.bindingPath, binding)
-    removeStaging(completed.staging)
     publish('connecting-remote-gateway')
-    await connectMyKingEmployeeGateway(() => options.applyRemoteGateway(binding.remoteGatewayUrl))
+    try {
+      await connectMyKingEmployeeGateway(() =>
+        options.applyRemoteGateway(binding.remoteGatewayUrl, ready.gatewayAuth.token)
+      )
+      writeMyKingEmployeeBinding(options.connectorPaths.bindingPath, binding)
+    } catch (error) {
+      pending = null
+      removeStaging(completed.staging)
+      throw error
+    }
+    pending = null
+    removeStaging(completed.staging)
     await connectMyKingEmployeeGateway(() => options.probeRemoteGateway(binding.remoteGatewayUrl))
     publish('verifying-isolation')
     await options.enableConnector()
@@ -234,21 +250,44 @@ export function createMyKingEmployeeEnrollment(options: MyKingEmployeeEnrollment
     }
   }
 
+  const runOnce = (operation: () => Promise<MyKingEmployeeEnrollmentStatus>) => {
+    if (!inFlight) {
+      inFlight = operation()
+        .catch(error => {
+          publish('error', error instanceof MyKingEmployeeEnrollmentError ? error.code : 'connector-failed')
+          throw error
+        })
+        .finally(() => {
+          inFlight = null
+        })
+    }
+
+    return inFlight
+  }
+
   return {
     getStatus: status,
-    enroll(rawCode: string) {
-      if (!inFlight) {
-        inFlight = enrollOnce(rawCode)
-          .catch(error => {
-            publish('error', error instanceof MyKingEmployeeEnrollmentError ? error.code : 'connector-failed')
-            throw error
-          })
-          .finally(() => {
-            inFlight = null
-          })
-      }
+    login(credentials: Omit<MyKingEmployeeAccountLoginRequest, 'baseUrl'>) {
+      return runOnce(async () => {
+        if (pending) {
+          return finishPending()
+        }
 
-      return inFlight
+        if (!options.baseUrl || options.managedGatewayUrl) {
+          throw new MyKingEmployeeEnrollmentError('invalid-credentials', 'Employee account login is unavailable.')
+        }
+
+        publish('validating-invitation')
+        const code = await requestMyKingEmployeeAccountEnrollmentCode(
+          { baseUrl: options.baseUrl, email: credentials.email, password: credentials.password },
+          options.postJson
+        )
+
+        return enrollOnce(code)
+      })
+    },
+    enroll(rawCode: string) {
+      return runOnce(() => enrollOnce(rawCode))
     },
     async check() {
       try {

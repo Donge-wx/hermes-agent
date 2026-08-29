@@ -60,19 +60,22 @@ not claims that Apple publishes identical CSS pixel measurements:
 | ----------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `--lg-size-titlebar-control`                                                                          | `2rem` / 32px                                                           | titlebar and overlay chrome hit area; glyph 17–18px                                                                                                                                                                                                                          |
 | `--lg-size-icon-control`                                                                              | `2rem` / 32px                                                           | ordinary circular icon actions                                                                                                                                                                                                                                               |
-| `--lg-size-control`                                                                                   | `2.5rem` / 40px                                                         | inputs, selects, primary text buttons, and segmented controls                                                                                                                                                                                                                |
-| `--lg-size-control-compact`                                                                           | `2.25rem` / 36px                                                        | menus, compact buttons, and secondary field controls                                                                                                                                                                                                                         |
-| `--lg-size-nav-row`                                                                                   | `2.5rem` / 40px                                                         | primary sidebar and settings-navigation rows; icon 17–19px                                                                                                                                                                                                                   |
-| `--lg-size-nav-row-compact`                                                                           | `2.25rem` / 36px                                                        | nested navigation and compact pane tabs                                                                                                                                                                                                                                      |
-| `--lg-size-menu-row`                                                                                  | `2.25rem` / 36px                                                        | menu, select, command-palette, and popover choices                                                                                                                                                                                                                           |
+| `--lg-size-control`                                                                                   | `2.75rem` / 44px                                                        | inputs, selects, primary text buttons, and segmented controls; remains approximately 40px at the managed 90% default scale                                                                                                                                                   |
+| `--lg-size-control-compact`                                                                           | `2.5rem` / 40px                                                         | menus, compact buttons, and secondary field controls                                                                                                                                                                                                                         |
+| `--lg-size-nav-row`                                                                                   | `2.75rem` / 44px                                                        | primary sidebar and settings-navigation rows; icon 17–19px                                                                                                                                                                                                                   |
+| `--lg-size-nav-row-compact`                                                                           | `2.5rem` / 40px                                                         | nested navigation and compact pane tabs                                                                                                                                                                                                                                      |
+| `--lg-size-menu-row`                                                                                  | `2.5rem` / 40px                                                         | menu, select, command-palette, and popover choices                                                                                                                                                                                                                           |
 | `--lg-size-statusbar`                                                                                 | `2rem` / 32px                                                           | bottom status chrome and its icon actions                                                                                                                                                                                                                                    |
-| `--lg-size-composer`                                                                                  | `3.5rem` / 56px minimum                                                 | Composer surface at rest, excluding optional status/drawer rows                                                                                                                                                                                                              |
-| `--lg-size-composer-action`                                                                           | `2rem` / 32px                                                           | Composer utility actions                                                                                                                                                                                                                                                     |
-| `--lg-size-composer-primary`                                                                          | `2.25rem` / 36px                                                        | Composer send/stop/voice primary action                                                                                                                                                                                                                                      |
+| `--lg-size-statusbar-command-glyph`                                                                   | `22px`                                                                  | optically sparse Command Center glyph within the existing 28px statusbar hit target; the larger optical size compensates for the Tabler mark's generous internal viewBox                                                                                                     |
+| `--lg-size-composer`                                                                                  | `3.75rem` / 60px minimum                                                | Composer surface at rest, excluding optional status/drawer rows                                                                                                                                                                                                              |
+| `--lg-size-composer-action`                                                                           | `2.25rem` / 36px                                                        | Composer utility actions                                                                                                                                                                                                                                                     |
+| `--lg-size-composer-primary`                                                                          | `2.5rem` / 40px                                                         | Composer send/stop/voice primary action                                                                                                                                                                                                                                      |
 | `--lg-size-switch-*`                                                                                  | `3rem × 1.75rem` / 48×28px                                              | settings toggle with a 22px thumb and visible focus ring                                                                                                                                                                                                                     |
 | `--lg-size-checkbox`                                                                                  | `1.25rem` / 20px                                                        | checkbox control; surrounding row remains the hit target                                                                                                                                                                                                                     |
-| `--lg-type-control`                                                                                   | `0.875rem` / 14px                                                       | control, navigation, and menu labels                                                                                                                                                                                                                                         |
-| `--lg-type-caption`                                                                                   | `0.8125rem` / 13px                                                      | descriptions and secondary settings copy                                                                                                                                                                                                                                     |
+| `--lg-type-control`, `--lg-type-body`                                                                 | `0.9375rem` / 15px                                                      | control, navigation, menu labels, transcript prose, and primary detail copy; stays readable at the managed 90% default scale                                                                                                                                                 |
+| `--lg-type-caption`                                                                                   | `0.875rem` / 14px                                                       | descriptions and secondary settings copy                                                                                                                                                                                                                                     |
+| `--lg-type-micro`                                                                                     | `0.8125rem` / 13px                                                      | status, counts, compact metadata, and section labels; never used for primary content                                                                                                                                                                                         |
+| `--mk-tertiary`                                                                                       | `#626a77`                                                               | 13px managed/browser authentication status copy; keeps the quiet tertiary role while maintaining at least WCAG AA contrast against the light auth canvas                                                                                                                     |
 | `--lg-type-section-heading`, `--lg-type-intro-display`                                                | 15px / responsive 32–36px                                               | semantic settings and intro hierarchy; component styles do not own type literals                                                                                                                                                                                             |
 | `--lg-space-3xs…3xl`                                                                                  | 3–18px                                                                  | shared Liquid Glass spacing ladder for component gaps, margins, and padding                                                                                                                                                                                                  |
 | `--lg-size-settings-row`, `--lg-size-theme-*`, `--brand-size-intro-lockup` / `--lg-size-intro-lockup` | 76px / 144–156px / 96px / responsive 272–320px                          | settings, theme specimen, and centered branded-intro geometry; the global brand token remains valid before theme attributes settle                                                                                                                                           |
@@ -90,9 +93,14 @@ keyboard-focus states may introduce a local interaction lens.
 | `--lg-radius-control` | `0.75rem` / 12px | controls; inner radii stay smaller than their container |
 | `--lg-radius-theme-card`, `--lg-radius-composer`, `--lg-radius-pill` | 14px / 22px / capsule | theme specimens, Composer, and My King brand capsule |
 | `--lg-radius-island`, `--lg-shadow-island`, `--lg-shadow-navigation-well` | 16px / named layered elevation | toolbar/status islands and the single primary-navigation material well |
-| `--lg-measure-enrollment` | `42rem` | employee enrollment uses the shared readable settings measure |
+| `--lg-size-state-loader`, `--lg-size-state-glyph-compact`, `--lg-size-about-stage`, `--lg-measure-skill-body`, `--lg-measure-enrollment`, `--lg-measure-master-*`, `--lg-measure-mcp-stack` | 44px / 56px / responsive stage / 36rem / 42rem / tokenized rail and stacked tracks | loading glyphs, compact narrow empty states, About stage, long Skill prose, employee enrollment, and master/detail geometry stay consistent without call-site length literals |
+| `--lg-measure-credential-*`, `--lg-size-credential-row`, `--lg-size-gateway-choice*` | 52rem list / 17rem label / 72px row / 116px desktop choice / 100px narrow choice | credential rows and gateway-mode selection use one continuous settings rhythm; an expanded credential remains a square-edged tinted row with an inset leading accent, inactive choices do not become separate gray cards, 768px retains a 2x2 choice plane while 640px uses readable single rows, and the selected gateway uses fill plus check without another outline |
+| `--lg-measure-provider-list`, `--lg-size-provider-row`, `--lg-size-mcp-empty` | 52rem list / 72px row / 132px guidance | provider accounts use one continuous disclosure list; MCP guidance stays complete without displacing the catalog from the desktop viewport |
+| `--lg-measure-capability-summary`, `--lg-lines-capability-summary`, `--lg-size-tool-chip` | 44rem / five lines / 28px | long backend capability descriptions remain readable summaries; tool names become distinct, usable information chips instead of an unstructured paragraph tail |
 | `--lg-measure-*`, `--lg-size-*`, `--lg-space-*`, `--lg-stroke-*`, `--lg-radius-*` | named geometry primitives | Liquid Glass modules consume tokens for every length; only media-query thresholds remain literal because CSS custom properties are unavailable in media conditions |
-| `--lg-shadow-*`, `--lg-backdrop-*`, `--lg-filter-*` | named optical recipes | component, shell, overlay, and state-specific depth/blur values live in `tokens.css`; consuming modules do not carry one-off shadow or blur measurements |
+| `--lg-shadow-*`, `--lg-backdrop-*`, `--lg-filter-*` | named optical recipes | component, shell, overlay, and state-specific depth/blur values live in `tokens.css`; selection uses `--lg-shadow-selection-lens`, a single upper highlight without an outline or detached shadow |
+| `--lg-seam-list` | reduced-contrast list hairline | repeated MCP catalog rows retain structure without becoming a dense table grid |
+| `--lg-shadow-message-action` | named circular-control elevation | the always-visible streaming stop control and hover-only restore control share one 32px glass action outside the human bubble |
 | `--brand-backdrop-*` | viewport-relative placement, rotation, opacity, saturation | reusable ambient My King symbol layer; component markup owns no geometry literals |
 | `--lg-shadow-theme-card-selected`, `--lg-shadow-selection-badge`, `--lg-shadow-theme-preview` | named optical elevation recipes | theme selection and preview effects remain token-driven instead of call-site shadows |
 | `--lg-radius-panel` | `1.125rem` / 18px | menus and floating panels |
@@ -109,7 +117,11 @@ Material and behavior rules:
 - Use one upper-left light source: bright top/left specular edges, quieter
   bottom/right seams, then contact and ambient shadows.
 - Selection is an internal tint/lens; keyboard focus is a separate external blue
-  ring; hover and pressed states remain distinct.
+  ring; hover and pressed states remain distinct. Selected navigation, session,
+  capability, and platform rows may carry only an upper-left specular highlight,
+  never a blue inner outline or detached contact shadow.
+- Messaging platform selection uses the same inset lens language as gateway
+  choices; it must not lift a platform into a separate floating card.
 - The editable Composer keeps its layered gradient, rim, and shadow but performs
   no live `backdrop-filter` blur while typing. Static menus and overlays may use
   stronger blur because they are short-lived and not continuous hot paths.
@@ -121,28 +133,43 @@ Material and behavior rules:
 
 Upgrade and functionality boundary:
 
-- The theme is registered only through `BUILTIN_THEMES` and imported CSS. It does
-  not modify Electron IPC, backend/gateway code, updater/install code, theme
-  persistence, or data flow.
+- Liquid Glass remains registered through `BUILTIN_THEMES` and imported CSS; it
+  does not modify Electron IPC, backend/gateway code, or updater/install code.
+- The managed employee distribution exposes only `liquid-glass` in every theme
+  picker, coerces persisted/manual/backend skin requests to that branded skin,
+  and withholds Marketplace theme installation. Upstream theme definitions and
+  stored extension data stay intact so future source upgrades do not require
+  deleting or forking the theme subsystem.
 - About identifies the desktop interface package and backend runtime as two
   separate versions. Backend-only updates must never be presented as a desktop
   UI replacement.
 - Theme hooks are inert `data-*` attributes on existing DOM nodes. They expose
   presentation targets without adding handlers, state, navigation, or new
   component ownership.
-- Every rule is scoped to
-  `:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']`; existing
-  themes and dark-mode behavior remain unchanged.
+- Liquid Glass rules remain scoped to `data-hermes-theme='liquid-glass'` and
+  its light/dark mode attributes; the brightness mode may change, but the skin
+  identity may not leave Liquid Glass in managed employee mode.
+- Operational information remains discoverable: API/provider credentials,
+  gateways, Skills, Tools, MCP, and Messaging are durable destinations. The
+  managed Messaging roster projects exactly DingTalk, WeChat, bidirectional
+  WeCom, and Feishu; other upstream adapters and their data are not deleted.
 
 Shell chrome primitives:
 
+- **Overlay navigation hierarchy.** When a settings destination exposes child
+  views, the expanded parent is a quiet section label and only the active child
+  receives the internal selection wash. Parent and child remain on one glass
+  plane; neither receives a second contact shadow, so the rail never reads as
+  stacked cards.
 - **Sidebar navigation track.** `Sessions / Bots` is one 40px segmented glass
-  lens. The primary destinations below it share one navigation well rather than
-  becoming five independent cards. Idle rows remain quiet; hover is a shallow
-  lens; the active route adds an internal blue tint without changing geometry.
+  lens. The sidebar surface itself is the shared navigation material, so the
+  primary destinations below it never create a second rounded well. Idle rows
+  remain quiet; hover is a shallow lens; the active route adds an internal blue
+  tint without changing geometry.
 - **Sidebar empty-state stage.** The existing icon, message, and new-project
-  action form one centered composition with a refractive icon plate and a
-  readable action capsule. It adds no alternate onboarding or navigation path.
+  action form one centered composition without an enclosing card. Only the
+  refractive icon plate and real action may rise from the sidebar material. It
+  adds no alternate onboarding or navigation path.
 - **Profile dock.** The existing profile rail is one floating glass dock at the
   sidebar foot. Every existing profile, add, import, manage, and gateway action
   keeps its current button and handler inside that shared material.
@@ -166,14 +193,21 @@ Conversation primitives:
   expose those states to the theme.
 - **Human bubble.** Human messages are right-aligned blue-ice glass bubbles with
   a readable maximum measure, a stronger rim than assistant prose, and enough
-  inset for edit/restore controls. Sticky, clamp, attachment, branch, reaction,
-  edit, restore, and stop behavior is unchanged.
-- **Assistant reading sheet.** Assistant output uses a quiet translucent reading
-  sheet with a restrained My King blue edge cue. It is lighter than the human
-  bubble and remains one continuous reading surface; paragraphs, tools, code,
-  attachments, reactions, and footers do not become nested cards.
-- **Cognition capsule.** Live response/loading rows and reasoning disclosures use
-  a 24px optical cognition glyph and compact glass capsule. Active reasoning is
+  symmetric inset to keep short text optically centered. Restore and stop live
+  in a separate interaction slot immediately outside the bubble rather than
+  consuming its text inset. Their elevation is a tight neutral contact shadow
+  rather than a detached blue lobe, so short messages still read as one glass
+  surface. The bubble rim follows the same upper-left light source; it has no
+  second blue line along its lower edge. Sticky, clamp, attachment, branch, reaction, edit, restore, and stop
+  behavior is unchanged.
+- **Assistant reading sheet.** Assistant output uses a quiet full-measure reading
+  plane with a restrained My King blue edge cue, never a content-sized bubble.
+  It is lighter than the human bubble and remains one continuous reading surface;
+  paragraphs, tools, code, attachments, reactions, and footers do not become
+  nested cards.
+- **Cognition status.** Live response/loading rows and reasoning disclosures use
+  a 24px abstract multi-point cognition glyph in a light inline status row, not
+  a nested glass capsule. Eye-like white highlights are forbidden. Active reasoning is
   visibly animated through the existing finite pulse mechanism and always names
   its fallback state as loading or thinking so the glyph is never an unlabeled
   timer. Settled reasoning uses a calm disclosure capsule and an inset body.
@@ -183,6 +217,10 @@ Conversation primitives:
 - At narrow widths the message measures become fluid and horizontal padding
   compresses, while type size, status glyph size, keyboard focus, and all existing
   interaction targets remain intact.
+- When a narrow navigation overlay is open, the intro and Composer share the
+  remaining visible work plane. The editable text origin, attachment action,
+  model picker, voice controls, and primary action may reflow but never sit
+  underneath the overlay.
 - **CJK intro phrase groups.** Chinese and Japanese intro headlines and body copy preserve
   semantic clauses as unbreakable inline groups, with wrapping allowed only
   between punctuation-delimited phrases. This prevents orphan punctuation and
@@ -192,6 +230,65 @@ Conversation primitives:
   are isolated with explicit left-to-right direction. When a narrow composer
   truncates a model label, the meaningful model-name prefix remains visible;
   surrounding Arabic chrome retains its native right-to-left order.
+
+Information surfaces:
+
+- **Master/detail list.** Capabilities and Messaging use a 44–56px row rhythm,
+  15px primary labels, 13–14px supporting copy, and a wider rail that keeps
+  bilingual platform names from wrapping into cramped two-line fragments.
+- **Detail reading column.** Detail content may expand to 52rem while keeping
+  long prose at a readable measure. Metadata, field groups, footers, and pinned
+  actions use distinct `data-slot` hooks and the shared type ladder rather than
+  9–11px call-site literals.
+- **Messaging credentials.** Credential groups remain part of the continuous
+  detail reading column. Each field uses whitespace and one quiet hairline;
+  fields never become translucent cards inside the detail surface. At narrow
+  widths the four-platform master list becomes a two-column navigation grid so
+  the complete first required field remains visible above the pinned action bar.
+- **Settings credentials.** Tools and setting credentials form one bounded,
+  continuous settings list. Each row keeps its status, label, and 40px field in
+  one visual unit; collapsed fields retain real control chrome instead of
+  reading as large empty white patches. Expansion adds only a quiet internal
+  tint and the required description or documentation, never a card inside a
+  card.
+- **Gateway mode selection.** Local, Cloud, remote, and SSH modes are four
+  panes inside one raised selection surface. Hairline seams provide grouping;
+  the current mode uses an internal blue-ice lens and keyboard focus uses the
+  shared external Apple-blue ring. Mode switching, help, persistence, testing,
+  saving, and reconnect behavior remain unchanged.
+- **Provider account disclosure.** Recommended, API-key, connected, secondary,
+  and disclosure rows belong to one raised list surface with one row height and
+  shared seams. The disclosure is always the list's final row; it never floats
+  alone in page whitespace. OAuth, API-key, disconnect, and terminal handoff
+  behavior remains unchanged.
+- **Skill and MCP information rhythm.** Skill metadata and prose are separated by
+  whitespace or one hairline, never consecutive floating cards. MCP catalog
+  descriptions stay at or above `--lg-type-caption` (14px), Skill prose stays at
+  `--lg-type-body` (15px), and install actions plus log labels stay at or above
+  `--lg-type-micro`. The JSON editor and log pane share one raised-glass material
+  and header rhythm, while their hairline boundary and labels preserve distinct
+  functional regions. The `stdio / agent` selector is one internal segmented
+  lens; it never becomes two unrelated buttons.
+  Repeated catalog rows use the reduced-contrast `--lg-seam-list` hairline rather
+  than the stronger panel seam. At desktop and stacked widths, MCP empty and loading states become compact
+  horizontal compositions; neither may be clipped, displace the first catalog
+  rows from the viewport, or consume the editor's working height.
+- **Capability detail summaries.** Skill and toolset headers use a bounded,
+  readable summary measure with a five-line visual cap; the full source text
+  remains available through the native title affordance. Toolset members form
+  a separate 28px chip region below the summary, so backend descriptions never
+  merge visually with actionable tool names. Every `CapRow` exposes independent
+  `data-selected` and `data-enabled` presentation states: selection is the blue
+  internal lens, while enablement remains the unchanged operational switch.
+- **Loading and empty compositions.** `PageLoader` and `PanelEmpty` always pair
+  a refractive glyph plate with visible localized status/title copy. A lone
+  spinner or two uncomposed lines in the middle of a page is incomplete.
+- **Command, model, and layout surfaces.** Floating work surfaces use the same
+  40px choice rows and 13–15px hierarchy as the rest of the shell; their width
+  must not cover the intro headline when an adjacent placement is available.
+  The command palette remains one continuous material, but its reading layer is
+  opaque so labels from an underlying overlay never bleed through at narrow
+  widths.
 
 ## Information architecture
 
@@ -339,13 +436,15 @@ Sizes: `default`, `xs`, `overlay` (titlebar glyph counts).
   curves (`lemniscate-bloom` for long ops). Never ship the literal text
   "Loading…".
 - **Branded cold start:** `GatewayConnectingOverlay` is the single My King boot
-  stage. It uses the approved lockup, the shared `Loader`, localized
+  stage. It uses the approved lockup, the approved three-color
+  `lemniscate-bloom` particle loader without a surrounding activity plate, localized
   `$desktopBoot.message`, and the real `$desktopBoot.progress`; it never invents
   progress or falls back to a generic `CONNECTING` wordmark. The progress fill
-  animates with `transform: scaleX()` only. Reduced motion hides the moving SVG
-  and substitutes a calm opacity pulse. Before React mounts, `index.html` paints
-  the same approved lockup inside a minimal `pre-react-boot` glass stage so the
-  first composited frame is branded rather than blank. React replaces that
+  animates with `transform: scaleX()` only. Reduced motion substitutes a static
+  double-ring silhouette. Before React mounts, `index.html` paints the same
+  lockup and particle-lemniscate geometry inside a minimal `pre-react-boot`
+  glass stage so the first composited frame is branded rather than blank and
+  does not flash between two loader designs. React replaces that
   static shell immediately; it contains no synthetic progress, never delays
   startup, and is removed synchronously for every `?win=` auxiliary renderer:
   HUD, secondary sessions, quick-entry, pet, and wake. Main and peer windows
@@ -357,8 +456,8 @@ Sizes: `default`, `xs`, `overlay` (titlebar glyph counts).
 - **Logs:** `LogView` — no bg, hairline border, tight padding, small mono.
   Every place we surface raw logs uses it.
 - **Empty:** `EmptyState` for plain page bodies; `PanelEmpty` for overlay
-  master/detail empties with an icon and action. Don't hand-roll a third
-  centered empty.
+  master/detail empties with an icon and action, including every Command Center
+  empty branch. Don't hand-roll a third centered empty.
 - **Confirmation:** `ConfirmDialog` is the only way we ask "are you sure". It
   opens focused on Confirm, so `Enter` confirms and `Esc` cancels, and it owns
   the pending → done → close beat and the inline error — a call site passes an
@@ -398,6 +497,12 @@ Sizes: `default`, `xs`, `overlay` (titlebar glyph counts).
 - Install, onboarding, connecting, boot failure, and reauthentication are
   distinct states with shared visual primitives. Preserve their recovery
   semantics when unifying appearance.
+- **Native browser auth result.** The RFC 8252 loopback success and failure
+  documents use the approved My King lockup and the same light Liquid Glass
+  material, Chinese hierarchy, and accessibility preferences as the managed
+  login shell. The success document says only that browser verification is
+  complete because token redemption continues inside the app; neither state
+  exposes provider errors, authorization codes, tokens, or protocol detail.
 - The branded cold-start stage changes presentation only. Its existing cold-boot
   latch, soft-switch suppression, post-boot reconnect behavior, failure handoff,
   preview loop, and exit timing remain the authority for when it may cover the
@@ -492,20 +597,36 @@ long transcript or a busy terminal.
   in `en.ts` that skips the others is a regression (drifted punctuation,
   stale labels). Keep trailing-punctuation and tone consistent across all four.
 
-## My King employee enrollment assistant
+## Managed distribution and first launch
 
+- The employee build defaults to Simplified Chinese from the installer through
+  boot, onboarding, recovery, notifications, and the main application.
 - **My King employee enrollment assistant.** An employee build stamped with an
   enrollment base URL but no preassigned gateway replaces the unusable gateway
   boot state with one blocking Liquid Glass setup surface. The same live
   enrollment body is reused at the top of Gateway Settings; it is not a second
   application or a parallel connection form. The surface shows the current
-  server/connector stage by name, never a percentage, clears a submitted code
-  from the field immediately, and exposes diagnostics plus an explicit unbind
-  confirmation. A preassigned managed gateway bypasses this assistant, while an
-  ordinary unstamped build renders none of it. Connected facts form one flat
-  status list with token hairlines; the input and actions use the shared
+  server/connector stage by name and never a percentage. Employees sign in with
+  their company account; the password is cleared immediately and the internal
+  one-time enrollment code is never exposed. A successful sign-in from a new
+  computer replaces the previous workstation connection. The surface exposes
+  diagnostics plus an explicit unbind confirmation. A preassigned managed
+  gateway bypasses this assistant, while an ordinary unstamped build renders
+  none of it. Connected facts form one flat status list with token hairlines;
+  the input and actions use the shared
   `Input`, `Button`, `Loader`, `Dialog`, `LogView`, and `ConfirmDialog`
   primitives rather than nested cards or bespoke controls.
+- A release installer contains its platform-specific Python runtime, backend,
+  and required dependencies. First launch may validate these resources, but it
+  must not download or install them.
+- A missing or damaged runtime fails closed with “My King 安装包不完整，请联系管理员重新安装。”
+  It never falls back to the legacy GitHub/PyPI bootstrap path.
+- Routine startup uses the existing single Liquid Glass boot surface with the
+  short copy “正在启动 My King”. Technical detail stays in logs and does not
+  introduce nested cards or an additional installation overlay.
+- User data remains writable only in My King's isolated data root. Bundled code
+  and dependencies are immutable and update only when an administrator ships a
+  new signed My King installer.
 
 ## State (TypeScript)
 

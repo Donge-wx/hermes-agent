@@ -8,6 +8,7 @@ import {
   MY_KING_PROTOCOL,
   MY_KING_USER_DATA_DIRNAME,
   MY_KING_WINDOWS_HOME_DIRNAME,
+  publicApplicationText,
   resolveApplicationIdentity
 } from './application-menu-labels'
 
@@ -25,6 +26,12 @@ describe('My King public installation identity', () => {
       internalName: 'My King',
       publicName: 'My King'
     })
+  })
+
+  it('brands native dialog prose without rewriting compatibility paths', () => {
+    expect(publicApplicationText('Run Hermes update, then inspect ~/.hermes/state.db')).toBe(
+      'Run My King update, then inspect ~/.hermes/state.db'
+    )
   })
 })
 

@@ -1,7 +1,7 @@
 import { isGatewayReauthRequired, resolveGatewayWsUrl } from '@hermes/shared'
 import { useEffect, useRef } from 'react'
 
-import type { HermesConnection } from '@/global'
+import type { DesktopBootProgress, HermesConnection } from '@/global'
 import { HermesGateway } from '@/hermes'
 import { translateNow } from '@/i18n'
 import { desktopDefaultCwd } from '@/lib/desktop-fs'
@@ -105,6 +105,30 @@ async function warmEmployeeGatewayNetwork(connection: HermesConnection) {
   } catch (error) {
     console.warn('Failed to warm managed employee gateway network', error)
   }
+}
+
+function employeeEnrollmentRequired(error: unknown) {
+  return String(error).includes('Connect this device with My King Employee Enrollment')
+}
+
+function desktopBootErrorMessage(error: unknown) {
+  return employeeEnrollmentRequired(error)
+    ? translateNow('boot.errors.employeeEnrollmentRequired')
+    : error instanceof Error
+      ? error.message
+      : String(error)
+}
+
+function applyVisibleDesktopBootProgress(progress: DesktopBootProgress) {
+  if (!employeeEnrollmentRequired(progress.error) && !employeeEnrollmentRequired(progress.message)) {
+    applyDesktopBootProgress(progress)
+
+    return
+  }
+
+  const message = translateNow('boot.errors.employeeEnrollmentRequired')
+
+  applyDesktopBootProgress({ ...progress, error: progress.error ? message : null, message })
 }
 
 interface GatewayBootOptions {
@@ -439,9 +463,11 @@ export function useGatewayBoot({
         bootCompleted = true
       } catch (err) {
         if (!cancelled) {
-          const message = err instanceof Error ? err.message : String(err)
+          const message = desktopBootErrorMessage(err)
           failDesktopBoot(message)
-          notifyError(err, translateNow('boot.errors.desktopBootFailed'))
+          if (!employeeEnrollmentRequired(err)) {
+            notifyError(err, translateNow('boot.errors.desktopBootFailed'))
+          }
           setSessionsLoading(false)
         }
       } finally {
@@ -454,18 +480,18 @@ export function useGatewayBoot({
       // cold-boot CONNECTING overlay stays down. Errors still surface.
       if ($gatewaySwitching.get() || bootCompleted) {
         if (payload.error) {
-          applyDesktopBootProgress(payload)
+          applyVisibleDesktopBootProgress(payload)
         }
 
         return
       }
 
-      applyDesktopBootProgress(payload)
+      applyVisibleDesktopBootProgress(payload)
     })
 
     void desktop
       .getBootProgress()
-      .then(snapshot => applyDesktopBootProgress(snapshot))
+      .then(snapshot => applyVisibleDesktopBootProgress(snapshot))
       .catch(() => undefined)
 
     setDesktopBootStep({
@@ -742,7 +768,7 @@ export function useGatewayBoot({
         bootRetryAttempt = 0
       } catch (err) {
         if (!cancelled) {
-          const message = err instanceof Error ? err.message : String(err)
+          const message = desktopBootErrorMessage(err)
 
           // Transient remote failure (dropped SSH/HTTP registered connection,
           // mint timeout): self-heal with bounded, jittered retries instead of
@@ -766,7 +792,9 @@ export function useGatewayBoot({
           }
 
           failDesktopBoot(message)
-          notifyError(err, translateNow('boot.errors.desktopBootFailed'))
+          if (!employeeEnrollmentRequired(err)) {
+            notifyError(err, translateNow('boot.errors.desktopBootFailed'))
+          }
           setSessionsLoading(false)
         }
       }

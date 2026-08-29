@@ -63,6 +63,27 @@ test('primary remote descriptor keeps legacy unregistered routes unqualified', (
   assert.equal('connectionId' in connection, false)
 })
 
+test('primary remote descriptor preserves employee-managed authentication', () => {
+  const connection = createPrimaryRemoteConnection(
+    {
+      authMode: 'oauth',
+      baseUrl: 'https://gateway.example.com/api/employee-gateways/enrollment-1',
+      employeeManaged: true,
+      headers: { 'X-Test-Route': 'employee' },
+      remoteKind: 'url',
+      source: 'employee',
+      token: 'fresh-employee-access-token',
+      wsUrl: 'wss://gateway.example.com/api/ws?ticket=one-time'
+    },
+    [],
+    {}
+  )
+
+  assert.equal(connection.employeeManaged, true)
+  assert.equal(connection.token, 'fresh-employee-access-token')
+  assert.deepEqual(connection.headers, { 'X-Test-Route': 'employee' })
+})
+
 test('remote apply re-resolves the saved connection without ensuring a local runtime', async () => {
   const gate = createFirstRunSetupGate({ stuckAfterMs: 0 })
   const savedRemote = { baseUrl: 'https://gateway.example.com/hermes' }

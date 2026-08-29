@@ -16,6 +16,8 @@ interface ResolvedPrimaryRemote {
   authMode?: 'oauth' | 'token'
   baseUrl: string
   connectionId?: string
+  employeeManaged?: boolean
+  headers?: Record<string, string>
   remoteHermesVersion?: string
   remoteHost?: string
   remoteKind?: 'cloud' | 'ssh' | 'url'
@@ -39,6 +41,8 @@ export function createPrimaryRemoteConnection<State extends object>(
     mode: 'remote' as const,
     source: remote.source,
     authMode: remote.authMode || 'token',
+    employeeManaged: remote.employeeManaged,
+    headers: remote.headers,
     remoteHost: remote.remoteHost,
     remoteKind: remote.remoteKind,
     remoteHermesVersion: remote.remoteHermesVersion,

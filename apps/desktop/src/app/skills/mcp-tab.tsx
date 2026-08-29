@@ -34,6 +34,7 @@ import {
 } from '@/hermes'
 import { type Translations, useI18n } from '@/i18n'
 import { compactNumber } from '@/lib/format'
+import { employeeVisibleBrandText } from '@/lib/managed-employee-policy'
 import { brandFor } from '@/lib/mcp-brands'
 import { estimateServerTokens, serverUsageCount } from '@/lib/mcp-cost'
 import { completeMcpDesktopOAuth } from '@/lib/mcp-dashboard-oauth'
@@ -464,7 +465,7 @@ export function McpTab({ gateway, profile }: { gateway: HermesGateway | null; pr
         (entry.command && entry.command === server.command)
     )
 
-    return match?.description ?? null
+    return match?.description ? employeeVisibleBrandText(match.description) : null
   }
 
   const resetDraft = (entries: McpServers) => {
@@ -1039,7 +1040,7 @@ export function McpTab({ gateway, profile }: { gateway: HermesGateway | null; pr
   const activeEntry = savedEntry ?? draftEntry
 
   return (
-    <div className={cn('grid h-full min-h-0 grid-cols-1', MASTER_DETAIL_WIDE_COLS)}>
+    <div className={cn('grid h-full min-h-0 grid-cols-1', MASTER_DETAIL_WIDE_COLS)} data-slot="mcp-workspace">
       {/* LEFT: the focused block's server config, or the unified fleet+catalog list. */}
       <aside className="flex min-h-0 flex-col overflow-hidden border-r border-(--ui-stroke-quaternary)">
         {selected && activeEntry ? (
@@ -1513,7 +1514,7 @@ function McpImportButton({ disabled, onImport }: { disabled: boolean; onImport: 
 // catalog's flat row treatment.
 function CatalogTag({ children }: { children: string }) {
   return (
-    <span className="rounded bg-(--ui-bg-tertiary) px-1.5 py-0.5 text-[0.6rem] text-(--ui-text-secondary)">
+    <span className="rounded bg-(--ui-bg-tertiary) px-1.5 py-0.5" data-slot="mcp-catalog-tag">
       {children}
     </span>
   )
@@ -1600,12 +1601,12 @@ function McpCatalog({
   }
 
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col" data-slot="mcp-catalog">
       {entries.map(entry => {
         const draft = envDrafts[entry.name] ?? {}
 
         return (
-          <div className="rounded-md px-2 py-2" key={entry.name}>
+          <div className="rounded-md px-2 py-2" data-slot="mcp-catalog-row" key={entry.name}>
             <div className="flex items-start gap-2">
               {/* 2px nudge so the start-aligned avatar sits where McpRow's
                   center-aligned one does — no jump when flipping Servers⇄Catalog. */}
@@ -1616,7 +1617,7 @@ function McpCatalog({
               />
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="truncate text-[0.78rem] font-medium text-foreground/85">
+                  <span className="truncate font-medium" data-slot="mcp-catalog-title">
                     {prettyName(entry.name)}
                   </span>
                   <CatalogTag>{entry.transport}</CatalogTag>
@@ -1624,22 +1625,24 @@ function McpCatalog({
                   {entry.auth_type === 'api_key' && <CatalogTag>API key</CatalogTag>}
                   {entry.needs_install && !entry.installed && <CatalogTag>{m.catalogNeedsInstall}</CatalogTag>}
                   {entry.installed && (
-                    <span className="text-[0.6rem] text-emerald-400">
+                    <span className="text-emerald-600" data-slot="mcp-catalog-tag">
                       {entry.enabled ? m.catalogEnabled : m.catalogInstalled}
                     </span>
                   )}
                 </div>
-                <p className="mt-0.5 line-clamp-2 text-[0.68rem] text-muted-foreground/70">{entry.description}</p>
+                <p className="mt-0.5 line-clamp-2" data-slot="mcp-catalog-description">
+                  {employeeVisibleBrandText(entry.description)}
+                </p>
                 {envOpenFor === entry.name && entry.required_env.length > 0 && (
                   <div className="mt-2 grid gap-2">
                     {entry.required_env.map(env => (
                       <label className="grid gap-1" key={env.name}>
-                        <span className="text-[0.62rem] text-muted-foreground">
+                        <span data-slot="mcp-catalog-env-label">
                           {env.prompt || env.name}
                           {env.required ? ' *' : ''}
                         </span>
                         <Input
-                          className="h-7 text-xs"
+                          data-slot="mcp-catalog-env-input"
                           onChange={event =>
                             setEnvDrafts(prev => ({
                               ...prev,
@@ -1656,10 +1659,11 @@ function McpCatalog({
               </div>
               <Button
                 className="mt-0.5 shrink-0"
+                data-slot="mcp-catalog-install"
                 disabled={entry.installed || installing !== null}
                 onClick={() => void install(entry)}
                 size="xs"
-                variant="text"
+                variant="textStrong"
               >
                 {installing === entry.name
                   ? m.catalogInstalling
@@ -1769,6 +1773,7 @@ function McpAvatar({ className, name, status }: { className?: string; name: stri
     <AvatarChip
       brand={brandFor(name)}
       className={className}
+      data-slot="mcp-avatar"
       name={name}
       overlay={
         <span

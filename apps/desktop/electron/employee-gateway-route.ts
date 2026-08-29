@@ -52,6 +52,28 @@ export function mergeMyKingEmployeeProxyBypassList(current: string, urls: readon
   return entries.join(';')
 }
 
+export function preserveMyKingEmployeeManagedMarker(
+  existing: unknown,
+  next: Record<string, unknown>
+): Record<string, unknown> {
+  const existingBlock = record(existing)
+  const existingToken = record(existingBlock?.token)
+  const nextToken = record(next.token)
+
+  if (
+    existingBlock?.employeeManaged !== true ||
+    !existingToken ||
+    !nextToken ||
+    existingToken.encoding !== nextToken.encoding ||
+    existingToken.value !== nextToken.value ||
+    parseMyKingPublicHttpsUrl(existingBlock.url) !== parseMyKingPublicHttpsUrl(next.url)
+  ) {
+    return next
+  }
+
+  return { ...next, employeeManaged: true }
+}
+
 export function removeMyKingEmployeeStaticGatewayCredential(
   config: Record<string, unknown>,
   assignedUrl: string

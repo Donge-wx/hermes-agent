@@ -1003,6 +1003,11 @@ test('coerceDesktopConnectionConfig routes token persistence through resolvePers
     'the strict coercion must live in the helper, not be duplicated at the call site'
   )
   assert.match(body, /encryptSecret: encryptDesktopSecret\b/, 'the helper must encrypt via encryptDesktopSecret')
+  assert.match(
+    body,
+    /const nextRemote = preserveMyKingEmployeeManagedMarker\(rawExistingBlock, nextRemoteBlock\)/,
+    'generic settings saves must preserve the employee-managed marker for the same saved credential'
+  )
 })
 
 test('connection-config save and apply IPC handlers route payloads through coerceDesktopConnectionConfig', () => {
@@ -1056,4 +1061,41 @@ test('sanitizeDesktopConnectionConfig exposes secureTokenStorage and remoteToken
   const returned = body.slice(returnIndex)
   assert.match(returned, /\bsecureTokenStorage\b/, 'the renderer needs the secure-storage availability signal')
   assert.match(returned, /\bremoteTokenPlainText\b/, 'the renderer needs the plain-text token signal')
+})
+
+test('employee-managed registry local sources fail closed before any local backend can spawn', () => {
+  const source = readMain()
+  const fnStart = source.indexOf('async function ensureRegistryBackend(')
+  const fnEnd = source.indexOf('\nasync function ', fnStart + 1)
+
+  assert.notEqual(fnStart, -1, 'ensureRegistryBackend must exist in main.ts')
+  assert.notEqual(fnEnd, -1, 'ensureRegistryBackend must have a bounded function body')
+
+  const body = source.slice(fnStart, fnEnd)
+  const localStart = body.indexOf("if (source.kind === 'local') {")
+  const employeeGuard = body.indexOf('currentMyKingEmployeeGatewayRoute()', localStart)
+  const normalLocalRoute = body.indexOf('const localRoute = resolveRegistryLocalRoute(', localStart)
+  const forcedLocalSpawn = body.indexOf('spawnPoolBackend(profileKey, localEntry, {', localStart)
+
+  assert.notEqual(localStart, -1, 'the registry local branch must exist')
+  assert.notEqual(employeeGuard, -1, 'employee-managed installs must have an explicit local-backend guard')
+  assert.match(
+    body.slice(employeeGuard, normalLocalRoute),
+    /INSTALL_STAMP\?\.employeeEnrollmentBaseUrl/,
+    'the employee guard must recognize managed installer stamps before enrollment completes'
+  )
+  assert.match(
+    body.slice(employeeGuard, normalLocalRoute),
+    /readDesktopConnectionConfig\(\)\.remote\?\.employeeManaged === true/,
+    'the employee guard must recognize a persisted managed connection when the generic installer stamp is empty'
+  )
+  assert.match(
+    body.slice(employeeGuard, normalLocalRoute),
+    /throw new MyKingEmployeeEnrollmentError\(\s*'isolation-failed'/,
+    'the employee guard must fail closed instead of delegating or spawning locally'
+  )
+  assert.ok(
+    employeeGuard < normalLocalRoute && normalLocalRoute < forcedLocalSpawn,
+    'the conditional employee guard must run before the unchanged non-employee local routing and spawn path'
+  )
 })

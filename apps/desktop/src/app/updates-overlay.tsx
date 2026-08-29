@@ -325,6 +325,7 @@ function ManualView({ command, message, onDone }: { command: string | null; mess
       </div>
 
       <button
+        aria-label={u.copyCommand}
         className={cn(
           'group flex w-full items-center justify-between gap-3 rounded-md border px-4 py-3 text-left transition-colors',
           copied ? 'border-primary/50' : 'border-(--stroke-nous) hover:border-(--ui-stroke-secondary)'
@@ -332,11 +333,9 @@ function ManualView({ command, message, onDone }: { command: string | null; mess
         onClick={handleCopy}
         type="button"
       >
-        <code className="min-w-0 flex-1 truncate select-all font-mono text-sm text-foreground">
-          <span className="select-none text-muted-foreground">$ </span>
-          {command}
-        </code>
+        <span className="min-w-0 flex-1 text-sm font-medium text-foreground">{u.copyCommand}</span>
         <span
+          aria-hidden
           className={cn(
             'flex shrink-0 items-center gap-1 text-xs font-medium transition-colors',
             copied ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground'

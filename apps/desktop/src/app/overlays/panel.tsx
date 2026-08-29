@@ -294,14 +294,26 @@ interface PanelEmptyProps {
 
 export function PanelEmpty({ action, description, icon = 'inbox', title }: PanelEmptyProps) {
   return (
-    <div className="grid flex-1 place-items-center px-6 py-10 text-center">
+    <div className="grid flex-1 place-items-center px-6 py-10 text-center" data-slot="panel-empty">
       <div className="flex flex-col items-center gap-2">
-        <Codicon className="text-muted-foreground/50" name={icon} size="1.25rem" />
-        {title ? <p className="text-sm font-medium text-foreground/90">{title}</p> : null}
-        {description ? (
-          <p className="max-w-sm text-xs leading-relaxed text-muted-foreground/70">{description}</p>
+        <span className="grid place-items-center" data-slot="panel-empty-glyph">
+          <Codicon className="text-muted-foreground/50" name={icon} size="1.25rem" />
+        </span>
+        {title ? (
+          <p className="text-sm font-medium text-foreground/90" data-slot="panel-empty-title">
+            {title}
+          </p>
         ) : null}
-        {action ? <div className="mt-2">{action}</div> : null}
+        {description ? (
+          <p className="max-w-sm text-xs leading-relaxed text-muted-foreground/70" data-slot="panel-empty-description">
+            {description}
+          </p>
+        ) : null}
+        {action ? (
+          <div className="mt-2" data-slot="panel-empty-action">
+            {action}
+          </div>
+        ) : null}
       </div>
     </div>
   )

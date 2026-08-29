@@ -24,7 +24,7 @@ import {
   setRememberedSessionId
 } from '@/store/session'
 import { onSessionsChanged } from '@/store/session-sync'
-import { openUpdatesWindow, startUpdatePoller, stopUpdatePoller } from '@/store/updates'
+import { startUpdatePoller, stopUpdatePoller } from '@/store/updates'
 import { isHudWindow, isSecondaryWindow } from '@/store/windows'
 import type { SessionInfo } from '@/types/hermes'
 
@@ -65,18 +65,15 @@ export function useDesktopIntegrations({
   runtimeIdByStoredSessionId,
   sessions
 }: DesktopIntegrationsParams): void {
-  // Update polling — populates $desktopVersion/$updateStatus, which feed the
-  // statusbar version pill and the update toasts. Also honors the main
-  // process's "open updates" menu request.
+  // Managed deployments refresh their read-only desktop version only. Update
+  // polling and native "open updates" requests are deliberately not exposed.
   useEffect(() => {
     startUpdatePoller()
     // Background MCP health: HTTP/SSE servers only (never spawns stdio),
     // notifies on transitions into needs-auth/error with a Sign in action.
     startMcpHealthChecker()
-    const unsubscribe = window.hermesDesktop?.onOpenUpdatesRequested?.(() => openUpdatesWindow())
 
     return () => {
-      unsubscribe?.()
       stopUpdatePoller()
       stopMcpHealthChecker()
     }

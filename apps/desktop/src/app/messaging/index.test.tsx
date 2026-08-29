@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { MemoryRouter } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { I18nProvider } from '@/i18n'
 import type { MessagingPlatformInfo } from '@/types/hermes'
 
 const getMessagingPlatforms = vi.fn()
@@ -57,15 +58,15 @@ function platform(patch: Partial<MessagingPlatformInfo> = {}): MessagingPlatform
     enabled: false,
     env_vars: [],
     gateway_running: true,
-    id: 'teams',
-    name: 'Microsoft Teams',
+    id: 'feishu',
+    name: 'Feishu',
     state: 'disabled',
     ...patch
   }
 }
 
 beforeEach(() => {
-  updateMessagingPlatform.mockResolvedValue({ ok: true, platform: 'teams' })
+  updateMessagingPlatform.mockResolvedValue({ ok: true, platform: 'feishu' })
   getPairing.mockResolvedValue({ approved: [], pending: [] })
 })
 
@@ -74,14 +75,16 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-async function renderMessaging() {
+async function renderMessaging(initialLocale: 'en' | 'zh' = 'en') {
   const { MessagingView } = await import('./index')
   let result: ReturnType<typeof render>
   await act(async () => {
     result = render(
-      <MemoryRouter>
-        <MessagingView />
-      </MemoryRouter>
+      <I18nProvider configClient={null} initialLocale={initialLocale}>
+        <MemoryRouter>
+          <MessagingView />
+        </MemoryRouter>
+      </I18nProvider>
     )
   })
 
@@ -103,8 +106,18 @@ describe('MessagingView profile scope', () => {
 })
 
 describe('MessagingView setup-guide link', () => {
-  it('hides the setup-guide button for a plugin platform with no docs URL', async () => {
-    // Teams (and other plugin platforms) ship an empty docs_url. Rendering an
+  it('replaces a failed first load with a retryable composed state', async () => {
+    getMessagingPlatforms.mockRejectedValue(new Error('gateway unavailable'))
+
+    await renderMessaging()
+
+    expect(await screen.findByText('Messaging platforms failed to load')).toBeTruthy()
+    expect(screen.getByText('gateway unavailable')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeTruthy()
+  })
+
+  it('hides the setup-guide button for an approved platform with no docs URL', async () => {
+    // A platform can ship an empty docs_url. Rendering an
     // anchor with href="" let Electron resolve it to the app's own packaged
     // index.html and fail with an OS "file not found" dialog. The button must
     // simply not appear when there is no guide to open.
@@ -112,12 +125,12 @@ describe('MessagingView setup-guide link', () => {
 
     await renderMessaging()
 
-    expect((await screen.findAllByText('Microsoft Teams')).length).toBeGreaterThan(0)
+    expect((await screen.findAllByText('飞书')).length).toBeGreaterThan(0)
     expect(screen.queryByText('Open setup guide')).toBeNull()
   })
 
   it('opens a real docs URL through the validated external opener', async () => {
-    const docsUrl = 'https://hermes-agent.nousresearch.com/docs/user-guide/messaging/teams'
+    const docsUrl = 'https://open.feishu.cn/document/'
     getMessagingPlatforms.mockResolvedValue({ platforms: [platform({ docs_url: docsUrl })] })
 
     await renderMessaging()
@@ -134,7 +147,7 @@ describe('MessagingView setup-guide link', () => {
 describe('MessagingView pairing', () => {
   const pendingUser = {
     age_minutes: 3,
-    platform: 'teams',
+    platform: 'feishu',
     request_id: 'a1b2c3d4e5f60718',
     user_id: '7712345',
     user_name: 'Bee'
@@ -155,7 +168,7 @@ describe('MessagingView pairing', () => {
       fireEvent.click(approve)
     })
 
-    await waitFor(() => expect(approvePairing).toHaveBeenCalledWith('teams', 'a1b2c3d4e5f60718', undefined))
+    await waitFor(() => expect(approvePairing).toHaveBeenCalledWith('feishu', 'a1b2c3d4e5f60718', undefined))
   })
 
   it('restores the pending row when approval fails', async () => {
@@ -183,7 +196,7 @@ describe('MessagingView pairing', () => {
 
     await renderMessaging()
 
-    expect((await screen.findAllByText('Microsoft Teams')).length).toBeGreaterThan(0)
+    expect((await screen.findAllByText('飞书')).length).toBeGreaterThan(0)
     expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull()
     expect(screen.queryByText(/Pending requests/)).toBeNull()
   })
@@ -195,7 +208,7 @@ describe('MessagingView pairing', () => {
 
     await renderMessaging()
 
-    expect((await screen.findAllByText('Microsoft Teams')).length).toBeGreaterThan(0)
+    expect((await screen.findAllByText('飞书')).length).toBeGreaterThan(0)
     expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull()
   })
 
@@ -230,5 +243,58 @@ describe('MessagingView pairing', () => {
       $platformsChangeTick.set($platformsChangeTick.get() + 1)
     })
     expect(getPairing).not.toHaveBeenCalled()
+  })
+})
+
+describe('MessagingView managed platform roster', () => {
+  it('renders only DingTalk, WeChat, WeCom, and Feishu', async () => {
+    getMessagingPlatforms.mockResolvedValue({
+      platforms: [
+        platform({ id: 'dingtalk', name: 'DingTalk' }),
+        platform({ id: 'weixin', name: 'WeChat' }),
+        platform({ id: 'wecom_callback', name: 'WeCom' }),
+        platform({ id: 'feishu', name: 'Feishu' }),
+        platform({ id: 'telegram', name: 'Telegram' }),
+        platform({ id: 'slack', name: 'Slack' })
+      ]
+    })
+
+    await renderMessaging()
+
+    expect((await screen.findAllByText('钉钉')).length).toBeGreaterThan(0)
+    expect(screen.getAllByText('微信').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('企业微信').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('飞书').length).toBeGreaterThan(0)
+    expect(screen.queryByText('Telegram')).toBeNull()
+    expect(screen.queryByText('Slack')).toBeNull()
+  })
+
+  it('uses localized field labels for missing placeholders instead of backend English prompts', async () => {
+    getMessagingPlatforms.mockResolvedValue({
+      platforms: [
+        platform({
+          id: 'dingtalk',
+          name: 'DingTalk',
+          env_vars: [
+            {
+              advanced: false,
+              description: 'The AppKey from DingTalk.',
+              is_password: false,
+              is_set: false,
+              key: 'DINGTALK_CLIENT_ID',
+              prompt: 'DingTalk Client ID (app key)',
+              redacted_value: null,
+              required: true,
+              url: null
+            }
+          ]
+        })
+      ]
+    })
+
+    await renderMessaging('zh')
+
+    expect(await screen.findByPlaceholderText('请输入应用 Client ID')).toBeTruthy()
+    expect(screen.queryByPlaceholderText('DingTalk Client ID (app key)')).toBeNull()
   })
 })

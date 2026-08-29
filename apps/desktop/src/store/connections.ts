@@ -126,6 +126,10 @@ export async function initializeConnectionsRegistry(): Promise<DesktopConnection
 
   restoreAttempted = true
 
+  if ($connection.get()?.employeeManaged === true) {
+    return registry
+  }
+
   const lastUsed = registry.connections.some(connection => connection.id === registry.lastUsed)
     ? registry.lastUsed
     : registry.primary

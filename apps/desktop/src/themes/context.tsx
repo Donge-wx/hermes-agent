@@ -14,6 +14,7 @@ import { createContext, type ReactNode, useCallback, useContext, useEffect, useM
 
 import { $registryVersion } from '@/contrib/registry'
 import { matchesQuery, useMediaQuery } from '@/hooks/use-media-query'
+import { employeeThemeItems, employeeThemeName } from '@/lib/managed-employee-policy'
 import { persistString, persistStringRecord, storedString, storedStringRecord } from '@/lib/storage'
 import { $activeGatewayProfile, normalizeProfileKey } from '@/store/profile'
 import { setAppearance } from '@/store/translucency'
@@ -302,7 +303,7 @@ if (typeof window !== 'undefined') {
   const profile = readBootProfileKey()
   const pref = modePref.resolve(profile)
   const resolved = resolveMode(pref)
-  const theme = deriveTheme(skinPref.resolve(profile), resolved)
+  const theme = deriveTheme(employeeThemeName(skinPref.resolve(profile)), resolved)
   applyTheme(theme, resolved)
   syncNativeTheme(pref, renderedModeFor(theme.colors, resolved))
 }
@@ -364,7 +365,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const availableThemes = useMemo(
     () =>
-      listAllThemes().map(({ name, label, description }) => ({
+      employeeThemeItems(listAllThemes()).map(({ name, label, description }) => ({
         name,
         label,
         description
@@ -381,7 +382,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
     migrateMyKingAppearanceDefaults()
 
-    return skinPref.resolve(readBootProfileKey())
+    return employeeThemeName(skinPref.resolve(readBootProfileKey()))
   })
 
   const [mode, setModeState] = useState<ThemeMode>(() =>
@@ -392,7 +393,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   // remember it for the next boot's first paint.
   useEffect(() => {
     rememberActiveProfileKey(profileKey)
-    setThemeNameState(skinPref.resolve(profileKey))
+    setThemeNameState(employeeThemeName(skinPref.resolve(profileKey)))
     setModeState(modePref.resolve(profileKey))
   }, [profileKey])
 
@@ -408,7 +409,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
       const live = normalizeProfileKey($activeGatewayProfile.get())
 
-      setThemeNameState(skinPref.resolve(live))
+      setThemeNameState(employeeThemeName(skinPref.resolve(live)))
       setModeState(modePref.resolve(live))
     }
 
@@ -461,7 +462,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const liveProfile = () => normalizeProfileKey($activeGatewayProfile.get())
 
   const setTheme = useCallback((name: string) => {
-    const next = normalizeSkin(name)
+    const next = employeeThemeName(normalizeSkin(name))
     setPreview(null)
     setThemeNameState(next)
     skinPref.assign(liveProfile(), next)
@@ -474,7 +475,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const previewTheme = useCallback((name: string, previewMode: 'light' | 'dark') => {
-    setPreview(resolveTheme(name) ? { name, mode: previewMode } : null)
+    const next = employeeThemeName(normalizeSkin(name))
+
+    setPreview(name === next && resolveTheme(next) ? { name: next, mode: previewMode } : null)
   }, [])
 
   const clearThemePreview = useCallback(() => setPreview(null), [])
