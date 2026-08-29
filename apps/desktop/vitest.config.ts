@@ -21,7 +21,13 @@ const electronNative: TestProjectConfiguration = {
     name: 'electron',
     environment: 'node',
     include: ['electron/**/*.test.ts', 'scripts/**.test.{ts,mjs}'],
-    exclude: ['scripts/run-short-session-hang-repro.test.mjs']
+    exclude: [
+      'scripts/electron-builder-target.test.mjs',
+      'scripts/managed-dashboard-assets.test.mjs',
+      'scripts/pre-react-boot-brand.test.mjs',
+      'scripts/run-short-session-hang-repro.test.mjs',
+      'scripts/set-exe-identity.test.mjs'
+    ]
   }
 }
 

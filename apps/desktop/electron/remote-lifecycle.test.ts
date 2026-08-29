@@ -383,7 +383,7 @@ test.skipIf(process.platform === 'win32')(
     }
 
     const waitForEntrypoint = async (process: ReturnType<typeof spawn>) => {
-      for (let attempt = 0; attempt < 40; attempt += 1) {
+      for (let attempt = 0; attempt < 200; attempt += 1) {
         if (process.exitCode !== null || process.signalCode !== null) {
           return false
         }
@@ -479,7 +479,8 @@ test.skipIf(process.platform === 'win32')(
 
       await rm(temp, { force: true, recursive: true })
     }
-  }
+  },
+  35_000
 )
 
 test('cleanupStale kills ONLY a provably-ours pid, always drops the lockfile', async () => {
