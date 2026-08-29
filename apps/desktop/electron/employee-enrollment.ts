@@ -152,7 +152,14 @@ export function createMyKingEmployeeEnrollment(options: MyKingEmployeeEnrollment
         sshHostPublicKeys: prepared.hostPublicKeys
       },
       options.postJson
-    )
+    ).catch(error => {
+      if (error instanceof MyKingEmployeeEnrollmentError && error.code === 'invalid-credentials') {
+        pending = null
+        removeStaging(prepared.staging)
+      }
+
+      throw error
+    })
 
     if (
       ready.employeeId !== prepared.redeem.employeeId ||

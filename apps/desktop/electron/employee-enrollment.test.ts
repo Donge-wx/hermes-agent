@@ -27,7 +27,8 @@ function fixture(
   failServerRevoke = false,
   failFirstLocalUnbind = false,
   failFirstGatewayClear = false,
-  rejectEmptyRevokeResponse = false
+  rejectEmptyRevokeResponse = false,
+  options: { firstCompleteError?: string } = {}
 ) {
   const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'myking-enrollment-'))
   temporaryDirectories.push(userData)
@@ -124,7 +125,10 @@ function fixture(
       completeCount += 1
 
       if (failFirstComplete && completeCount === 1) {
-        throw new MyKingEmployeeEnrollmentError('company-unavailable', 'Company unavailable.')
+        throw new MyKingEmployeeEnrollmentError(
+          options.firstCompleteError ?? 'company-unavailable',
+          'Enrollment completion failed.'
+        )
       }
 
       return {
@@ -281,6 +285,36 @@ describe('My King employee enrollment', () => {
     expect(setup.calls).toHaveLength(3)
     expect(setup.calls.filter(call => call.url.endsWith('/redeem'))).toHaveLength(1)
     expect(setup.prepareCount()).toBe(1)
+  })
+
+  it('starts a fresh account enrollment when the pending completion credential expired', async () => {
+    const setup = fixture(
+      'employee-1',
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      { firstCompleteError: 'invalid-credentials' }
+    )
+
+    await expect(setup.enrollment.enroll('ABCD-2345-EFGH')).rejects.toMatchObject({
+      code: 'invalid-credentials'
+    })
+    expect(fs.readdirSync(setup.userData).filter(name => name.startsWith('employee-connector-staging-'))).toEqual([])
+
+    const status = await setup.enrollment.login({
+      email: 'employee@wysd.com',
+      password: 'correct-password'
+    })
+
+    expect(status.stage).toBe('connected')
+    expect(setup.calls.filter(call => call.url.endsWith('/api/auth/login'))).toHaveLength(1)
+    expect(setup.calls.filter(call => call.url.endsWith('/redeem'))).toHaveLength(2)
+    expect(setup.prepareCount()).toBe(2)
   })
 
   it('reports a gateway connectivity failure instead of a connector success', async () => {
