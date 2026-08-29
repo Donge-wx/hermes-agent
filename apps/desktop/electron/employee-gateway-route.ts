@@ -120,7 +120,13 @@ export function removeMyKingEmployeeStaticGatewayCredential(
   const clearBlock = (value: unknown): unknown => {
     const block = record(value)
 
-    return block && parseMyKingPublicHttpsUrl(block.url) === normalizedAssignedUrl ? { ...block, token: null } : value
+    if (block?.employeeManaged !== true || parseMyKingPublicHttpsUrl(block.url) !== normalizedAssignedUrl) {
+      return value
+    }
+
+    const cleared: Record<string, unknown> = { ...block, token: null }
+    delete cleared.employeeManaged
+    return cleared
   }
 
   const profiles = record(config.profiles)

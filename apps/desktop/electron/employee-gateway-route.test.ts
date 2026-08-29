@@ -1,3 +1,5 @@
+import fs from 'node:fs'
+
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -193,9 +195,21 @@ describe('My King employee gateway credential isolation', () => {
   it('removes only static credentials for the employee gateway during unbind', () => {
     const config = {
       mode: 'remote',
-      remote: { url: 'https://gateway.myking.test/', token: { encoding: 'safeStorage', value: 'employee-secret' } },
+      remote: {
+        employeeManaged: true,
+        url: 'https://gateway.myking.test/',
+        token: { encoding: 'safeStorage', value: 'employee-secret' }
+      },
       profiles: {
-        default: { url: 'https://gateway.myking.test', token: { encoding: 'safeStorage', value: 'same-secret' } },
+        managed: {
+          employeeManaged: true,
+          url: 'https://gateway.myking.test',
+          token: { encoding: 'safeStorage', value: 'managed-secret' }
+        },
+        genericSameUrl: {
+          url: 'https://gateway.myking.test',
+          token: { encoding: 'safeStorage', value: 'generic-secret' }
+        },
         personal: { url: 'https://personal.myking.test', token: { encoding: 'safeStorage', value: 'keep-me' } }
       }
     }
@@ -204,7 +218,11 @@ describe('My King employee gateway credential isolation', () => {
       mode: 'remote',
       remote: { url: 'https://gateway.myking.test/', token: null },
       profiles: {
-        default: { url: 'https://gateway.myking.test', token: null },
+        managed: { url: 'https://gateway.myking.test', token: null },
+        genericSameUrl: {
+          url: 'https://gateway.myking.test',
+          token: { encoding: 'safeStorage', value: 'generic-secret' }
+        },
         personal: { url: 'https://personal.myking.test', token: { encoding: 'safeStorage', value: 'keep-me' } }
       }
     })
@@ -234,5 +252,15 @@ describe('My King employee gateway credential isolation', () => {
         null
       )
     ).toBeNull()
+  })
+
+  it('keeps employee gateway clearing scoped away from global OAuth and native token stores', () => {
+    const source = fs.readFileSync(new URL('./main.ts', import.meta.url), 'utf8')
+    const start = source.indexOf('async function clearMyKingEmployeeGateway')
+    const end = source.indexOf('\nfunction getMyKingEmployeeEnrollment', start)
+    const implementation = source.slice(start, end)
+
+    expect(implementation).not.toContain('clearOauthSession')
+    expect(implementation).not.toContain('_clearNativeTokens')
   })
 })

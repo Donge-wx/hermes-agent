@@ -1822,9 +1822,6 @@ async function clearMyKingEmployeeGateway(assignedUrl) {
   if (clearUrl) {
     const normalizedAssignedUrl = normalizeRemoteBaseUrl(clearUrl)
 
-    await clearOauthSession(undefined)
-    oauthCookieWarmup = null
-    _clearNativeTokens(normalizedAssignedUrl)
     writeDesktopConnectionConfig(removeMyKingEmployeeStaticGatewayCredential(config, normalizedAssignedUrl))
   }
 
