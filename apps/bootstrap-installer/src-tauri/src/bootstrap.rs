@@ -1599,6 +1599,27 @@ mod tests {
         assert!(!should_retry_missing_stage_frame(Some(-1), true, 1));
     }
 
+    #[test]
+    fn manifest_and_stage_arguments_share_the_resolved_commit_pin() {
+        let commit = "02d26981d3d4ad50e142399b8476f59ad5953ff0";
+        let script = install_script::ResolvedScript {
+            path: PathBuf::from("install.ps1"),
+            source: ScriptSource::Cached,
+            commit: Some(commit.to_string()),
+            branch: Some("main".to_string()),
+        };
+
+        assert_eq!(
+            build_pin_args(&script),
+            vec![
+                "-Commit".to_string(),
+                commit.to_string(),
+                "-Branch".to_string(),
+                "main".to_string(),
+            ]
+        );
+    }
+
     #[tokio::test]
     async fn cancellation_during_retry_backoff_stops_the_retry() {
         let (tx, mut rx) = mpsc::channel(1);

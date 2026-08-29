@@ -8,17 +8,14 @@ fn main() {
     // `option_env!()` macro to default the install-script reference.
     // Precedence (matches install.ps1's own arg precedence): commit > branch.
     //
-    // The COMMIT pin is opt-in. By default a dev build pins ONLY the branch,
-    // so the produced installer follows that branch's HEAD at install time
-    // (tolerant of fast-forwards/new commits, and never references a SHA the
-    // local checkout hasn't pushed). Set HERMES_BUILD_PIN_COMMIT to bake an
-    // immutable commit pin for reproducible/release installers.
+    // Release builds must provide HERMES_BUILD_PIN_COMMIT as an exact 40-char
+    // SHA. Debug builds remain the explicit local-development mode and may
+    // follow a branch when no commit is supplied.
     //
     // Commit pin resolution:
-    //   - HERMES_BUILD_PIN_COMMIT, if set and non-empty. Accepts a SHA, tag,
-    //     or branch name; resolved to an immutable SHA via `git rev-parse`
-    //     when possible, else used verbatim if it already looks like a SHA.
-    //   - Otherwise: NO commit pin (branch-follow is the default).
+    //   - HERMES_BUILD_PIN_COMMIT, if set and non-empty. Release accepts only
+    //     a full SHA; debug may resolve another git ref to a full SHA.
+    //   - Otherwise: release fails closed; debug follows the branch.
     //
     // Branch pin resolution:
     //   1. HERMES_BUILD_PIN_BRANCH, if set and non-empty.
@@ -31,7 +28,8 @@ fn main() {
     // a rebuild without `cargo clean`.
     // -----------------------------------------------------------------
 
-    let commit = resolve_commit_pin();
+    let is_release = std::env::var("PROFILE").is_ok_and(|profile| profile == "release");
+    let commit = resolve_commit_pin(is_release);
     let branch = resolve_branch_pin();
 
     if let Some(c) = &commit {
@@ -44,7 +42,7 @@ fn main() {
     if let Some(b) = &branch {
         println!("cargo:rustc-env=BUILD_PIN_BRANCH={b}");
         match &commit {
-            Some(_) => println!("cargo:warning=hermes-bootstrap: pinning to branch {b}"),
+            Some(_) => println!("cargo:warning=hermes-bootstrap: recording branch {b}"),
             None => println!(
                 "cargo:warning=hermes-bootstrap: following branch {b} HEAD (no commit pin; \
                  set HERMES_BUILD_PIN_COMMIT for an immutable pin)"
@@ -100,18 +98,24 @@ fn main() {
     tauri_build::try_build(attrs).expect("failed to run tauri-build");
 }
 
-fn resolve_commit_pin() -> Option<String> {
-    // Commit pinning is OPT-IN. Only bake a commit when the caller explicitly
-    // asks for one via HERMES_BUILD_PIN_COMMIT. With no env var, we return
-    // None and the installer follows the branch HEAD at install time.
-    let requested = std::env::var("HERMES_BUILD_PIN_COMMIT").ok()?;
+fn resolve_commit_pin(is_release: bool) -> Option<String> {
+    let requested = match std::env::var("HERMES_BUILD_PIN_COMMIT") {
+        Ok(value) if !value.trim().is_empty() => value,
+        _ if is_release => panic!(
+            "release bootstrap builds require HERMES_BUILD_PIN_COMMIT as an exact 40-char commit SHA"
+        ),
+        _ => return None,
+    };
     let requested = requested.trim();
-    if requested.is_empty() {
-        return None;
+    if is_full_sha(requested) {
+        return Some(requested.to_ascii_lowercase());
     }
-    // Resolve the request (which may be a SHA, tag, or branch name) to an
-    // immutable commit SHA so the baked pin is reproducible. `^{commit}`
-    // dereferences tags to the commit they point at.
+    if is_release {
+        panic!(
+            "release bootstrap builds require HERMES_BUILD_PIN_COMMIT as an exact 40-char commit SHA; got {requested:?}"
+        );
+    }
+
     if let Ok(out) = Command::new("git")
         .args(["rev-parse", "--verify", &format!("{requested}^{{commit}}")])
         .output()
@@ -119,28 +123,20 @@ fn resolve_commit_pin() -> Option<String> {
         if out.status.success() {
             if let Ok(s) = String::from_utf8(out.stdout) {
                 let s = s.trim().to_string();
-                if !s.is_empty() {
-                    return Some(s);
+                if is_full_sha(&s) {
+                    return Some(s.to_ascii_lowercase());
                 }
             }
         }
     }
-    // Couldn't resolve via git (e.g. building outside a checkout). Accept the
-    // literal value only if it already looks like a SHA; otherwise fail loud
-    // rather than bake an unresolvable ref into the binary.
-    if is_sha(requested) {
-        return Some(requested.to_string());
-    }
     panic!(
         "HERMES_BUILD_PIN_COMMIT={requested:?} could not be resolved to a commit \
-         (git rev-parse failed and it is not a valid SHA)"
+         (debug build git rev-parse failed)"
     );
 }
 
-/// True if `s` looks like an abbreviated-or-full git SHA (7..=40 hex chars).
-fn is_sha(s: &str) -> bool {
-    let len = s.len();
-    (7..=40).contains(&len) && s.chars().all(|c| c.is_ascii_hexdigit())
+fn is_full_sha(s: &str) -> bool {
+    s.len() == 40 && s.chars().all(|c| c.is_ascii_hexdigit())
 }
 
 fn resolve_branch_pin() -> Option<String> {

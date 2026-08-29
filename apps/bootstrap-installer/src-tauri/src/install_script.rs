@@ -60,11 +60,8 @@ impl ScriptKind {
     }
 }
 
-/// Validates a string looks like a git SHA (7+ hex chars). Mirrors
-/// `STAMP_COMMIT_RE` from bootstrap-runner.ts.
 fn is_valid_commit(s: &str) -> bool {
-    let len = s.len();
-    (7..=40).contains(&len) && s.chars().all(|c| c.is_ascii_hexdigit())
+    s.len() == 40 && s.chars().all(|c| c.is_ascii_hexdigit())
 }
 
 /// Resolver cache plan for a pin that already has a local path computed.
@@ -382,10 +379,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn is_valid_commit_accepts_short_and_full_shas() {
+    fn is_valid_commit_accepts_only_full_shas() {
         assert!(is_valid_commit("02d26981d3d4ad50e142399b8476f59ad5953ff0"));
-        assert!(is_valid_commit("02d2698"));
+        assert!(!is_valid_commit("02d2698"));
         assert!(!is_valid_commit("02d269"));
+        assert!(!is_valid_commit(
+            "02d26981d3d4ad50e142399b8476f59ad5953ff00"
+        ));
         assert!(!is_valid_commit("not-a-sha"));
         assert!(!is_valid_commit(""));
     }
