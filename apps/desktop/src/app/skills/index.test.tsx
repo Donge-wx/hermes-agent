@@ -6,6 +6,7 @@ import type * as ReactRouterDom from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as HermesApi from '@/hermes'
+import { I18nProvider } from '@/i18n'
 import { queryClient } from '@/lib/query-client'
 
 const getSkills = vi.fn()
@@ -64,17 +65,27 @@ function toolset(overrides: Record<string, unknown> = {}) {
   }
 }
 
+function withLocale(ui: React.ReactNode, initialLocale: 'en' | 'zh' = 'en') {
+  return (
+    <I18nProvider configClient={null} initialLocale={initialLocale}>
+      {ui}
+    </I18nProvider>
+  )
+}
+
 async function renderSkills() {
   const { SkillsView } = await import('./index')
   let result: ReturnType<typeof render>
   await act(async () => {
     result = render(
-      // SkillsView reads skills/toolsets via useQuery, so it needs a provider.
-      <QueryClientProvider client={queryClient}>
-        <MemoryRouter initialEntries={['/skills?tab=toolsets']}>
-          <SkillsView />
-        </MemoryRouter>
-      </QueryClientProvider>
+      withLocale(
+        // SkillsView reads skills/toolsets via useQuery, so it needs a provider.
+        <QueryClientProvider client={queryClient}>
+          <MemoryRouter initialEntries={['/skills?tab=toolsets']}>
+            <SkillsView />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
     )
   })
 
@@ -159,11 +170,13 @@ describe('SkillsView toolset management', () => {
     const { SkillsView } = await import('./index')
     await act(async () => {
       render(
-        <QueryClientProvider client={queryClient}>
-          <MemoryRouter initialEntries={['/skills?tab=toolsets']}>
-            <SkillsView />
-          </MemoryRouter>
-        </QueryClientProvider>
+        withLocale(
+          <QueryClientProvider client={queryClient}>
+            <MemoryRouter initialEntries={['/skills?tab=toolsets']}>
+              <SkillsView />
+            </MemoryRouter>
+          </QueryClientProvider>
+        )
       )
     })
 
@@ -205,11 +218,13 @@ describe('SkillsView toolset management', () => {
     const { SkillsView } = await import('./index')
     await act(async () => {
       render(
-        <QueryClientProvider client={queryClient}>
-          <MemoryRouter initialEntries={['/skills?tab=skills']}>
-            <SkillsView />
-          </MemoryRouter>
-        </QueryClientProvider>
+        withLocale(
+          <QueryClientProvider client={queryClient}>
+            <MemoryRouter initialEntries={['/skills?tab=skills']}>
+              <SkillsView />
+            </MemoryRouter>
+          </QueryClientProvider>
+        )
       )
     })
 
@@ -249,11 +264,14 @@ describe('SkillsView toolset management', () => {
     const { SkillsView } = await import('./index')
     await act(async () => {
       render(
-        <QueryClientProvider client={queryClient}>
-          <MemoryRouter initialEntries={['/skills?tab=skills']}>
-            <SkillsView />
-          </MemoryRouter>
-        </QueryClientProvider>
+        withLocale(
+          <QueryClientProvider client={queryClient}>
+            <MemoryRouter initialEntries={['/skills?tab=skills']}>
+              <SkillsView />
+            </MemoryRouter>
+          </QueryClientProvider>,
+          'zh'
+        )
       )
     })
 
@@ -271,7 +289,7 @@ describe('SkillsView toolset management', () => {
     const { notify } = await import('@/store/notifications')
     const { EmbeddedHubPicker } = await import('./embedded-hub-picker')
 
-    render(<EmbeddedHubPicker installedNames={new Set(['web-research'])} profile={null} />)
+    render(withLocale(<EmbeddedHubPicker installedNames={new Set(['web-research'])} profile={null} />))
 
     // The picker is expanded by default — the hub iframe is live on mount.
     expect(document.querySelector('iframe')).toBeTruthy()
@@ -293,7 +311,7 @@ describe('SkillsView toolset management', () => {
     )
   })
 
-  it('mounts the hub iframe lazily and keeps it (hidden) across tab switches', async () => {
+  it('does not mount the marketplace iframe in a managed employee build', async () => {
     // On a non-Skills tab the docs-site iframe must not exist at all — an
     // eagerly mounted hub is exactly the Capabilities lag bug.
     await renderSkills() // ?tab=toolsets
@@ -301,32 +319,25 @@ describe('SkillsView toolset management', () => {
     expect(document.querySelector('iframe')).toBeNull()
     cleanup()
 
-    // Embedded mode drives tabs through local state (the route hooks are
-    // mocked here), starting on Skills: the picker mounts with the tab.
     const { SkillsView } = await import('./index')
     await act(async () => {
       render(
-        <QueryClientProvider client={queryClient}>
-          <MemoryRouter initialEntries={['/skills']}>
-            <SkillsView embedded />
-          </MemoryRouter>
-        </QueryClientProvider>
+        withLocale(
+          <QueryClientProvider client={queryClient}>
+            <MemoryRouter initialEntries={['/skills']}>
+              <SkillsView embedded />
+            </MemoryRouter>
+          </QueryClientProvider>
+        )
       )
     })
 
-    const iframe = document.querySelector('iframe')
-    expect(iframe).toBeTruthy()
-    expect(iframe!.closest('section')!.classList.contains('hidden')).toBe(false)
+    expect(document.querySelector('iframe')).toBeNull()
 
-    // Switch to Tools → the iframe STAYS mounted (no docs-site reload on the
-    // next visit) but its section is fully hidden, so nothing from the hub
-    // can paint over the toolsets UI.
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /Tools/ }))
     })
-    const kept = document.querySelector('iframe')
-    expect(kept).toBeTruthy()
-    expect(kept!.closest('section')!.classList.contains('hidden')).toBe(true)
+    expect(document.querySelector('iframe')).toBeNull()
   })
 
   it('shows a vision explainer that deep-links to Settings → Models', async () => {
@@ -365,11 +376,13 @@ describe('SkillsView toolset management', () => {
     const { SkillsView } = await import('./index')
     await act(async () => {
       render(
-        <QueryClientProvider client={queryClient}>
-          <MemoryRouter initialEntries={['/skills']}>
-            <SkillsView embedded fixedConnection="homelab" fixedProfile="inbox-bot" />
-          </MemoryRouter>
-        </QueryClientProvider>
+        withLocale(
+          <QueryClientProvider client={queryClient}>
+            <MemoryRouter initialEntries={['/skills']}>
+              <SkillsView embedded fixedConnection="homelab" fixedProfile="inbox-bot" />
+            </MemoryRouter>
+          </QueryClientProvider>
+        )
       )
     })
 

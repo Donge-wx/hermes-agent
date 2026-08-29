@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { DesktopConnectionsRegistry } from '@/global'
+import { I18nProvider } from '@/i18n'
 import { $connection } from '@/store/session'
 
 import {
@@ -19,6 +20,14 @@ const setLaunchMode = vi.fn()
 const setPrimary = vi.fn()
 const test = vi.fn()
 const updateAll = vi.fn()
+
+function renderConnectionsRegistrySection() {
+  return render(
+    <I18nProvider configClient={null} initialLocale="en">
+      <ConnectionsRegistrySection />
+    </I18nProvider>
+  )
+}
 
 const registry: DesktopConnectionsRegistry = {
   connections: [
@@ -63,15 +72,15 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  $connection.set(null)
   cleanup()
+  $connection.set(null)
   vi.clearAllMocks()
 })
 
 describe('ConnectionsRegistrySection', () => {
   it('does not expose a bulk backend update control when the legacy bridge is available', async () => {
     // Given a registry with several connections and an old bridge that still exposes fan-out updates.
-    render(<ConnectionsRegistrySection />)
+    renderConnectionsRegistrySection()
 
     // When the registry finishes loading.
     await screen.findByText('Homelab')
@@ -82,7 +91,7 @@ describe('ConnectionsRegistrySection', () => {
   })
 
   it('distinguishes the current connection from the registry primary', async () => {
-    render(<ConnectionsRegistrySection />)
+    renderConnectionsRegistrySection()
 
     await waitFor(() => expect(screen.getByText('Homelab')).toBeTruthy())
     // Label and the managed pill share the copy, so expect both instances.
@@ -93,7 +102,7 @@ describe('ConnectionsRegistrySection', () => {
   })
 
   it('opens the add-connection editor and saves with a required label', async () => {
-    render(<ConnectionsRegistrySection />)
+    renderConnectionsRegistrySection()
 
     await waitFor(() => expect(screen.getByText('Homelab')).toBeTruthy())
     fireEvent.click(screen.getByText('Add connection'))
@@ -118,7 +127,7 @@ describe('ConnectionsRegistrySection', () => {
   })
 
   it('offers every kind on create and disables Local while the managed entry exists', async () => {
-    render(<ConnectionsRegistrySection />)
+    renderConnectionsRegistrySection()
 
     await waitFor(() => expect(screen.getByText('Homelab')).toBeTruthy())
     fireEvent.click(screen.getByText('Add connection'))
@@ -131,7 +140,7 @@ describe('ConnectionsRegistrySection', () => {
   })
 
   it('rejects a duplicate gateway URL in the save path with an inline error', async () => {
-    render(<ConnectionsRegistrySection />)
+    renderConnectionsRegistrySection()
 
     await waitFor(() => expect(screen.getByText('Homelab')).toBeTruthy())
     fireEvent.click(screen.getByText('Add connection'))
@@ -151,7 +160,7 @@ describe('ConnectionsRegistrySection', () => {
 
   it('keeps the primary fallback configurable while last-used restore is enabled', async () => {
     list.mockResolvedValueOnce({ ...registry, launchMode: 'last-used' })
-    render(<ConnectionsRegistrySection />)
+    renderConnectionsRegistrySection()
 
     await waitFor(() => expect(screen.getByText('Homelab')).toBeTruthy())
     const makePrimary = screen.getByText('Make primary').closest('button')!
@@ -163,7 +172,7 @@ describe('ConnectionsRegistrySection', () => {
   })
 
   it('lets users opt into restoring the last-used source', async () => {
-    render(<ConnectionsRegistrySection />)
+    renderConnectionsRegistrySection()
 
     const launchSetting = await screen.findByText('At startup, return to Sessions on the last-used gateway')
     const addConnection = screen.getByText('Add connection')
@@ -177,14 +186,14 @@ describe('ConnectionsRegistrySection', () => {
   it('keeps the launch preference out of the way for a single source', async () => {
     list.mockResolvedValueOnce({ ...registry, connections: [registry.connections[0]] })
 
-    render(<ConnectionsRegistrySection />)
+    renderConnectionsRegistrySection()
 
     await waitFor(() => expect(list).toHaveBeenCalledTimes(1))
     expect(screen.queryByText('At startup, return to Sessions on the last-used gateway')).toBeNull()
   })
 
   it('keeps search out of the way for a small registry', async () => {
-    render(<ConnectionsRegistrySection />)
+    renderConnectionsRegistrySection()
 
     await waitFor(() => expect(screen.getByText('Homelab')).toBeTruthy())
     expect(screen.queryByRole('searchbox', { name: 'Search gateways…' })).toBeNull()
@@ -223,9 +232,11 @@ describe('ConnectionsRegistrySection', () => {
 
     list.mockResolvedValueOnce(largeRegistry)
     render(
-      <div data-testid="settings-scroller" style={{ height: 400, overflowY: 'auto' }}>
-        <ConnectionsRegistrySection />
-      </div>
+      <I18nProvider configClient={null} initialLocale="en">
+        <div data-testid="settings-scroller" style={{ height: 400, overflowY: 'auto' }}>
+          <ConnectionsRegistrySection />
+        </div>
+      </I18nProvider>
     )
 
     const search = await screen.findByRole('searchbox', { name: 'Search gateways…' })
@@ -300,7 +311,7 @@ describe('ConnectionsRegistrySection', () => {
   })
 
   it('tests a connection through the bridge', async () => {
-    render(<ConnectionsRegistrySection />)
+    renderConnectionsRegistrySection()
 
     await waitFor(() => expect(screen.getByText('Homelab')).toBeTruthy())
     fireEvent.click(screen.getAllByText('Test')[0])

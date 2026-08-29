@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { DesktopUpdateStatus } from '@/global'
+import { setRuntimeI18nLocale } from '@/i18n'
 
 // The historical updater contract remains covered below. Production My King
 // builds use the managed policy; dedicated tests cover that fail-closed path.
@@ -14,6 +15,9 @@ vi.mock('@/lib/managed-update-policy', () => ({
 }))
 
 const storage = new Map<string, string>()
+
+beforeEach(() => setRuntimeI18nLocale('en'))
+afterEach(() => setRuntimeI18nLocale('zh'))
 
 vi.mock('@/lib/storage', () => ({
   persistBoolean: (key: string, value: boolean) => {

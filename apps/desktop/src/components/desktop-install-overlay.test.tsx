@@ -3,8 +3,17 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { DesktopBootstrapEvent, DesktopBootstrapState, DesktopConnectionProbeResult } from '@/global'
+import { I18nProvider } from '@/i18n'
 
 import { DesktopInstallOverlay } from './desktop-install-overlay'
+
+function renderDesktopInstallOverlay() {
+  return render(
+    <I18nProvider configClient={null} initialLocale="en">
+      <DesktopInstallOverlay />
+    </I18nProvider>
+  )
+}
 
 function bootstrapState(overrides: Partial<DesktopBootstrapState> = {}): DesktopBootstrapState {
   return {
@@ -97,7 +106,7 @@ describe('DesktopInstallOverlay first-run setup', () => {
       })
     )
 
-    render(<DesktopInstallOverlay />)
+    renderDesktopInstallOverlay()
 
     expect(await screen.findByText('Set up My King Desktop')).toBeTruthy()
     expect(screen.getByText('Connect to existing My King')).toBeTruthy()
@@ -113,7 +122,7 @@ describe('DesktopInstallOverlay first-run setup', () => {
       })
     )
 
-    render(<DesktopInstallOverlay />)
+    renderDesktopInstallOverlay()
 
     fireEvent.click(await screen.findByText('Install My King locally'))
 
@@ -136,7 +145,7 @@ describe('DesktopInstallOverlay first-run setup', () => {
     )
 
     desktop.continueBootstrapLocal = undefined as never
-    render(<DesktopInstallOverlay />)
+    renderDesktopInstallOverlay()
 
     const install = (await screen.findByText('Install My King locally')).closest('button') as HTMLButtonElement
     fireEvent.click(install)
@@ -155,7 +164,7 @@ describe('DesktopInstallOverlay first-run setup', () => {
     )
 
     desktop.continueBootstrapLocal = undefined as never
-    render(<DesktopInstallOverlay />)
+    renderDesktopInstallOverlay()
 
     // Click the instant the choice paints, before React drains the passive
     // effect that reacts to the first snapshot. A loaded runner hits this
@@ -167,7 +176,9 @@ describe('DesktopInstallOverlay first-run setup', () => {
       await Promise.resolve()
     })
 
-    expect(screen.queryByText('Local installation could not start. Restart My King Desktop and try again.')).toBeTruthy()
+    expect(
+      screen.queryByText('Local installation could not start. Restart My King Desktop and try again.')
+    ).toBeTruthy()
   })
 
   it('clears a stale local-start error when a repair presents a different root', async () => {
@@ -178,7 +189,7 @@ describe('DesktopInstallOverlay first-run setup', () => {
     )
 
     desktop.continueBootstrapLocal = undefined as never
-    render(<DesktopInstallOverlay />)
+    renderDesktopInstallOverlay()
 
     fireEvent.click((await screen.findByText('Install My King locally')).closest('button') as HTMLButtonElement)
     expect(
@@ -204,7 +215,7 @@ describe('DesktopInstallOverlay first-run setup', () => {
       })
     )
 
-    render(<DesktopInstallOverlay />)
+    renderDesktopInstallOverlay()
 
     fireEvent.click(await screen.findByText('Connect to existing My King'))
 
@@ -220,7 +231,7 @@ describe('DesktopInstallOverlay first-run setup', () => {
       })
     )
 
-    render(<DesktopInstallOverlay />)
+    renderDesktopInstallOverlay()
 
     fireEvent.click(await screen.findByText('Connect to existing My King'))
     expect(await screen.findByText('Gateway URL')).toBeTruthy()
@@ -257,7 +268,7 @@ describe('DesktopInstallOverlay first-run setup', () => {
       return { mode: 'remote' }
     })
 
-    render(<DesktopInstallOverlay />)
+    renderDesktopInstallOverlay()
 
     fireEvent.click(await screen.findByText('Connect to existing My King'))
     fireEvent.change(await screen.findByPlaceholderText('https://gateway.example.com/myking'), {
@@ -316,7 +327,7 @@ describe('DesktopInstallOverlay first-run setup', () => {
 
     desktop.probeConnectionConfig.mockReturnValue(pendingProbe)
 
-    render(<DesktopInstallOverlay />)
+    renderDesktopInstallOverlay()
 
     fireEvent.click(await screen.findByText('Connect to existing My King'))
     const urlInput = await screen.findByPlaceholderText('https://gateway.example.com/myking')
@@ -369,7 +380,7 @@ describe('DesktopInstallOverlay first-run setup', () => {
 
     desktop.testConnectionConfig.mockReturnValue(pendingTest)
 
-    render(<DesktopInstallOverlay />)
+    renderDesktopInstallOverlay()
 
     fireEvent.click(await screen.findByText('Connect to existing My King'))
     fireEvent.change(await screen.findByPlaceholderText('https://gateway.example.com/myking'), {
@@ -420,7 +431,7 @@ describe('DesktopInstallOverlay first-run setup', () => {
     })
     desktop.applyConnectionConfig.mockRejectedValue(new Error('remote apply failed'))
 
-    render(<DesktopInstallOverlay />)
+    renderDesktopInstallOverlay()
 
     fireEvent.click(await screen.findByText('Connect to existing My King'))
     fireEvent.change(await screen.findByPlaceholderText('https://gateway.example.com/myking'), {
@@ -472,7 +483,7 @@ describe('DesktopInstallOverlay first-run setup', () => {
     })
     desktop.applyConnectionConfig.mockResolvedValue({ mode: 'remote' })
 
-    render(<DesktopInstallOverlay />)
+    renderDesktopInstallOverlay()
 
     fireEvent.click(await screen.findByText('Connect to existing My King'))
     fireEvent.change(await screen.findByPlaceholderText('https://gateway.example.com/myking'), {
@@ -528,7 +539,7 @@ describe('DesktopInstallOverlay first-run setup', () => {
       })
     )
 
-    render(<DesktopInstallOverlay />)
+    renderDesktopInstallOverlay()
 
     expect(await screen.findByText('My King needs a one-time install')).toBeTruthy()
 

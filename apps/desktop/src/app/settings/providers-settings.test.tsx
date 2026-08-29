@@ -3,6 +3,7 @@ import { atom } from 'nanostores'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ConfirmHost } from '@/components/confirm-host'
+import { I18nProvider } from '@/i18n'
 import { $confirmRequest } from '@/store/confirm'
 import type { EnvVarInfo, OAuthProvider } from '@/types/hermes'
 
@@ -82,14 +83,26 @@ async function renderProvidersSettings() {
   let result: ReturnType<typeof render>
   await act(async () => {
     result = render(
-      <>
-        <ProvidersSettings onClose={vi.fn()} onViewChange={vi.fn()} view="accounts" />
-        <ConfirmHost />
-      </>
+      <I18nProvider configClient={null} initialLocale="en">
+        <>
+          <ProvidersSettings onClose={vi.fn()} onViewChange={vi.fn()} view="accounts" />
+          <ConfirmHost />
+        </>
+      </I18nProvider>
     )
   })
 
   return result!
+}
+
+async function renderProviderKeysSettings() {
+  const { ProvidersSettings } = await import('./providers-settings')
+
+  return render(
+    <I18nProvider configClient={null} initialLocale="en">
+      <ProvidersSettings onClose={vi.fn()} onViewChange={vi.fn()} view="keys" />
+    </I18nProvider>
+  )
 }
 
 describe('ProvidersSettings', () => {
@@ -195,9 +208,8 @@ describe('ProvidersSettings', () => {
     })
     listOAuthProviders.mockResolvedValue({ providers: [] })
 
-    const { ProvidersSettings } = await import('./providers-settings')
     await act(async () => {
-      render(<ProvidersSettings onClose={vi.fn()} onViewChange={vi.fn()} view="keys" />)
+      await renderProviderKeysSettings()
     })
 
     expect(await screen.findByText('WidgetAI')).toBeTruthy()
@@ -214,8 +226,7 @@ describe('ProvidersSettings', () => {
     })
     listOAuthProviders.mockResolvedValue({ providers: [] })
 
-    const { ProvidersSettings } = await import('./providers-settings')
-    render(<ProvidersSettings onClose={vi.fn()} onViewChange={vi.fn()} view="keys" />)
+    await renderProviderKeysSettings()
 
     // Equal priority → alphabetical tiebreak: Acme, Middle, Zebra.
     await screen.findByText('Acme')
@@ -247,8 +258,7 @@ describe('ProvidersSettings', () => {
     getEnvVars.mockResolvedValue({})
     listOAuthProviders.mockResolvedValue({ providers: [] })
 
-    const { ProvidersSettings } = await import('./providers-settings')
-    render(<ProvidersSettings onClose={vi.fn()} onViewChange={vi.fn()} view="keys" />)
+    await renderProviderKeysSettings()
 
     const row = await screen.findByText('Local / custom endpoint')
     expect(screen.getByText(/OpenAI-compatible endpoint/)).toBeTruthy()

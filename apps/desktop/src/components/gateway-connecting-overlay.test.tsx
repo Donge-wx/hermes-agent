@@ -1,6 +1,7 @@
 import { act, cleanup, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
+import { I18nProvider } from '@/i18n'
 import { BRAND } from '@/lib/brand'
 import { $desktopBoot } from '@/store/boot'
 import { $gatewaySwitching } from '@/store/gateway-switch'
@@ -9,6 +10,14 @@ import { setGatewayState } from '@/store/session'
 
 import { BootFailureOverlay } from './boot-failure-overlay'
 import { GatewayConnectingOverlay } from './gateway-connecting-overlay'
+
+function inEnglish(ui: React.ReactNode) {
+  return (
+    <I18nProvider configClient={null} initialLocale="en">
+      {ui}
+    </I18nProvider>
+  )
+}
 
 // Repro for the "remote gateway → stuck on CONNECTING, no way to settings"
 // report. The connecting overlay (full-screen, pointer-events on) used
@@ -69,7 +78,7 @@ describe('connecting overlay vs recovery surface', () => {
     })
 
     await act(async () => {
-      render(<GatewayConnectingOverlay />)
+      render(inEnglish(<GatewayConnectingOverlay />))
     })
 
     expect(isBootStageShown()).toBe(true)
@@ -105,10 +114,12 @@ describe('connecting overlay vs recovery surface', () => {
 
     await act(async () => {
       render(
-        <>
-          <GatewayConnectingOverlay />
-          <BootFailureOverlay />
-        </>
+        inEnglish(
+          <>
+            <GatewayConnectingOverlay />
+            <BootFailureOverlay />
+          </>
+        )
       )
     })
 
@@ -124,10 +135,12 @@ describe('connecting overlay vs recovery surface', () => {
     let rerender!: (ui: React.ReactElement) => void
     await act(async () => {
       const result = render(
-        <>
-          <GatewayConnectingOverlay />
-          <BootFailureOverlay />
-        </>
+        inEnglish(
+          <>
+            <GatewayConnectingOverlay />
+            <BootFailureOverlay />
+          </>
+        )
       )
 
       rerender = result.rerender
@@ -141,10 +154,12 @@ describe('connecting overlay vs recovery surface', () => {
     await act(async () => {
       setGatewayState('closed')
       rerender!(
-        <>
-          <GatewayConnectingOverlay />
-          <BootFailureOverlay />
-        </>
+        inEnglish(
+          <>
+            <GatewayConnectingOverlay />
+            <BootFailureOverlay />
+          </>
+        )
       )
     })
 
@@ -159,10 +174,12 @@ describe('connecting overlay vs recovery surface', () => {
     await act(async () => {
       setGatewayState('error')
       rerender!(
-        <>
-          <GatewayConnectingOverlay />
-          <BootFailureOverlay />
-        </>
+        inEnglish(
+          <>
+            <GatewayConnectingOverlay />
+            <BootFailureOverlay />
+          </>
+        )
       )
     })
     expect($desktopBoot.get().error).toBeNull()
@@ -174,10 +191,12 @@ describe('connecting overlay vs recovery surface', () => {
     setGatewayState('open')
 
     const { rerender } = render(
-      <>
-        <GatewayConnectingOverlay />
-        <BootFailureOverlay />
-      </>
+      inEnglish(
+        <>
+          <GatewayConnectingOverlay />
+          <BootFailureOverlay />
+        </>
+      )
     )
 
     await act(async () => {
@@ -191,10 +210,12 @@ describe('connecting overlay vs recovery surface', () => {
       })
       setGatewayState('closed')
       rerender(
-        <>
-          <GatewayConnectingOverlay />
-          <BootFailureOverlay />
-        </>
+        inEnglish(
+          <>
+            <GatewayConnectingOverlay />
+            <BootFailureOverlay />
+          </>
+        )
       )
     })
 
@@ -216,10 +237,12 @@ describe('connecting overlay vs recovery surface', () => {
 
     await act(async () => {
       render(
-        <>
-          <GatewayConnectingOverlay />
-          <BootFailureOverlay />
-        </>
+        inEnglish(
+          <>
+            <GatewayConnectingOverlay />
+            <BootFailureOverlay />
+          </>
+        )
       )
     })
 
