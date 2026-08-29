@@ -45,9 +45,9 @@ const ZH: InstallerCopy = {
   progress: {
     done: '已完成',
     updating: '正在更新 My King',
-    installing: '正在设置 My King',
+    installing: '正在准备 My King',
     updateDescription: '正在将 My King 更新到最新版本，通常只需片刻。',
-    installDescription: '首次设置正在下载依赖并配置这台 Mac，之后启动会自动跳过此步骤。',
+    installDescription: '正在验证随安装包提供的完整运行环境，无需另外下载依赖。',
     steps: (done, total) => `已完成 ${done}/${total} 个步骤`,
     liveOutput: '实时输出',
     lines: count => `${count} 行`,
@@ -88,7 +88,7 @@ const ZH: InstallerCopy = {
   }
 }
 
-export function installerCopy(language = typeof navigator === 'undefined' ? 'en' : navigator.language): InstallerCopy {
+export function installerCopy(language = 'zh-CN'): InstallerCopy {
   return language.toLowerCase().startsWith('zh') ? ZH : EN
 }
 

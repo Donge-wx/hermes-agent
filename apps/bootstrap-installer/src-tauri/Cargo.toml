@@ -70,6 +70,11 @@ windows-sys = { version = "0.59", features = [
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
 
+# Descriptor-relative directory traversal for the macOS app swap. Keeping
+# cleanup anchored to open directory handles prevents symlink races.
+[target.'cfg(target_os = "macos")'.dependencies]
+rustix = { version = "0.38", features = ["fs"] }
+
 [profile.release]
 # A 5-10MB signed installer is the goal. LTO + size-opt + single codegen unit.
 panic = "abort"

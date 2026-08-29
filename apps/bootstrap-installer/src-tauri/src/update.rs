@@ -3,7 +3,7 @@
 //! Driven when the installer is launched as `Hermes-Setup.exe --update` (see
 //! `AppMode` in lib.rs). The desktop app hands off to us — it exits, then we:
 //!
-//!   1. wait for the old Hermes desktop process to fully exit (so both the
+//!   1. wait for the old My King desktop process to fully exit (so both the
 //!      venv shim and packaged app.asar are free; otherwise `hermes update`
 //!      or repair bootstrap can race locked files),
 //!   2. run `hermes update --yes --gateway` (Python/repo update; this does NOT
@@ -28,6 +28,17 @@ use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
+
+#[cfg(target_os = "macos")]
+use std::ffi::CString;
+#[cfg(target_os = "macos")]
+use std::fs::File;
+#[cfg(target_os = "macos")]
+use std::os::fd::{AsRawFd, FromRawFd, RawFd};
+#[cfg(target_os = "macos")]
+use std::os::unix::ffi::OsStrExt;
+#[cfg(target_os = "macos")]
+use std::os::unix::fs::MetadataExt;
 
 use anyhow::{anyhow, Result};
 use tauri::{AppHandle, Emitter};
@@ -164,25 +175,33 @@ fn pid_is_alive(pid: u32) -> bool {
         GetExitCodeProcess, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
     };
 
-    unsafe {
-        let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
-        if handle.is_null() {
-            // Either the pid is gone or we lack rights to open it. A pid we
-            // can't inspect is treated as dead so an unopenable straggler
-            // can't wedge every future update.
-            return false;
-        }
-        let mut code: u32 = 0;
-        let ok = GetExitCodeProcess(handle, &mut code);
-        CloseHandle(handle);
-        ok != 0 && code == STILL_ACTIVE as u32
+    // SAFETY: `pid` is a value, not a borrowed handle or pointer. On success,
+    // `OpenProcess` returns one owned handle that this function closes exactly
+    // once below; null carries no ownership.
+    let handle = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid) };
+    if handle.is_null() {
+        // Either the pid is gone or we lack rights to open it. A pid we
+        // can't inspect is treated as dead so an unopenable straggler
+        // can't wedge every future update.
+        return false;
     }
+    let mut code: u32 = 0;
+    // SAFETY: `handle` is the live handle returned above and `&mut code` is a
+    // valid, aligned out-pointer for one `u32` for the duration of the call.
+    let ok = unsafe { GetExitCodeProcess(handle, &mut code) };
+    // SAFETY: this is the sole owner of `handle`; no call below can use it, so
+    // closing it here releases it exactly once on every post-open path.
+    unsafe { CloseHandle(handle) };
+    ok != 0 && code == STILL_ACTIVE as u32
 }
 
 #[cfg(not(windows))]
 fn pid_is_alive(pid: u32) -> bool {
     // signal 0 delivers nothing; it only probes existence/permission.
     // ESRCH => dead. EPERM => alive but owned by another user.
+    // SAFETY: `kill` with signal 0 only probes the numeric pid and never
+    // dereferences caller memory or delivers a signal. The integer conversion
+    // satisfies libc's value-only `pid_t` contract.
     let rc = unsafe { libc::kill(pid as libc::pid_t, 0) };
     if rc == 0 {
         return true;
@@ -264,9 +283,8 @@ async fn run_update(app: AppHandle) -> Result<()> {
     // update_lock.py claims it too), so a live foreign owner means another
     // updater — most often a dashboard-spawned `hermes update` — is already
     // mutating this checkout. Refuse instead of running a second one over it.
-    let _update_marker = match UpdateMarkerGuard::acquire(
-        crate::paths::update_in_progress_marker(),
-    ) {
+    let _update_marker = match UpdateMarkerGuard::acquire(crate::paths::update_in_progress_marker())
+    {
         Ok(guard) => guard,
         Err(owner) => {
             let mins = owner.age_secs / 60;
@@ -362,8 +380,7 @@ async fn run_update(app: AppHandle) -> Result<()> {
         &format!("[update] updating against branch {update_branch}"),
     );
     let child_env = update_child_env(&install_root);
-    let mut update_args: Vec<String> =
-        vec!["update".into(), "--yes".into(), "--gateway".into()];
+    let mut update_args: Vec<String> = vec!["update".into(), "--yes".into(), "--gateway".into()];
     // --force skips `hermes update`'s Windows running-exe guard (which would
     // `sys.exit(2)` and dead-end the handoff). By contract the desktop has
     // already exited and waited for the install locks to clear before launching
@@ -545,7 +562,13 @@ async fn run_update(app: AppHandle) -> Result<()> {
         );
         return Err(anyhow!(msg));
     }
-    emit_stage(&app, "rebuild", StageState::Succeeded, Some(rebuild_ms), None);
+    emit_stage(
+        &app,
+        "rebuild",
+        StageState::Succeeded,
+        Some(rebuild_ms),
+        None,
+    );
 
     let launch_target = if let Some(target_app) = target_app {
         let started = Instant::now();
@@ -608,8 +631,11 @@ async fn run_update(app: AppHandle) -> Result<()> {
                 &format!("[update] could not auto-launch desktop: {err}. Launch My King manually."),
             );
         }
-    } else if let Err(err) =
-        crate::bootstrap::launch_hermes_desktop(app.clone(), install_root.to_string_lossy().into_owned()).await
+    } else if let Err(err) = crate::bootstrap::launch_hermes_desktop(
+        app.clone(),
+        install_root.to_string_lossy().into_owned(),
+    )
+    .await
     {
         // Launch failed: don't hard-fail the update (it succeeded); surface a
         // log line so the success screen can still tell the user to launch
@@ -649,7 +675,12 @@ pub(crate) async fn wait_for_install_locks_free(install_root: &Path, app: &AppHa
     let lock_targets = install_lock_probe_paths(install_root);
     let deadline = Instant::now() + DESKTOP_EXIT_WAIT;
 
-    emit_log(app, Some(stage), LogStream::Stdout, "[handoff] waiting for My King to exit…");
+    emit_log(
+        app,
+        Some(stage),
+        LogStream::Stdout,
+        "[handoff] waiting for My King to exit…",
+    );
 
     loop {
         let locked = locked_paths(&lock_targets);
@@ -657,8 +688,8 @@ pub(crate) async fn wait_for_install_locks_free(install_root: &Path, app: &AppHa
             return;
         }
         if Instant::now() >= deadline {
-            // Last resort: a backend hermes.exe (or the desktop Hermes.exe
-            // itself) is still holding one of the update-sensitive files. The
+            // Last resort: a backend hermes.exe is still holding one of the
+            // update-sensitive files. The
             // desktop should have reaped its tree before handing off, but
             // SIGTERM races / detached grandchildren / AV handles can leave a
             // straggler. Rather than "proceed anyway" straight into uv's
@@ -711,18 +742,35 @@ fn desktop_app_payload_paths(install_root: &Path) -> Vec<PathBuf> {
     let release = install_root.join("apps").join("desktop").join("release");
     if cfg!(target_os = "windows") {
         vec![
-            release.join("win-unpacked").join("resources").join("app.asar"),
-            release.join("win-arm64-unpacked").join("resources").join("app.asar"),
+            release
+                .join("win-unpacked")
+                .join("resources")
+                .join("app.asar"),
+            release
+                .join("win-arm64-unpacked")
+                .join("resources")
+                .join("app.asar"),
         ]
     } else if cfg!(target_os = "macos") {
         vec![
-            release.join("mac").join("My King.app").join("Contents").join("Resources").join("app.asar"),
-            release.join("mac-arm64").join("My King.app").join("Contents").join("Resources").join("app.asar"),
-            release.join("mac").join("Hermes.app").join("Contents").join("Resources").join("app.asar"),
-            release.join("mac-arm64").join("Hermes.app").join("Contents").join("Resources").join("app.asar"),
+            release
+                .join("mac")
+                .join("My King.app")
+                .join("Contents")
+                .join("Resources")
+                .join("app.asar"),
+            release
+                .join("mac-arm64")
+                .join("My King.app")
+                .join("Contents")
+                .join("Resources")
+                .join("app.asar"),
         ]
     } else {
-        vec![release.join("linux-unpacked").join("resources").join("app.asar")]
+        vec![release
+            .join("linux-unpacked")
+            .join("resources")
+            .join("app.asar")]
     }
 }
 
@@ -731,7 +779,11 @@ fn locked_paths(paths: &[PathBuf]) -> Vec<PathBuf> {
 }
 
 fn format_locked_paths(paths: &[PathBuf]) -> String {
-    paths.iter().map(|p| p.display().to_string()).collect::<Vec<_>>().join(", ")
+    paths
+        .iter()
+        .map(|p| p.display().to_string())
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 /// Force-kill any `hermes.exe` other than this process. Windows-only; a no-op
@@ -748,27 +800,25 @@ fn format_locked_paths(paths: &[PathBuf]) -> String {
 /// hermes.exe images here are stragglers from the old desktop — exactly what
 /// we want gone. (`/FI PID ne <self>` also spares this Tauri process, though it
 /// isn't named hermes.exe.)
+#[cfg(not(target_os = "windows"))]
+fn force_kill_other_hermes() {}
+
+#[cfg(target_os = "windows")]
 fn force_kill_other_hermes() {
-    if !cfg!(target_os = "windows") {
-        return;
-    }
-    #[cfg(target_os = "windows")]
-    {
-        let my_pid = std::process::id();
-        // /FI excludes our own PID; /T kills the tree; /F forces.
-        let _ = std::process::Command::new("taskkill")
-            .args([
-                "/F",
-                "/T",
-                "/IM",
-                "hermes.exe",
-                "/FI",
-                &format!("PID ne {my_pid}"),
-            ])
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .status();
-    }
+    let my_pid = std::process::id();
+    // /FI excludes our own PID; /T kills the tree; /F forces.
+    let _ = std::process::Command::new("taskkill")
+        .args([
+            "/F",
+            "/T",
+            "/IM",
+            "hermes.exe",
+            "/FI",
+            &format!("PID ne {my_pid}"),
+        ])
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status();
 }
 
 /// Best-effort lock probe: try to open the file for read+write. On Windows an
@@ -779,10 +829,11 @@ fn is_locked(path: &Path) -> bool {
     if !path.exists() {
         return false;
     }
-    match std::fs::OpenOptions::new().read(true).write(true).open(path) {
-        Ok(_) => false,
-        Err(_) => true,
-    }
+    std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(path)
+        .is_err()
 }
 
 /// Whether the `desktop --build-only` rebuild should be retried once. Any
@@ -877,9 +928,17 @@ fn resolve_hermes(install_root: &Path) -> Option<PathBuf> {
         return Some(shim);
     }
     // PATH fallback. which-style probe via env, kept dependency-free.
-    let exe = if cfg!(target_os = "windows") { "hermes.exe" } else { "hermes" };
+    let exe = if cfg!(target_os = "windows") {
+        "hermes.exe"
+    } else {
+        "hermes"
+    };
     if let Ok(path) = std::env::var("PATH") {
-        let sep = if cfg!(target_os = "windows") { ';' } else { ':' };
+        let sep = if cfg!(target_os = "windows") {
+            ';'
+        } else {
+            ':'
+        };
         for dir in path.split(sep) {
             let cand = Path::new(dir).join(exe);
             if cand.exists() {
@@ -956,7 +1015,7 @@ where
 {
     arg_value_from_args(args, "--target-app")
         .map(PathBuf::from)
-        .filter(|p| p.extension().and_then(|e| e.to_str()) == Some("app"))
+        .filter(|path| crate::bootstrap::is_real_my_king_app_bundle(path))
 }
 
 fn arg_value_from_args<I, S>(args: I, name: &str) -> Option<String>
@@ -982,19 +1041,24 @@ async fn install_macos_app_update(
     install_root: &Path,
     target_app: &Path,
 ) -> Result<PathBuf> {
-    if target_app.extension().and_then(|e| e.to_str()) != Some("app") {
+    if !crate::bootstrap::is_real_my_king_app_bundle(target_app) {
         return Err(anyhow!(
-            "refusing to install update into non-app path: {}",
+            "refusing to install update outside My King.app: {}",
             target_app.display()
         ));
     }
 
-    let rebuilt_app = crate::bootstrap::resolve_hermes_desktop_app(install_root).ok_or_else(|| {
-        anyhow!(
-            "desktop rebuild succeeded but no My King app was found under {}",
-            install_root.join("apps").join("desktop").join("release").display()
-        )
-    })?;
+    let rebuilt_app =
+        crate::bootstrap::resolve_hermes_desktop_app(install_root).ok_or_else(|| {
+            anyhow!(
+                "desktop rebuild succeeded but no My King app was found under {}",
+                install_root
+                    .join("apps")
+                    .join("desktop")
+                    .join("release")
+                    .display()
+            )
+        })?;
 
     let same = match (rebuilt_app.canonicalize(), target_app.canonicalize()) {
         (Ok(a), Ok(b)) => a == b,
@@ -1024,40 +1088,30 @@ async fn install_macos_app_update(
         ),
     );
 
-    if let Some(parent) = target_app.parent() {
-        tokio::fs::create_dir_all(parent).await?;
-    }
     let tmp = PathBuf::from(format!("{}.hermes-update-new", target_app.display()));
     let old = PathBuf::from(format!("{}.hermes-update-old", target_app.display()));
-    remove_dir_if_exists(&tmp).await;
-    remove_dir_if_exists(&old).await;
-
-    let ditto = Command::new("/usr/bin/ditto")
-        .arg(&rebuilt_app)
-        .arg(&tmp)
-        .current_dir(crate::paths::hermes_home())
-        .status()
-        .await
-        .map_err(|e| anyhow!("running ditto: {e}"))?;
-    if !ditto.success() {
-        return Err(anyhow!(
-            "ditto failed while copying updated app into {}",
-            tmp.display()
-        ));
+    let paths = BundleSwapPaths {
+        tmp: &tmp,
+        target: target_app,
+        old: &old,
+    };
+    let parent_path = common_swap_parent(paths)?;
+    let parent = File::open(parent_path)?;
+    if !parent.metadata()?.is_dir() {
+        return Err(anyhow!("My King app swap parent is not a directory"));
     }
+    let tmp_name = swap_leaf_cstring(&tmp)?;
+    let old_name = swap_leaf_cstring(&old)?;
+    remove_tree_at(&parent, &tmp_name)?;
+    remove_tree_at(&parent, &old_name)?;
+    let staged =
+        stage_macos_bundle_on_pinned_parent(&rebuilt_app, &parent, &tmp_name, || {}).await?;
+    let swap = PinnedBundleSwap::prepare_with_staged(paths, parent, staged)?;
 
     // Atomic-as-possible swap with rollback. Extracted so the invariant
     // (target is never left deleted-with-no-replacement) can be unit-tested
     // without ditto / a real .app bundle.
-    swap_in_new_bundle(&tmp, target_app, &old).await?;
-
-    let _ = Command::new("/usr/bin/xattr")
-        .arg("-dr")
-        .arg("com.apple.quarantine")
-        .arg(target_app)
-        .current_dir(crate::paths::hermes_home())
-        .status()
-        .await;
+    finalize_pinned_macos_bundle_install(swap, |_| {}).await?;
 
     Ok(target_app.to_path_buf())
 }
@@ -1070,7 +1124,17 @@ async fn install_macos_app_update(
 /// bundle — either the original (rolled back from `old`) or untouched — and we
 /// never delete the running app with no replacement in place. The staged `tmp`
 /// copy is cleaned up on failure.
+#[cfg(test)]
 async fn swap_in_new_bundle(tmp: &Path, target: &Path, old: &Path) -> Result<()> {
+    #[cfg(target_os = "macos")]
+    return swap_in_new_bundle_after_validation(BundleSwapPaths { tmp, target, old }, |_| {}).await;
+
+    #[cfg(not(target_os = "macos"))]
+    swap_in_new_bundle_unpinned(tmp, target, old).await
+}
+
+#[cfg(all(not(target_os = "macos"), test))]
+async fn swap_in_new_bundle_unpinned(tmp: &Path, target: &Path, old: &Path) -> Result<()> {
     let moved_old = if target.exists() {
         if let Err(err) = tokio::fs::rename(target, old).await {
             // Could not move the existing app aside. Leave it untouched and
@@ -1092,10 +1156,466 @@ async fn swap_in_new_bundle(tmp: &Path, target: &Path, old: &Path) -> Result<()>
             let _ = tokio::fs::rename(old, target).await;
         }
         remove_dir_if_exists(tmp).await;
-        return Err(anyhow!("installing updated app at {}: {err}", target.display()));
+        return Err(anyhow!(
+            "installing updated app at {}: {err}",
+            target.display()
+        ));
     }
     remove_dir_if_exists(old).await;
     Ok(())
+}
+
+#[cfg(target_os = "macos")]
+#[derive(Clone, Copy)]
+struct BundleSwapPaths<'a> {
+    tmp: &'a Path,
+    target: &'a Path,
+    old: &'a Path,
+}
+
+#[cfg(target_os = "macos")]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct NodeIdentity {
+    device: u64,
+    inode: u64,
+}
+
+#[cfg(target_os = "macos")]
+impl NodeIdentity {
+    fn from_file(file: &File) -> Result<Self> {
+        let metadata = file.metadata()?;
+        Ok(Self {
+            device: metadata.dev(),
+            inode: metadata.ino(),
+        })
+    }
+}
+
+#[cfg(target_os = "macos")]
+struct OpenedApp {
+    bundle: File,
+    executable: File,
+}
+
+#[cfg(target_os = "macos")]
+impl OpenedApp {
+    fn open_at(parent: RawFd, name: &std::ffi::CStr) -> Result<Self> {
+        let bundle = open_directory_at(parent, name)?;
+        Self::from_bundle(bundle)
+    }
+
+    fn from_bundle(bundle: File) -> Result<Self> {
+        let contents = open_directory_at(bundle.as_raw_fd(), c"Contents")?;
+        let macos = open_directory_at(contents.as_raw_fd(), c"MacOS")?;
+        let executable = open_file_at(macos.as_raw_fd(), c"My King")?;
+        Ok(Self { bundle, executable })
+    }
+
+    fn same_object_as(&self, other: &Self) -> Result<bool> {
+        Ok(
+            NodeIdentity::from_file(&self.bundle)? == NodeIdentity::from_file(&other.bundle)?
+                && NodeIdentity::from_file(&self.executable)?
+                    == NodeIdentity::from_file(&other.executable)?,
+        )
+    }
+}
+
+#[cfg(target_os = "macos")]
+async fn stage_macos_bundle_on_pinned_parent<F>(
+    source: &Path,
+    parent: &File,
+    tmp_name: &std::ffi::CStr,
+    before_copy: F,
+) -> Result<OpenedApp>
+where
+    F: FnOnce(),
+{
+    use std::os::unix::fs::PermissionsExt;
+
+    rustix::fs::mkdirat(
+        parent,
+        tmp_name,
+        rustix::fs::Mode::from_bits_truncate(0o700),
+    )?;
+    let staged_directory = open_directory_at(parent.as_raw_fd(), tmp_name)?;
+    before_copy();
+
+    let source = source.canonicalize()?;
+    let staged_descriptor = staged_directory.as_raw_fd();
+    let mut ditto = Command::new("/usr/bin/ditto");
+    ditto.arg(&source).arg(".");
+    // SAFETY: the callback runs in the forked child immediately before exec.
+    // It performs only async-signal-safe `fchdir` on `staged_descriptor`, which
+    // belongs to `staged_directory`; that `File` remains live until `status`
+    // returns. No borrowed Rust memory is accessed and no allocation or lock is
+    // used in the callback. `fchdir` pins ditto's `.` destination to this exact
+    // directory inode even if its public name is concurrently replaced.
+    unsafe {
+        ditto.pre_exec(move || {
+            if libc::fchdir(staged_descriptor) == 0 {
+                Ok(())
+            } else {
+                Err(std::io::Error::last_os_error())
+            }
+        });
+    }
+    let status = ditto
+        .status()
+        .await
+        .map_err(|error| anyhow!("running ditto: {error}"))?;
+    if !status.success() {
+        return Err(anyhow!(
+            "ditto failed while copying the updated My King app"
+        ));
+    }
+
+    let source_permissions = std::fs::metadata(source)?.permissions();
+    staged_directory.set_permissions(std::fs::Permissions::from_mode(source_permissions.mode()))?;
+    let staged = OpenedApp::from_bundle(staged_directory)
+        .map_err(|error| anyhow!("refusing untrusted staged My King app after ditto: {error}"))?;
+    let public_stage = OpenedApp::open_at(parent.as_raw_fd(), tmp_name)?;
+    if !staged.same_object_as(&public_stage)? {
+        return Err(anyhow!(
+            "refusing update because the staged app name changed during ditto"
+        ));
+    }
+    Ok(staged)
+}
+
+#[cfg(target_os = "macos")]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum SwapBoundary {
+    Exchange,
+    Cleanup,
+    PostSwap,
+}
+
+#[cfg(target_os = "macos")]
+#[cfg(test)]
+async fn finalize_macos_bundle_install_after_validation<F>(
+    paths: BundleSwapPaths<'_>,
+    mut at_boundary: F,
+) -> Result<()>
+where
+    F: FnMut(SwapBoundary),
+{
+    swap_in_new_bundle_after_validation(paths, &mut at_boundary).await?;
+    at_boundary(SwapBoundary::PostSwap);
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+async fn finalize_pinned_macos_bundle_install<F>(
+    swap: PinnedBundleSwap<'_>,
+    mut at_boundary: F,
+) -> Result<()>
+where
+    F: FnMut(SwapBoundary),
+{
+    complete_pinned_bundle_swap(swap, &mut at_boundary)?;
+    at_boundary(SwapBoundary::PostSwap);
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+struct PinnedBundleSwap<'a> {
+    paths: BundleSwapPaths<'a>,
+    parent: File,
+    tmp_name: CString,
+    target_name: CString,
+    old_name: CString,
+    tmp: OpenedApp,
+    target: Option<OpenedApp>,
+}
+
+#[cfg(target_os = "macos")]
+impl<'a> PinnedBundleSwap<'a> {
+    #[cfg(test)]
+    fn prepare(paths: BundleSwapPaths<'a>) -> Result<Self> {
+        let parent_path = common_swap_parent(paths)?;
+        let parent = File::open(parent_path)?;
+        if !parent.metadata()?.is_dir() {
+            return Err(anyhow!("My King app swap parent is not a directory"));
+        }
+        let tmp_name = swap_leaf_cstring(paths.tmp)?;
+        let staged = OpenedApp::open_at(parent.as_raw_fd(), &tmp_name).map_err(|error| {
+            anyhow!(
+                "refusing untrusted staged My King app {}: {error}",
+                paths.tmp.display()
+            )
+        })?;
+        Self::prepare_with_staged(paths, parent, staged)
+    }
+
+    fn prepare_with_staged(
+        paths: BundleSwapPaths<'a>,
+        parent: File,
+        staged: OpenedApp,
+    ) -> Result<Self> {
+        let tmp_name = swap_leaf_cstring(paths.tmp)?;
+        let target_name = swap_leaf_cstring(paths.target)?;
+        let old_name = swap_leaf_cstring(paths.old)?;
+        let public_staged = OpenedApp::open_at(parent.as_raw_fd(), &tmp_name).map_err(|error| {
+            anyhow!(
+                "refusing untrusted staged My King app {}: {error}",
+                paths.tmp.display()
+            )
+        })?;
+        if !staged.same_object_as(&public_staged)? {
+            return Err(anyhow!(
+                "refusing update because the staged app name changed before the swap"
+            ));
+        }
+        let target = match open_directory_at(parent.as_raw_fd(), &target_name) {
+            Ok(bundle) => Some(OpenedApp::from_bundle(bundle)?),
+            Err(error) if io_error_is_not_found(&error) => None,
+            Err(error) => {
+                return Err(anyhow!(
+                    "refusing untrusted My King target {}: {error}",
+                    paths.target.display()
+                ));
+            }
+        };
+        Ok(Self {
+            paths,
+            parent,
+            tmp_name,
+            target_name,
+            old_name,
+            tmp: staged,
+            target,
+        })
+    }
+
+    fn exchange<F>(&self, before_operation: &mut F) -> Result<()>
+    where
+        F: FnMut(SwapBoundary),
+    {
+        before_operation(SwapBoundary::Exchange);
+        let parent = self.parent.as_raw_fd();
+        match &self.target {
+            Some(target) => {
+                rename_exchange_at(parent, &self.tmp_name, &self.target_name)?;
+                let exchange_matches = (|| -> Result<bool> {
+                    let installed = OpenedApp::open_at(parent, &self.target_name)?;
+                    let displaced = OpenedApp::open_at(parent, &self.tmp_name)?;
+                    Ok(installed.same_object_as(&self.tmp)? && displaced.same_object_as(target)?)
+                })();
+                if !matches!(exchange_matches, Ok(true)) {
+                    rename_exchange_at(parent, &self.tmp_name, &self.target_name)?;
+                    return Err(anyhow!(
+                        "refusing update because an app entry changed at the atomic exchange boundary"
+                    ));
+                }
+                if let Err(error) = rename_entry_at(parent, &self.tmp_name, &self.old_name) {
+                    rename_exchange_at(parent, &self.tmp_name, &self.target_name)?;
+                    return Err(anyhow!(
+                        "could not park the previous My King app at {}: {error}",
+                        self.paths.old.display()
+                    ));
+                }
+            }
+            None => {
+                rename_entry_at(parent, &self.tmp_name, &self.target_name)?;
+                let installed_matches = OpenedApp::open_at(parent, &self.target_name)
+                    .and_then(|installed| installed.same_object_as(&self.tmp));
+                if !matches!(installed_matches, Ok(true)) {
+                    rename_entry_at(parent, &self.target_name, &self.tmp_name)?;
+                    return Err(anyhow!(
+                        "refusing update because the staged app changed at the rename boundary"
+                    ));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn cleanup_old(&self) -> Result<()> {
+        if self.target.is_none() {
+            return Ok(());
+        }
+        remove_tree_at(&self.parent, &self.old_name)
+    }
+}
+
+#[cfg(target_os = "macos")]
+#[cfg(test)]
+async fn swap_in_new_bundle_after_validation<F>(
+    paths: BundleSwapPaths<'_>,
+    mut before_operation: F,
+) -> Result<()>
+where
+    F: FnMut(SwapBoundary),
+{
+    let swap = PinnedBundleSwap::prepare(paths)?;
+    complete_pinned_bundle_swap(swap, &mut before_operation)
+}
+
+#[cfg(target_os = "macos")]
+fn complete_pinned_bundle_swap<F>(swap: PinnedBundleSwap<'_>, at_boundary: &mut F) -> Result<()>
+where
+    F: FnMut(SwapBoundary),
+{
+    swap.exchange(at_boundary)?;
+    at_boundary(SwapBoundary::Cleanup);
+    if let Err(error) = swap.cleanup_old() {
+        tracing::warn!(?error, "could not remove parked My King bundle");
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn common_swap_parent(paths: BundleSwapPaths<'_>) -> Result<&Path> {
+    let parent = paths
+        .target
+        .parent()
+        .ok_or_else(|| anyhow!("My King app target has no parent"))?;
+    if paths.tmp.parent() != Some(parent) || paths.old.parent() != Some(parent) {
+        return Err(anyhow!("My King app swap paths must share one parent"));
+    }
+    Ok(parent)
+}
+
+#[cfg(target_os = "macos")]
+fn swap_leaf_cstring(path: &Path) -> Result<CString> {
+    let leaf = path
+        .file_name()
+        .ok_or_else(|| anyhow!("My King app swap path has no leaf: {}", path.display()))?;
+    CString::new(leaf.as_bytes()).map_err(|_| {
+        anyhow!(
+            "My King app swap path contains a NUL byte: {}",
+            path.display()
+        )
+    })
+}
+
+#[cfg(target_os = "macos")]
+fn open_directory_at(parent: RawFd, name: &std::ffi::CStr) -> Result<File> {
+    open_at(
+        parent,
+        name,
+        libc::O_RDONLY | libc::O_DIRECTORY | libc::O_NOFOLLOW,
+    )
+}
+
+#[cfg(target_os = "macos")]
+fn open_file_at(parent: RawFd, name: &std::ffi::CStr) -> Result<File> {
+    let file = open_at(parent, name, libc::O_RDONLY | libc::O_NOFOLLOW)?;
+    if file.metadata()?.is_file() {
+        Ok(file)
+    } else {
+        Err(anyhow!("My King executable is not a regular file"))
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn open_at(parent: RawFd, name: &std::ffi::CStr, flags: libc::c_int) -> Result<File> {
+    // SAFETY: [Category 8 - FFI boundary]
+    // `parent` is owned by a live `File`, `name` is a NUL-terminated C string,
+    // and no pointer escapes this call. A non-negative return uniquely owns a
+    // new descriptor, transferred exactly once into `File` below.
+    let descriptor = unsafe { libc::openat(parent, name.as_ptr(), flags | libc::O_CLOEXEC) };
+    if descriptor < 0 {
+        return Err(std::io::Error::last_os_error().into());
+    }
+    // SAFETY: [Category 13 - library contract]
+    // `openat` returned a new owned descriptor and this is its sole conversion
+    // into an RAII owner.
+    Ok(unsafe { File::from_raw_fd(descriptor) })
+}
+
+#[cfg(target_os = "macos")]
+fn rename_entry_at(parent: RawFd, from: &std::ffi::CStr, to: &std::ffi::CStr) -> Result<()> {
+    // SAFETY: [Category 8 - FFI boundary]
+    // Both directory descriptors refer to the same live parent `File`; both
+    // names are validated single-component C strings and remain alive for the
+    // duration of the syscall.
+    let result = unsafe { libc::renameat(parent, from.as_ptr(), parent, to.as_ptr()) };
+    if result == 0 {
+        Ok(())
+    } else {
+        Err(std::io::Error::last_os_error().into())
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn rename_exchange_at(
+    parent: RawFd,
+    first: &std::ffi::CStr,
+    second: &std::ffi::CStr,
+) -> Result<()> {
+    // SAFETY: [Category 8 - FFI boundary]
+    // The live parent descriptor and C strings meet `renameatx_np`'s contract;
+    // `RENAME_SWAP` atomically exchanges directory entries without following
+    // either entry when it is a symlink.
+    let result = unsafe {
+        libc::renameatx_np(
+            parent,
+            first.as_ptr(),
+            parent,
+            second.as_ptr(),
+            libc::RENAME_SWAP,
+        )
+    };
+    if result == 0 {
+        Ok(())
+    } else {
+        Err(std::io::Error::last_os_error().into())
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn remove_tree_at(parent: &File, name: &std::ffi::CStr) -> Result<()> {
+    let directory = match open_directory_at(parent.as_raw_fd(), name) {
+        Ok(directory) => directory,
+        Err(error) if io_error_is_not_found(&error) => return Ok(()),
+        Err(_) => {
+            // `unlinkat` without REMOVEDIR removes regular files and symlinks
+            // themselves, never the object a symlink names. If the entry raced
+            // into a real directory, the kernel refuses this form.
+            rustix::fs::unlinkat(parent, name, rustix::fs::AtFlags::empty())?;
+            return Ok(());
+        }
+    };
+
+    let mut entries = rustix::fs::Dir::read_from(&directory)?;
+    while let Some(entry) = entries.read() {
+        let entry = entry?;
+        let child_name = entry.file_name();
+        if child_name.to_bytes() == b"." || child_name.to_bytes() == b".." {
+            continue;
+        }
+        remove_tree_at(&directory, child_name)?;
+    }
+
+    finish_remove_directory_at(parent, name, &directory)
+}
+
+#[cfg(target_os = "macos")]
+fn finish_remove_directory_at(parent: &File, name: &std::ffi::CStr, opened: &File) -> Result<()> {
+    let current = match open_directory_at(parent.as_raw_fd(), name) {
+        Ok(current) => current,
+        Err(error) if io_error_is_not_found(&error) => return Ok(()),
+        Err(error) => {
+            return Err(anyhow!(
+                "refusing cleanup because a directory entry changed type: {error}"
+            ));
+        }
+    };
+    if NodeIdentity::from_file(opened)? != NodeIdentity::from_file(&current)? {
+        return Err(anyhow!(
+            "refusing cleanup because a directory entry changed identity"
+        ));
+    }
+    rustix::fs::unlinkat(parent, name, rustix::fs::AtFlags::REMOVEDIR)?;
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn io_error_is_not_found(error: &anyhow::Error) -> bool {
+    error
+        .downcast_ref::<std::io::Error>()
+        .is_some_and(|io_error| io_error.kind() == std::io::ErrorKind::NotFound)
 }
 
 #[cfg(not(target_os = "macos"))]
@@ -1107,6 +1627,7 @@ async fn install_macos_app_update(
     Ok(target_app.to_path_buf())
 }
 
+#[cfg(all(not(target_os = "macos"), test))]
 async fn remove_dir_if_exists(path: &Path) {
     if path.exists() {
         let _ = tokio::fs::remove_dir_all(path).await;
@@ -1115,6 +1636,12 @@ async fn remove_dir_if_exists(path: &Path) {
 
 #[cfg(target_os = "macos")]
 async fn launch_macos_app_and_exit(app: &AppHandle, target_app: &Path) -> Result<()> {
+    if !crate::bootstrap::is_real_my_king_app_bundle(target_app) {
+        return Err(anyhow!(
+            "refusing to launch app outside My King.app: {}",
+            target_app.display()
+        ));
+    }
     crate::bootstrap::open_macos_app_detached(target_app)
         .map_err(|e| anyhow!("launching {}: {e}", target_app.display()))?;
     tokio::time::sleep(std::time::Duration::from_millis(150)).await;
@@ -1370,7 +1897,10 @@ mod tests {
         assert_eq!(owner.pid, foreign_pid);
 
         // The refused guard must not delete the live owner's marker.
-        assert!(marker.exists(), "refused acquire must leave the marker intact");
+        assert!(
+            marker.exists(),
+            "refused acquire must leave the marker intact"
+        );
         let _ = foreign.kill();
         let _ = foreign.wait();
         let _ = std::fs::remove_dir_all(&dir);
@@ -1531,21 +2061,98 @@ mod tests {
 
     #[test]
     fn rebuild_retries_only_on_failure() {
-        assert!(!rebuild_needs_retry(Some(0)), "a clean rebuild must not retry");
-        assert!(rebuild_needs_retry(Some(1)), "a failed rebuild retries once");
+        assert!(
+            !rebuild_needs_retry(Some(0)),
+            "a clean rebuild must not retry"
+        );
+        assert!(
+            rebuild_needs_retry(Some(1)),
+            "a failed rebuild retries once"
+        );
         assert!(
             rebuild_needs_retry(None),
             "a killed/signalled rebuild (no exit code) retries once"
         );
     }
 
+    #[cfg(target_os = "macos")]
     #[test]
-    fn parses_only_app_targets() {
+    fn parses_only_real_my_king_app_targets() {
+        let root = unique_tmp_dir("target-app");
+        let target = root.join("My King.app");
+        write_my_king_app(&target);
         assert_eq!(
-            target_app_from_args(["--update", "--target-app", "/Applications/Hermes.app"]),
-            Some(PathBuf::from("/Applications/Hermes.app"))
+            target_app_from_args([
+                "--update",
+                "--target-app",
+                target.to_string_lossy().as_ref(),
+            ]),
+            Some(target.clone())
         );
-        assert_eq!(target_app_from_args(["--target-app", "/tmp/not-an-app"]), None);
+        assert_eq!(
+            target_app_from_args(["--target-app=/Applications/Hermes.app"]),
+            None,
+            "the updater must never replace Hermes.app"
+        );
+        assert!(
+            update_stages(
+                target_app_from_args(["--target-app", "/Applications/Hermes.app"]).is_some()
+            )
+            .iter()
+            .all(|stage| stage.name != "install"),
+            "an invalid target must not add an app-install stage"
+        );
+        assert_eq!(
+            target_app_from_args(["--target-app", "/tmp/not-an-app"]),
+            None
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn target_app_from_args_refuses_my_king_bundle_symlinked_to_hermes() {
+        use std::os::unix::fs::symlink;
+
+        // Given a My King-named target that aliases a Hermes bundle.
+        let root = unique_tmp_dir("target-app-symlink");
+        let hermes = root.join("Hermes.app");
+        std::fs::create_dir_all(hermes.join("Contents").join("MacOS")).unwrap();
+        std::fs::write(
+            hermes.join("Contents").join("MacOS").join("Hermes"),
+            b"#!/bin/sh\n",
+        )
+        .unwrap();
+        let target = root.join("My King.app");
+        symlink(&hermes, &target).unwrap();
+
+        // When the update target is parsed from command-line input.
+        let parsed = target_app_from_args(["--target-app", target.to_string_lossy().as_ref()]);
+
+        // Then it cannot enable the app-install or launch path.
+        assert_eq!(parsed, None);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn desktop_lock_probe_paths_exclude_hermes_app() {
+        let paths = desktop_app_payload_paths(Path::new("/tmp/my-king-install"));
+
+        assert_eq!(paths.len(), 2, "probe both My King macOS build variants");
+        assert!(
+            paths.iter().all(|path| {
+                path.to_string_lossy()
+                    .contains("My King.app/Contents/Resources/app.asar")
+            }),
+            "only My King's payload can block the updater"
+        );
+        assert!(
+            paths
+                .iter()
+                .all(|path| !path.to_string_lossy().contains("Hermes.app")),
+            "Hermes.app must never participate in lock detection"
+        );
     }
 
     // Helpers for the swap tests: make a throwaway dir tree we can rename.
@@ -1563,16 +2170,452 @@ mod tests {
     }
 
     fn write_marker(dir: &Path, contents: &str) {
+        #[cfg(target_os = "macos")]
+        write_my_king_app(dir);
         std::fs::create_dir_all(dir).unwrap();
         std::fs::write(dir.join("marker.txt"), contents).unwrap();
+    }
+
+    #[cfg(target_os = "macos")]
+    fn write_my_king_app(app: &Path) {
+        let macos_dir = app.join("Contents").join("MacOS");
+        std::fs::create_dir_all(&macos_dir).unwrap();
+        std::fs::write(macos_dir.join("My King"), b"#!/bin/sh\n").unwrap();
+    }
+
+    #[cfg(target_os = "macos")]
+    #[tokio::test]
+    async fn swap_refuses_my_king_target_symlinked_to_hermes() {
+        use std::os::unix::fs::symlink;
+
+        // Given a valid staged My King bundle and a target path that only
+        // appears to be My King because it aliases Hermes.
+        let base = unique_tmp_dir("swap-target-symlink");
+        let tmp = base.join("My King.app.hermes-update-new");
+        let target = base.join("My King.app");
+        let old = base.join("My King.app.hermes-update-old");
+        write_my_king_app(&tmp);
+        let hermes = base.join("Hermes.app");
+        std::fs::create_dir_all(hermes.join("Contents").join("MacOS")).unwrap();
+        std::fs::write(
+            hermes.join("Contents").join("MacOS").join("Hermes"),
+            b"#!/bin/sh\n",
+        )
+        .unwrap();
+        symlink(&hermes, &target).unwrap();
+
+        // When the installer attempts its atomic bundle exchange.
+        let result = swap_in_new_bundle(&tmp, &target, &old).await;
+
+        // Then no swap is allowed through the alias and Hermes remains intact.
+        assert!(result.is_err());
+        assert!(
+            target.is_symlink(),
+            "the unsafe target must remain untouched"
+        );
+        assert!(
+            hermes.exists(),
+            "Hermes must never be replaced during the swap"
+        );
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[tokio::test]
+    async fn swap_refuses_target_exchanged_after_validation() {
+        use std::os::unix::fs::symlink;
+
+        // Given valid staged and installed My King bundles plus Hermes.
+        let base = unique_tmp_dir("swap-post-validation-target-exchange");
+        let tmp = base.join("My King.app.hermes-update-new");
+        let target = base.join("My King.app");
+        let old = base.join("My King.app.hermes-update-old");
+        write_my_king_app(&tmp);
+        write_my_king_app(&target);
+        let hermes = base.join("Hermes.app");
+        let hermes_exe = hermes.join("Contents/MacOS/Hermes");
+        std::fs::create_dir_all(hermes_exe.parent().unwrap()).unwrap();
+        std::fs::write(&hermes_exe, b"hermes").unwrap();
+        let parked = base.join("My King.original.app");
+
+        // When the target is exchanged for a Hermes alias after validation.
+        let paths = BundleSwapPaths {
+            tmp: &tmp,
+            target: &target,
+            old: &old,
+        };
+        let result = swap_in_new_bundle_after_validation(paths, |boundary| {
+            if boundary == SwapBoundary::Exchange {
+                std::fs::rename(&target, &parked).unwrap();
+                symlink(&hermes, &target).unwrap();
+            }
+        })
+        .await;
+
+        // Then the swap is rejected and Hermes is unchanged.
+        assert!(result.is_err());
+        assert!(target.is_symlink());
+        assert_eq!(std::fs::read(&hermes_exe).unwrap(), b"hermes");
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[tokio::test]
+    async fn swap_refuses_staged_executable_exchanged_after_validation() {
+        use std::os::unix::fs::symlink;
+
+        // Given valid staged and installed My King bundles plus a Hermes
+        // executable outside the staging bundle.
+        let base = unique_tmp_dir("swap-post-validation-executable-exchange");
+        let tmp = base.join("My King.app.hermes-update-new");
+        let target = base.join("My King.app");
+        let old = base.join("My King.app.hermes-update-old");
+        write_my_king_app(&tmp);
+        write_my_king_app(&target);
+        let staged_exe = tmp.join("Contents/MacOS/My King");
+        let parked = staged_exe.with_file_name("My King.original");
+        let hermes_exe = base.join("Hermes.app/Contents/MacOS/Hermes");
+        std::fs::create_dir_all(hermes_exe.parent().unwrap()).unwrap();
+        std::fs::write(&hermes_exe, b"hermes").unwrap();
+
+        // When the staged executable is exchanged after validation.
+        let paths = BundleSwapPaths {
+            tmp: &tmp,
+            target: &target,
+            old: &old,
+        };
+        let result = swap_in_new_bundle_after_validation(paths, |boundary| {
+            if boundary == SwapBoundary::Exchange {
+                std::fs::rename(&staged_exe, &parked).unwrap();
+                symlink(&hermes_exe, &staged_exe).unwrap();
+            }
+        })
+        .await;
+
+        // Then the bundle swap is refused and Hermes remains unchanged.
+        assert!(result.is_err());
+        assert_eq!(std::fs::read(&hermes_exe).unwrap(), b"hermes");
+        assert!(target.exists());
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[tokio::test]
+    async fn swap_stays_on_pinned_parent_when_alias_exchanged_after_validation() {
+        use std::os::unix::fs::symlink;
+
+        // Given the update paths reached through a parent-directory alias.
+        let base = unique_tmp_dir("swap-post-validation-parent-exchange");
+        let safe_parent = base.join("safe");
+        std::fs::create_dir_all(&safe_parent).unwrap();
+        let alias_parent = base.join("current");
+        symlink(&safe_parent, &alias_parent).unwrap();
+        let tmp = alias_parent.join("My King.app.hermes-update-new");
+        let target = alias_parent.join("My King.app");
+        let old = alias_parent.join("My King.app.hermes-update-old");
+        write_my_king_app(&tmp);
+        write_my_king_app(&target);
+        std::fs::write(tmp.join("marker.txt"), b"NEW").unwrap();
+        std::fs::write(target.join("marker.txt"), b"OLD").unwrap();
+
+        let hostile_parent = base.join("hostile");
+        std::fs::create_dir_all(&hostile_parent).unwrap();
+        let hermes = hostile_parent.join("Hermes.app");
+        let hermes_exe = hermes.join("Contents/MacOS/Hermes");
+        std::fs::create_dir_all(hermes_exe.parent().unwrap()).unwrap();
+        std::fs::write(&hermes_exe, b"hermes").unwrap();
+        symlink(&hermes, hostile_parent.join("My King.app")).unwrap();
+        symlink(
+            &hermes,
+            hostile_parent.join("My King.app.hermes-update-new"),
+        )
+        .unwrap();
+
+        // When the parent alias is redirected after validation.
+        let paths = BundleSwapPaths {
+            tmp: &tmp,
+            target: &target,
+            old: &old,
+        };
+        let result = swap_in_new_bundle_after_validation(paths, |boundary| {
+            if boundary == SwapBoundary::Exchange {
+                std::fs::remove_file(&alias_parent).unwrap();
+                symlink(&hostile_parent, &alias_parent).unwrap();
+            }
+        })
+        .await;
+
+        // Then renameat stays anchored to the already-open safe parent and
+        // never resolves the redirected alias.
+        result.unwrap();
+        assert_eq!(std::fs::read(&hermes_exe).unwrap(), b"hermes");
+        assert_eq!(
+            std::fs::read(safe_parent.join("My King.app/marker.txt")).unwrap(),
+            b"NEW"
+        );
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[tokio::test]
+    async fn install_does_not_remove_hermes_quarantine_when_target_changes_after_swap() {
+        use std::os::unix::fs::symlink;
+
+        // Given a completed My King staging exchange and an unrelated Hermes
+        // bundle carrying quarantine metadata.
+        let base = unique_tmp_dir("post-swap-xattr-target-exchange");
+        let tmp = base.join("My King.app.hermes-update-new");
+        let target = base.join("My King.app");
+        let old = base.join("My King.app.hermes-update-old");
+        write_my_king_app(&tmp);
+        write_my_king_app(&target);
+        let hermes = base.join("Hermes.app");
+        let hermes_exe = hermes.join("Contents/MacOS/Hermes");
+        std::fs::create_dir_all(hermes_exe.parent().unwrap()).unwrap();
+        std::fs::write(&hermes_exe, b"hermes").unwrap();
+        let quarantine_value = "0081;00000000;My King security test;";
+        let write_xattr = std::process::Command::new("/usr/bin/xattr")
+            .args(["-w", "com.apple.quarantine", quarantine_value])
+            .arg(&hermes)
+            .status()
+            .unwrap();
+        assert!(write_xattr.success());
+        let parked = base.join("My King.installed.app");
+
+        // When the public target entry is replaced with a Hermes alias after
+        // the atomic swap but before any post-swap install action.
+        let paths = BundleSwapPaths {
+            tmp: &tmp,
+            target: &target,
+            old: &old,
+        };
+        finalize_macos_bundle_install_after_validation(paths, |boundary| {
+            if boundary == SwapBoundary::PostSwap {
+                std::fs::rename(&target, &parked).unwrap();
+                symlink(&hermes, &target).unwrap();
+            }
+        })
+        .await
+        .unwrap();
+
+        // Then Hermes metadata and bytes must remain untouched.
+        let read_xattr = std::process::Command::new("/usr/bin/xattr")
+            .args(["-p", "com.apple.quarantine"])
+            .arg(&hermes)
+            .output()
+            .unwrap();
+        assert!(read_xattr.status.success());
+        assert_eq!(
+            String::from_utf8(read_xattr.stdout)
+                .unwrap()
+                .trim_end_matches('\n'),
+            quarantine_value
+        );
+        assert_eq!(std::fs::read(&hermes_exe).unwrap(), b"hermes");
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn pinned_cleanup_removes_child_through_parent_descriptor() {
+        let base = unique_tmp_dir("pinned-cleanup");
+        let parked = base.join("My King.app.hermes-update-old");
+        write_my_king_app(&parked);
+        let parent = File::open(&base).unwrap();
+
+        remove_tree_at(&parent, c"My King.app.hermes-update-old").unwrap();
+
+        assert!(!parked.exists());
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn pinned_cleanup_unlinks_nested_hermes_symlink_without_following_it() {
+        use std::os::unix::fs::symlink;
+
+        // Given an old My King tree containing a nested alias to Hermes.
+        let base = unique_tmp_dir("pinned-cleanup-nested-symlink");
+        let old = base.join("My King.app.hermes-update-old");
+        let nested = old.join("nested");
+        std::fs::create_dir_all(&nested).unwrap();
+        let hermes = base.join("Hermes.app");
+        let hermes_exe = hermes.join("Contents/MacOS/Hermes");
+        std::fs::create_dir_all(hermes_exe.parent().unwrap()).unwrap();
+        std::fs::write(&hermes_exe, b"hermes-original").unwrap();
+        symlink(&hermes, nested.join("Hermes.app")).unwrap();
+        let parent = File::open(&base).unwrap();
+
+        // When recursive descriptor-relative cleanup runs.
+        remove_tree_at(&parent, c"My King.app.hermes-update-old").unwrap();
+
+        // Then the old tree is gone, but the nested alias target is untouched.
+        assert!(!old.exists());
+        assert_eq!(std::fs::read(&hermes_exe).unwrap(), b"hermes-original");
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[tokio::test]
+    async fn staging_into_pinned_directory_copies_valid_bundle() {
+        // Given a rebuilt bundle and an empty pinned install parent.
+        let base = unique_tmp_dir("pinned-stage-happy-path");
+        let source = base.join("rebuilt/My King.app");
+        write_my_king_app(&source);
+        std::fs::write(source.join("marker.txt"), b"my-king").unwrap();
+        let install_parent = base.join("Applications");
+        std::fs::create_dir_all(&install_parent).unwrap();
+        let parent = File::open(&install_parent).unwrap();
+
+        // When ditto copies into the directory pinned by descriptor.
+        let staged = stage_macos_bundle_on_pinned_parent(
+            &source,
+            &parent,
+            c"My King.app.hermes-update-new",
+            || {},
+        )
+        .await
+        .unwrap();
+
+        // Then the real public stage is the pinned object and its payload was
+        // copied into the expected bundle root.
+        let public_stage =
+            OpenedApp::open_at(parent.as_raw_fd(), c"My King.app.hermes-update-new").unwrap();
+        assert!(staged.same_object_as(&public_stage).unwrap());
+        assert_eq!(
+            std::fs::read(install_parent.join("My King.app.hermes-update-new/marker.txt")).unwrap(),
+            b"my-king"
+        );
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[tokio::test]
+    async fn staging_never_writes_through_replaced_tmp_symlink() {
+        use std::os::unix::fs::symlink;
+
+        // Given a trusted rebuilt bundle, a pinned install parent, and an
+        // unrelated Hermes bundle with independently captured bytes/metadata.
+        let base = unique_tmp_dir("pinned-stage-tmp-exchange");
+        let source = base.join("rebuilt/My King.app");
+        write_my_king_app(&source);
+        std::fs::write(source.join("marker.txt"), b"my-king").unwrap();
+        let install_parent = base.join("Applications");
+        std::fs::create_dir_all(&install_parent).unwrap();
+        let tmp = install_parent.join("My King.app.hermes-update-new");
+        let parked = install_parent.join("attacker-parked-stage");
+        let hermes = base.join("Hermes.app");
+        let hermes_exe = hermes.join("Contents/MacOS/Hermes");
+        std::fs::create_dir_all(hermes_exe.parent().unwrap()).unwrap();
+        std::fs::write(&hermes_exe, b"hermes-original").unwrap();
+        let before = std::fs::metadata(&hermes_exe).unwrap();
+        let parent = File::open(&install_parent).unwrap();
+
+        // When an attacker exchanges the freshly-created staging name for a
+        // Hermes symlink immediately before ditto starts copying.
+        let result = stage_macos_bundle_on_pinned_parent(
+            &source,
+            &parent,
+            c"My King.app.hermes-update-new",
+            || {
+                std::fs::rename(&tmp, &parked).unwrap();
+                symlink(&hermes, &tmp).unwrap();
+            },
+        )
+        .await;
+
+        // Then staging fails closed and Hermes bytes/identity metadata do not
+        // change. The attacker-controlled symlink itself is not followed.
+        assert!(result.is_err());
+        assert_eq!(std::fs::read(&hermes_exe).unwrap(), b"hermes-original");
+        let after = std::fs::metadata(&hermes_exe).unwrap();
+        assert_eq!(before.dev(), after.dev());
+        assert_eq!(before.ino(), after.ino());
+        assert_eq!(before.len(), after.len());
+        assert!(tmp.is_symlink());
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[tokio::test]
+    async fn cleanup_unlinks_replaced_old_symlink_without_touching_hermes() {
+        use std::os::unix::fs::symlink;
+
+        // Given an ordinary update plus an unrelated Hermes bundle.
+        let base = unique_tmp_dir("cleanup-old-exchange");
+        let tmp = base.join("My King.app.hermes-update-new");
+        let target = base.join("My King.app");
+        let old = base.join("My King.app.hermes-update-old");
+        write_marker(&tmp, "NEW");
+        write_marker(&target, "OLD");
+        let hermes = base.join("Hermes.app");
+        let hermes_exe = hermes.join("Contents/MacOS/Hermes");
+        std::fs::create_dir_all(hermes_exe.parent().unwrap()).unwrap();
+        std::fs::write(&hermes_exe, b"hermes-original").unwrap();
+        let parked_old = base.join("attacker-parked-old");
+
+        // When the parked old name is exchanged for a Hermes symlink at the
+        // cleanup boundary.
+        let paths = BundleSwapPaths {
+            tmp: &tmp,
+            target: &target,
+            old: &old,
+        };
+        swap_in_new_bundle_after_validation(paths, |boundary| {
+            if boundary == SwapBoundary::Cleanup {
+                std::fs::rename(&old, &parked_old).unwrap();
+                symlink(&hermes, &old).unwrap();
+            }
+        })
+        .await
+        .unwrap();
+
+        // Then cleanup unlinks only the symlink itself without following it;
+        // Hermes survives byte-for-byte and My King remains installed.
+        assert!(!old.exists());
+        assert_eq!(std::fs::read(&hermes_exe).unwrap(), b"hermes-original");
+        assert_eq!(
+            std::fs::read_to_string(target.join("marker.txt")).unwrap(),
+            "NEW"
+        );
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn cleanup_refuses_empty_directory_replacement_with_different_identity() {
+        // Given a cleanup directory already pinned by descriptor and an empty
+        // Hermes directory that is moved over its public name.
+        let base = unique_tmp_dir("cleanup-empty-directory-exchange");
+        let old = base.join("My King.app.hermes-update-old");
+        let parked = base.join("attacker-parked-old");
+        let hermes = base.join("Hermes.app");
+        std::fs::create_dir_all(&old).unwrap();
+        std::fs::create_dir_all(&hermes).unwrap();
+        let parent = File::open(&base).unwrap();
+        let opened_old =
+            open_directory_at(parent.as_raw_fd(), c"My King.app.hermes-update-old").unwrap();
+        std::fs::rename(&old, &parked).unwrap();
+        std::fs::rename(&hermes, &old).unwrap();
+
+        // When cleanup reaches its final unlink boundary.
+        let result =
+            finish_remove_directory_at(&parent, c"My King.app.hermes-update-old", &opened_old);
+
+        // Then identity mismatch is rejected, even though the replacement is
+        // empty and an unchecked AT_REMOVEDIR would have deleted it.
+        assert!(result.is_err());
+        assert!(old.is_dir());
+        assert!(parked.is_dir());
+        let _ = std::fs::remove_dir_all(&base);
     }
 
     #[tokio::test]
     async fn swap_installs_new_bundle_and_cleans_up() {
         let base = unique_tmp_dir("ok");
-        let target = base.join("Hermes.app");
-        let tmp = base.join("Hermes.app.hermes-update-new");
-        let old = base.join("Hermes.app.hermes-update-old");
+        let target = base.join("My King.app");
+        let tmp = base.join("My King.app.hermes-update-new");
+        let old = base.join("My King.app.hermes-update-old");
         write_marker(&target, "OLD");
         write_marker(&tmp, "NEW");
 
@@ -1600,16 +2643,22 @@ mod tests {
         //  - `old` is a NON-EMPTY dir  -> rename(target, old) fails
         //  - `tmp` does not exist       -> rename(tmp, target) fails
         let base = unique_tmp_dir("fail");
-        let target = base.join("Hermes.app");
-        let tmp = base.join("Hermes.app.hermes-update-new"); // intentionally absent
-        let old = base.join("Hermes.app.hermes-update-old");
+        let target = base.join("My King.app");
+        let tmp = base.join("My King.app.hermes-update-new"); // intentionally absent
+        let old = base.join("My King.app.hermes-update-old");
         write_marker(&target, "OLD");
         write_marker(&old, "OCCUPIED"); // non-empty => rename(target,old) fails
 
         let result = swap_in_new_bundle(&tmp, &target, &old).await;
 
-        assert!(result.is_err(), "swap should fail when neither move can complete");
-        assert!(target.exists(), "original app must NOT be deleted on failure");
+        assert!(
+            result.is_err(),
+            "swap should fail when neither move can complete"
+        );
+        assert!(
+            target.exists(),
+            "original app must NOT be deleted on failure"
+        );
         assert_eq!(
             std::fs::read_to_string(target.join("marker.txt")).unwrap(),
             "OLD",
@@ -1623,20 +2672,26 @@ mod tests {
         // Move-aside succeeds but installing the staged bundle fails (tmp
         // absent). The original must be rolled back from `old` to `target`.
         let base = unique_tmp_dir("rollback");
-        let target = base.join("Hermes.app");
-        let tmp = base.join("Hermes.app.hermes-update-new"); // absent
-        let old = base.join("Hermes.app.hermes-update-old");
+        let target = base.join("My King.app");
+        let tmp = base.join("My King.app.hermes-update-new"); // absent
+        let old = base.join("My King.app.hermes-update-old");
         write_marker(&target, "OLD");
 
         let result = swap_in_new_bundle(&tmp, &target, &old).await;
 
         assert!(result.is_err());
-        assert!(target.exists(), "original must be restored after failed install");
+        assert!(
+            target.exists(),
+            "original must be restored after failed install"
+        );
         assert_eq!(
             std::fs::read_to_string(target.join("marker.txt")).unwrap(),
             "OLD"
         );
-        assert!(!old.exists(), "backup should be rolled back, not left behind");
+        assert!(
+            !old.exists(),
+            "backup should be rolled back, not left behind"
+        );
         let _ = std::fs::remove_dir_all(&base);
     }
 }

@@ -3,9 +3,7 @@
 //! Resolution order:
 //!   1. Dev shortcut: a sibling repo checkout via $HERMES_SETUP_DEV_REPO_ROOT
 //!      env var. Lets devs iterate without re-publishing the script.
-//!   2. Bundled fallback: if the installer was bundled with a script (e.g.
-//!      tauri's `resource` mechanism), serve from there. Not used today.
-//!   3. Network: download from GitHub raw at a pinned commit or branch.
+//!   2. Network: download from GitHub raw at a pinned commit or branch.
 //!      Commit pins are immutable; branch pins are HEAD-tracking.
 //!
 //! Mirrors `apps/desktop/electron/bootstrap-runner.ts`'s `resolveInstallScript`,
@@ -34,7 +32,6 @@ pub struct ResolvedScript {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ScriptSource {
     DevCheckout,
-    Bundled,
     Cached,
     Downloaded,
 }
@@ -104,7 +101,9 @@ pub async fn resolve(
 ) -> Result<ResolvedScript> {
     // 1. Dev shortcut.
     if let Ok(repo_root) = std::env::var("HERMES_SETUP_DEV_REPO_ROOT") {
-        let candidate = PathBuf::from(repo_root).join("scripts").join(kind.filename());
+        let candidate = PathBuf::from(repo_root)
+            .join("scripts")
+            .join(kind.filename());
         if candidate.exists() {
             emit_log(&format!(
                 "[bootstrap] dev mode — using local {} at {}",
@@ -120,9 +119,7 @@ pub async fn resolve(
         }
     }
 
-    // 2. (Not implemented) bundled fallback.
-
-    // 3. Network. Pin must be a real commit or a branch ref.
+    // 2. Network. Pin must be a real commit or a branch ref.
     //
     // Commit SHAs are immutable — permanent cache reuse is safe.
     // Branch/tag pins are moving refs: always try to refresh so "Retry install"
@@ -154,22 +151,18 @@ pub async fn resolve(
             // pre-BOM-fix installer would keep the #67193 encoding bug on
             // every retry. Upgrade it in place before handing it out.
             upgrade_cached_script(kind, &cached, emit_log);
-            return Ok(ResolvedScript {
+            Ok(ResolvedScript {
                 path: cached,
                 source: ScriptSource::Cached,
                 commit: pin.commit.clone(),
                 branch: pin.branch.clone(),
-            });
+            })
         }
         CachePlan::Fetch { stale_ok } => {
             emit_log(&format!(
                 "[bootstrap] downloading {} for {} {} from GitHub",
                 kind.filename(),
-                if immutable {
-                    "commit"
-                } else {
-                    "mutable ref"
-                },
+                if immutable { "commit" } else { "mutable ref" },
                 truncate_ref(&commit_or_ref)
             ));
 
@@ -330,9 +323,8 @@ async fn download(kind: ScriptKind, commit_or_ref: &str, dest_path: &Path) -> Re
     );
 
     if let Some(parent) = dest_path.parent() {
-        std::fs::create_dir_all(parent).with_context(|| {
-            format!("creating bootstrap-cache parent dir {}", parent.display())
-        })?;
+        std::fs::create_dir_all(parent)
+            .with_context(|| format!("creating bootstrap-cache parent dir {}", parent.display()))?;
     }
 
     let tmp_path = dest_path.with_extension({
@@ -380,13 +372,7 @@ async fn download(kind: ScriptKind, commit_or_ref: &str, dest_path: &Path) -> Re
 
     tokio::fs::rename(&tmp_path, dest_path)
         .await
-        .with_context(|| {
-            format!(
-                "renaming {} → {}",
-                tmp_path.display(),
-                dest_path.display()
-            )
-        })?;
+        .with_context(|| format!("renaming {} → {}", tmp_path.display(), dest_path.display()))?;
 
     Ok(())
 }
@@ -414,7 +400,10 @@ mod tests {
     #[test]
     fn prepare_cached_ps1_prefixes_utf8_bom() {
         let out = prepare_cached_script_bytes(ScriptKind::Ps1, b"Write-Host hi\n");
-        assert!(out.starts_with(UTF8_BOM), "cached .ps1 must start with UTF-8 BOM");
+        assert!(
+            out.starts_with(UTF8_BOM),
+            "cached .ps1 must start with UTF-8 BOM"
+        );
         assert_eq!(&out[UTF8_BOM.len()..], b"Write-Host hi\n");
     }
 
