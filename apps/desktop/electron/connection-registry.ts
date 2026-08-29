@@ -1029,6 +1029,10 @@ export function migrateV1ToRegistry(v1: unknown): ConnectionRegistry {
   const byFingerprint = new Map<string, RegistryConnection>()
 
   const addRemoteLike = (block: Record<string, any>, kind: 'cloud' | 'remote'): null | RegistryConnection => {
+    if (block?.employeeManaged === true) {
+      return null
+    }
+
     const url = String(block?.url || '').trim()
 
     if (!url) {

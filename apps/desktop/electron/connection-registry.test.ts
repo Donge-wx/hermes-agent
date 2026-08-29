@@ -1111,6 +1111,32 @@ test('migrate: v1 global remote becomes a labeled entry and the primary', () => 
   assert.deepEqual(remote.token, { enc: 'x' })
 })
 
+test('migrate: employee-managed v1 remotes never become generic registry connections', () => {
+  const registry = migrateV1ToRegistry({
+    mode: 'remote',
+    remote: {
+      employeeManaged: true,
+      url: 'https://gateway.myking.test',
+      authMode: 'token',
+      token: { encoding: 'safeStorage', value: 'employee-secret' }
+    },
+    profiles: {
+      employee: {
+        mode: 'remote',
+        employeeManaged: true,
+        url: 'https://gateway.myking.test',
+        authMode: 'token',
+        token: { encoding: 'safeStorage', value: 'employee-profile-secret' }
+      }
+    }
+  })
+
+  assert.equal(registry.primary, LOCAL_CONNECTION_ID)
+  assert.deepEqual(registry.connections, [{ id: 'local', kind: 'local', label: 'This device' }])
+  assert.equal(JSON.stringify(registry).includes('employee-secret'), false)
+  assert.equal(JSON.stringify(registry).includes('employee-profile-secret'), false)
+})
+
 test('migrate: v1 cloud keeps cloud provenance + org', () => {
   const registry = migrateV1ToRegistry({
     mode: 'cloud',
