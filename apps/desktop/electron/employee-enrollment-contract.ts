@@ -66,6 +66,13 @@ export interface MyKingEmployeeCompleteRequest {
   readonly sshHostPublicKeys: readonly string[]
 }
 
+export interface MyKingEmployeeRevokeRequest {
+  readonly baseUrl: string
+  readonly deviceId: string
+  readonly deviceToken: string
+  readonly enrollmentId: string
+}
+
 export interface MyKingEmployeeReadyResponse {
   readonly employeeId: string
   readonly gatewayAuth: { readonly token: string; readonly type: 'bearer' }
@@ -283,4 +290,33 @@ export async function completeMyKingEmployeeEnrollment(
   })
 
   return parseMyKingEmployeeReadyResponse(response)
+}
+
+export async function revokeMyKingEmployeeEnrollment(
+  request: MyKingEmployeeRevokeRequest,
+  postJson: MyKingEmployeePostJson
+): Promise<void> {
+  const baseUrl = parseMyKingPublicHttpsUrl(request.baseUrl)
+
+  if (
+    !baseUrl ||
+    !SAFE_ID_RE.test(request.enrollmentId) ||
+    !SAFE_ID_RE.test(request.deviceId) ||
+    !request.deviceToken
+  ) {
+    throw new MyKingEmployeeEnrollmentError('invalid-revocation', 'The employee connection cannot be revoked.')
+  }
+
+  const response = objectRecord(
+    await postJson({
+      url: `${baseUrl}/api/employee-enrollments/${encodeURIComponent(request.enrollmentId)}/revoke`,
+      authorization: `Bearer ${request.deviceToken}`,
+      timeoutMs: 15_000,
+      body: { deviceId: request.deviceId }
+    })
+  )
+
+  if (response.status !== 'revoked') {
+    throw new MyKingEmployeeEnrollmentError('invalid-server-response', 'Company server did not confirm revocation.')
+  }
 }

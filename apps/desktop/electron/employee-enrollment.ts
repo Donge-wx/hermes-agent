@@ -55,6 +55,7 @@ export interface MyKingEmployeeEnrollmentOptions {
   readonly platform: NodeJS.Platform
   readonly postJson: MyKingEmployeePostJson
   readonly probeRemoteGateway: (url: string) => Promise<void>
+  readonly revokeRemoteGateway: (binding: MyKingEmployeeBinding) => Promise<void>
   readonly runElevated: (helperScriptPath: string, action: 'prepare' | 'unbind', planPath: string) => Promise<void>
   readonly userData: string
 }
@@ -313,18 +314,25 @@ export function createMyKingEmployeeEnrollment(options: MyKingEmployeeEnrollment
         throw error
       }
     },
-    async unbind() {
-      const binding = readMyKingEmployeeBinding(options.connectorPaths.bindingPath)
-      const planPath = path.join(options.userData, 'employee-connector-unbind.json')
-      fs.writeFileSync(planPath, '{}\n', { encoding: 'utf8', mode: 0o600 })
-      await options.runElevated(options.helperScriptPath, 'unbind', planPath)
-      fs.rmSync(options.connectorPaths.bindingPath, { force: true })
-      removeMyKingEmployeeDeviceId(options.userData)
-      fs.rmSync(planPath, { force: true })
-      pending = null
-      await options.clearRemoteGateway(binding?.remoteGatewayUrl ?? null)
+    unbind() {
+      return runOnce(async () => {
+        const binding = readMyKingEmployeeBinding(options.connectorPaths.bindingPath)
 
-      return publish('idle')
+        if (binding) {
+          await options.revokeRemoteGateway(binding)
+        }
+
+        const planPath = path.join(options.userData, 'employee-connector-unbind.json')
+        fs.writeFileSync(planPath, '{}\n', { encoding: 'utf8', mode: 0o600 })
+        await options.runElevated(options.helperScriptPath, 'unbind', planPath)
+        fs.rmSync(options.connectorPaths.bindingPath, { force: true })
+        removeMyKingEmployeeDeviceId(options.userData)
+        fs.rmSync(planPath, { force: true })
+        pending = null
+        await options.clearRemoteGateway(binding?.remoteGatewayUrl ?? null)
+
+        return publish('idle')
+      })
     }
   }
 }

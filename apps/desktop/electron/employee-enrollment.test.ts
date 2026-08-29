@@ -23,13 +23,16 @@ function fixture(
   failFirstPrepare = false,
   failGatewayProbe = false,
   failFirstComplete = false,
-  failFirstGatewayApply = false
+  failFirstGatewayApply = false,
+  failServerRevoke = false
 ) {
   const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'myking-enrollment-'))
   temporaryDirectories.push(userData)
   const stages: MyKingEmployeeEnrollmentStage[] = []
   const calls: MyKingEmployeeHttpRequest[] = []
   const clearedGatewayUrls: (null | string)[] = []
+  const events: string[] = []
+  const revokedEnrollmentIds: string[] = []
   let prepareCount = 0
   let probeCount = 0
   let completeCount = 0
@@ -125,8 +128,17 @@ function fixture(
         throw new Error('network offline')
       }
     },
+    revokeRemoteGateway: async binding => {
+      events.push('server-revoke')
+      revokedEnrollmentIds.push(binding.enrollmentId)
+
+      if (failServerRevoke) {
+        throw new MyKingEmployeeEnrollmentError('company-unavailable', 'Company unavailable.')
+      }
+    },
     runElevated: async (_helper, action, planPath) => {
       if (action === 'unbind') {
+        events.push('local-unbind')
         fs.rmSync(connectorPaths.baseDir, { recursive: true, force: true })
 
         return
@@ -155,9 +167,11 @@ function fixture(
     clearedGatewayUrls,
     connectorPaths,
     enrollment,
+    events,
     gatewayApplyBindingIds,
     gatewayProbeBindingIds,
     prepareCount: () => prepareCount,
+    revokedEnrollmentIds,
     stages,
     userData
   }
@@ -317,6 +331,7 @@ describe('My King employee enrollment', () => {
         throw new Error('company unavailable')
       },
       probeRemoteGateway: async () => undefined,
+      revokeRemoteGateway: async () => undefined,
       runElevated: async (_helper, action, planPath) => {
         if (action === 'prepare') {
           const plan: unknown = JSON.parse(fs.readFileSync(planPath, 'utf8'))
@@ -347,14 +362,32 @@ describe('My King employee enrollment', () => {
     expect(second.prepareCount()).toBe(0)
   })
 
-  it('unbind removes local identity and asks the Electron boundary to clear only the assigned gateway session', async () => {
+  it('unbind revokes Nora first, then removes local identity and clears only the assigned gateway session', async () => {
     const setup = fixture()
     await setup.enrollment.enroll('ABCD-2345-EFGH')
 
     const status = await setup.enrollment.unbind()
 
     expect(status).toMatchObject({ binding: null, connectorReady: false, stage: 'idle' })
+    expect(setup.revokedEnrollmentIds).toEqual(['enrollment-1'])
+    expect(setup.events).toEqual(['server-revoke', 'local-unbind'])
     expect(setup.clearedGatewayUrls).toEqual(['https://gateway.myking.test'])
     expect(fs.existsSync(path.join(setup.userData, 'employee-connector-device.json'))).toBe(false)
+  })
+
+  it('keeps the binding and local connector retryable when Nora revocation fails', async () => {
+    const setup = fixture('employee-1', false, false, false, false, true)
+    await setup.enrollment.enroll('ABCD-2345-EFGH')
+
+    await expect(setup.enrollment.unbind()).rejects.toMatchObject({ code: 'company-unavailable' })
+
+    expect(setup.enrollment.getStatus()).toMatchObject({
+      binding: expect.objectContaining({ enrollmentId: 'enrollment-1' }),
+      error: 'company-unavailable',
+      stage: 'error'
+    })
+    expect(setup.events).toEqual(['server-revoke'])
+    expect(setup.clearedGatewayUrls).toEqual([])
+    expect(fs.existsSync(path.join(setup.userData, 'employee-connector-device.json'))).toBe(true)
   })
 })

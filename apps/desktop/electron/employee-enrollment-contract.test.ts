@@ -6,7 +6,8 @@ import {
   parseMyKingEmployeeRedeemResponse,
   requestMyKingEmployeeAccountEnrollmentCode,
   redactMyKingEmployeeSecrets,
-  redeemMyKingEmployeeInvitation
+  redeemMyKingEmployeeInvitation,
+  revokeMyKingEmployeeEnrollment
 } from './employee-enrollment-contract'
 
 const redeemResponse = {
@@ -153,6 +154,42 @@ describe('employee enrollment contract', () => {
         postJson
       )
     ).rejects.toMatchObject({ code: 'not-ready' })
+  })
+
+  it('posts the device-bound Nora revocation contract and requires confirmation', async () => {
+    const postJson = vi.fn().mockResolvedValue({ status: 'revoked' })
+
+    await expect(
+      revokeMyKingEmployeeEnrollment(
+        {
+          baseUrl: 'https://enroll.myking.test',
+          deviceId: device.deviceId,
+          deviceToken: 'device-token',
+          enrollmentId: 'enrollment-1'
+        },
+        postJson
+      )
+    ).resolves.toBeUndefined()
+
+    expect(postJson).toHaveBeenCalledWith({
+      url: 'https://enroll.myking.test/api/employee-enrollments/enrollment-1/revoke',
+      authorization: 'Bearer device-token',
+      timeoutMs: 15_000,
+      body: { deviceId: device.deviceId }
+    })
+
+    postJson.mockResolvedValueOnce({ status: 'active' })
+    await expect(
+      revokeMyKingEmployeeEnrollment(
+        {
+          baseUrl: 'https://enroll.myking.test',
+          deviceId: device.deviceId,
+          deviceToken: 'device-token',
+          enrollmentId: 'enrollment-1'
+        },
+        postJson
+      )
+    ).rejects.toMatchObject({ code: 'invalid-server-response' })
   })
 
   it('rejects a non-HTTPS remote gateway returned by Nora', () => {

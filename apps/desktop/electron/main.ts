@@ -147,6 +147,7 @@ import {
 import {
   MyKingEmployeeEnrollmentError,
   redactMyKingEmployeeSecrets,
+  revokeMyKingEmployeeEnrollment,
   type MyKingEmployeeHttpRequest
 } from './employee-enrollment-contract'
 import { createMyKingEmployeeEnrollment } from './employee-enrollment'
@@ -1628,6 +1629,13 @@ function myKingEmployeeApiError(status: number, value: unknown): MyKingEmployeeE
     return new MyKingEmployeeEnrollmentError('employee-mismatch', 'The employee identity does not match.')
   }
 
+  if (code === 'invalid_revocation') {
+    return new MyKingEmployeeEnrollmentError(
+      'gateway-auth-required',
+      'The employee gateway credential is no longer valid.'
+    )
+  }
+
   if (status === 401) {
     return new MyKingEmployeeEnrollmentError('invalid-credentials', 'The employee account or password is invalid.')
   }
@@ -1779,6 +1787,32 @@ async function applyMyKingEmployeeGateway(expectedUrl, deviceToken) {
   await teardownPrimaryBackendAndWait({ soft: true })
 }
 
+async function revokeMyKingEmployeeGateway(binding) {
+  const enrollmentBaseUrl = INSTALL_STAMP?.employeeEnrollmentBaseUrl
+  const saved = readDesktopConnectionConfig().remote
+  const matchesBinding =
+    saved?.employeeManaged === true &&
+    normalizeRemoteBaseUrl(saved.url) === normalizeRemoteBaseUrl(binding.remoteGatewayUrl)
+  const deviceToken = matchesBinding ? decryptDesktopSecret(saved.token) : ''
+
+  if (!enrollmentBaseUrl || !deviceToken) {
+    throw new MyKingEmployeeEnrollmentError(
+      'gateway-auth-required',
+      'The employee gateway credential is unavailable.'
+    )
+  }
+
+  await revokeMyKingEmployeeEnrollment(
+    {
+      baseUrl: enrollmentBaseUrl,
+      deviceId: binding.deviceId,
+      deviceToken,
+      enrollmentId: binding.enrollmentId
+    },
+    postMyKingEmployeeJson
+  )
+}
+
 async function clearMyKingEmployeeGateway(assignedUrl) {
   await teardownPrimaryBackendAndWait({ soft: true })
 
@@ -1821,6 +1855,7 @@ function getMyKingEmployeeEnrollment() {
       await verifyMyKingEmployeeGateway(url)
       sendConnectionApplied()
     },
+    revokeRemoteGateway: revokeMyKingEmployeeGateway,
     runElevated: runMyKingEmployeeConnectorWithAuthorization,
     userData: app.getPath('userData')
   })
