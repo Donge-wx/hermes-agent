@@ -17,7 +17,7 @@ describe('AboutSettings version identity', () => {
       getVersion: vi.fn().mockResolvedValue({
         appVersion: '0.20.5',
         desktopPackageVersion: '0.17.0',
-        electronVersion: '41.10.3',
+        electronVersion: '43.4.1',
         nodeVersion: '22.22.0',
         platform: 'darwin',
         hermesRoot: '/Users/example/.myking/hermes-agent'
@@ -46,7 +46,7 @@ describe('AboutSettings version identity', () => {
       getVersion: vi.fn().mockResolvedValue({
         appVersion: '0.20.5',
         desktopPackageVersion: '0.17.0',
-        electronVersion: '41.10.3',
+        electronVersion: '43.4.1',
         nodeVersion: '22.22.0',
         platform: 'darwin'
       }),
