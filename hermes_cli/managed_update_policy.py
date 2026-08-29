@@ -64,13 +64,20 @@ def managed_updates_disabled(
 
         hermes_home = get_process_hermes_home()
 
-    managed_root = _absolute(Path.home() / ".myking")
-    managed_install_root = managed_root / "hermes-agent"
+    managed_roots = [_absolute(Path.home() / ".myking")]
+    if sys.platform == "win32" and (local_appdata := os.environ.get("LOCALAPPDATA")):
+        managed_roots.append(_absolute(Path(local_appdata) / "myking"))
+
     data_root = _absolute(hermes_home)
     code_root = _absolute(install_root or Path(__file__).resolve().parent.parent)
-    return (
+    code_parts = _comparison_parts(code_root)
+    return any(
         _existing_ancestor_matches_root(data_root, managed_root)
         or _lexically_within(data_root, managed_root)
-        or _existing_ancestor_matches_root(code_root, managed_install_root)
-        or _lexically_within(code_root, managed_install_root)
+        or _existing_ancestor_matches_root(code_root, managed_root / "hermes-agent")
+        or _lexically_within(code_root, managed_root / "hermes-agent")
+        for managed_root in managed_roots
+    ) or code_parts[-2:] == (
+        "my-king-runtime",
+        "backend",
     )

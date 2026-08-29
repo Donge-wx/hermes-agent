@@ -34,6 +34,46 @@ def test_managed_install_disables_updates_without_managed_home():
     ) is True
 
 
+def test_windows_packaged_myking_disables_updates_from_local_appdata(
+    tmp_path,
+    monkeypatch,
+):
+    from hermes_cli.managed_update_policy import managed_updates_disabled
+
+    local_appdata = tmp_path / "AppData" / "Local"
+    monkeypatch.setattr(sys, "platform", "win32")
+    monkeypatch.setenv("LOCALAPPDATA", str(local_appdata))
+
+    assert managed_updates_disabled(
+        local_appdata / "myking",
+        install_root=tmp_path / "hermes-agent",
+    ) is True
+
+
+def test_packaged_myking_bundle_disables_updates_for_sandboxed_home(tmp_path):
+    from hermes_cli.managed_update_policy import managed_updates_disabled
+
+    bundled_backend = tmp_path / "My King.app" / "Contents" / "Resources" / "my-king-runtime" / "backend"
+
+    assert managed_updates_disabled(
+        tmp_path / "sandbox" / "hermes-home",
+        install_root=bundled_backend,
+    ) is True
+
+
+def test_windows_standard_hermes_home_keeps_updates_enabled(tmp_path, monkeypatch):
+    from hermes_cli.managed_update_policy import managed_updates_disabled
+
+    local_appdata = tmp_path / "AppData" / "Local"
+    monkeypatch.setattr(sys, "platform", "win32")
+    monkeypatch.setenv("LOCALAPPDATA", str(local_appdata))
+
+    assert managed_updates_disabled(
+        local_appdata / "hermes",
+        install_root=tmp_path / "hermes-agent",
+    ) is False
+
+
 def test_casefolded_myking_path_is_managed_before_root_exists(
     tmp_path,
     monkeypatch,
