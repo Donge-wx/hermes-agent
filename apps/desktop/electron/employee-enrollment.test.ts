@@ -25,7 +25,8 @@ function fixture(
   failFirstComplete = false,
   failFirstGatewayApply = false,
   failServerRevoke = false,
-  failFirstLocalUnbind = false
+  failFirstLocalUnbind = false,
+  failFirstGatewayClear = false
 ) {
   const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'myking-enrollment-'))
   temporaryDirectories.push(userData)
@@ -38,6 +39,7 @@ function fixture(
   let probeCount = 0
   let completeCount = 0
   let gatewayApplyCount = 0
+  let gatewayClearCount = 0
   let localUnbindCount = 0
   const gatewayApplyBindingIds: (null | string)[] = []
   const gatewayProbeBindingIds: (null | string)[] = []
@@ -63,6 +65,12 @@ function fixture(
     arch: 'arm64',
     baseUrl: 'https://enroll.myking.test',
     clearRemoteGateway: async url => {
+      gatewayClearCount += 1
+
+      if (failFirstGatewayClear && gatewayClearCount === 1) {
+        throw new MyKingEmployeeEnrollmentError('company-unavailable', 'Company unavailable.')
+      }
+
       clearedGatewayUrls.push(url)
     },
     connectorPaths,
@@ -410,5 +418,19 @@ describe('My King employee enrollment', () => {
     expect(setup.events).toEqual(['server-revoke', 'local-unbind', 'server-revoke', 'local-unbind'])
     expect(setup.revokedEnrollmentIds).toEqual(['enrollment-1', 'enrollment-1'])
     expect(fs.existsSync(path.join(setup.userData, 'employee-connector-device.json'))).toBe(false)
+  })
+
+  it('finishes clearing the managed gateway after local files were already removed', async () => {
+    const setup = fixture('employee-1', false, false, false, false, false, false, true)
+    await setup.enrollment.enroll('ABCD-2345-EFGH')
+
+    await expect(setup.enrollment.unbind()).rejects.toMatchObject({ code: 'company-unavailable' })
+    expect(setup.enrollment.getStatus().binding).toBeNull()
+    expect(fs.existsSync(path.join(setup.userData, 'employee-connector-device.json'))).toBe(false)
+
+    await expect(setup.enrollment.unbind()).resolves.toMatchObject({ binding: null, stage: 'idle' })
+    expect(setup.events).toEqual(['server-revoke', 'local-unbind', 'local-unbind'])
+    expect(setup.revokedEnrollmentIds).toEqual(['enrollment-1'])
+    expect(setup.clearedGatewayUrls).toEqual([null])
   })
 })
