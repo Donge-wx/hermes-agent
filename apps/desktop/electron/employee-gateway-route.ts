@@ -13,6 +13,53 @@ export type MyKingEmployeeRuntimeProxyConfig = {
   readonly proxyRules?: string
 }
 
+export function createMyKingEmployeeGatewayAccessTokenCache({
+  now = Date.now,
+  refreshSkewMs = 30_000
+}: {
+  readonly now?: () => number
+  readonly refreshSkewMs?: number
+} = {}) {
+  let cached: { readonly accessToken: string; readonly expiresAtMs: number; readonly key: string } | null = null
+  let pending: { readonly key: string; readonly request: Promise<string> } | null = null
+
+  return (
+    key: string,
+    load: () => Promise<{ readonly accessToken: string; readonly expiresAt: null | number | string }>
+  ): Promise<string> => {
+    if (cached?.key === key && cached.expiresAtMs - refreshSkewMs > now()) {
+      return Promise.resolve(cached.accessToken)
+    }
+
+    if (pending?.key === key) {
+      return pending.request
+    }
+
+    let request: Promise<string>
+
+    request = (async () => {
+      try {
+        const session = await load()
+        const expiresAtMs =
+          typeof session.expiresAt === 'number' ? session.expiresAt : Date.parse(String(session.expiresAt || ''))
+
+        if (Number.isFinite(expiresAtMs) && expiresAtMs > now()) {
+          cached = { accessToken: session.accessToken, expiresAtMs, key }
+        }
+
+        return session.accessToken
+      } finally {
+        if (pending?.request === request) {
+          pending = null
+        }
+      }
+    })()
+    pending = { key, request }
+
+    return request
+  }
+}
+
 export function resolveMyKingEmployeeGatewayRoute(input: {
   readonly binding: MyKingEmployeeBinding | null
   readonly managedEmployeeGatewayUrl: null | string

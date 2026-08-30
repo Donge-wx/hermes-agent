@@ -133,14 +133,19 @@ function fakeDesktop() {
 
 function Harness({
   beforeConnectionSwitch = () => undefined,
+  refreshHermesConfig = async () => undefined,
   refreshSessions
-}: { beforeConnectionSwitch?: () => void; refreshSessions?: () => Promise<void> } = {}) {
+}: {
+  beforeConnectionSwitch?: () => void
+  refreshHermesConfig?: () => Promise<void>
+  refreshSessions?: () => Promise<void>
+} = {}) {
   useGatewayBoot({
     beforeConnectionSwitch,
     handleGatewayEvent: () => undefined,
     onConnectionReady: () => undefined,
     onGatewayReady: () => undefined,
-    refreshHermesConfig: async () => undefined,
+    refreshHermesConfig,
     refreshSessions: refreshSessions ?? (async () => undefined)
   })
 
@@ -291,6 +296,23 @@ describe('useGatewayBoot remote reconnect loop (real hook, fake socket)', () => 
     expect(desktop.getGatewayWsUrl).toHaveBeenCalledOnce()
     expect(FakeWebSocket.instances).toHaveLength(1)
     expect($gatewayState.get()).toBe('open')
+  })
+
+  it('keeps an opened gateway usable when the post-connect config refresh is temporarily rate limited', async () => {
+    const desktop = fakeDesktop()
+    const refreshHermesConfig = vi.fn(async () => {
+      throw new Error('429: Too Many Requests')
+    })
+
+    ;(window as { hermesDesktop?: unknown }).hermesDesktop = desktop
+
+    render(<Harness refreshHermesConfig={refreshHermesConfig} />)
+    await flushAsync()
+
+    expect(refreshHermesConfig).toHaveBeenCalledOnce()
+    expect(desktop.getConnection).toHaveBeenCalledOnce()
+    expect($gatewayState.get()).toBe('open')
+    expect($desktopBoot.get().error).toBeNull()
   })
 
   it('does not warm an ordinary gateway before opening its WebSocket', async () => {

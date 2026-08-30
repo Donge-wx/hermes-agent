@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
 import {
+  createMyKingEmployeeGatewayAccessTokenCache,
   mergeMyKingEmployeeProxyBypassList,
   preserveMyKingEmployeeManagedMarker,
   removeMyKingEmployeeStaticGatewayCredential,
@@ -23,6 +24,68 @@ const binding = {
 }
 
 describe('My King managed employee gateway route', () => {
+  it('shares one employee gateway session across concurrent requests until its refresh window', async () => {
+    let now = Date.parse('2026-08-30T00:00:00.000Z')
+    let loads = 0
+    const getAccessToken = createMyKingEmployeeGatewayAccessTokenCache({ now: () => now })
+    const load = async () => {
+      loads += 1
+
+      return {
+        accessToken: `access-${loads}`,
+        expiresAt: new Date(now + 300_000).toISOString()
+      }
+    }
+
+    await expect(Promise.all(Array.from({ length: 20 }, () => getAccessToken('employee-1', load)))).resolves.toEqual(
+      Array(20).fill('access-1')
+    )
+    expect(loads).toBe(1)
+
+    now += 269_000
+    await expect(getAccessToken('employee-1', load)).resolves.toBe('access-1')
+    expect(loads).toBe(1)
+
+    now += 2_000
+    await expect(Promise.all(Array.from({ length: 20 }, () => getAccessToken('employee-1', load)))).resolves.toEqual(
+      Array(20).fill('access-2')
+    )
+    expect(loads).toBe(2)
+  })
+
+  it('does not cache a failed employee gateway session request', async () => {
+    let loads = 0
+    const getAccessToken = createMyKingEmployeeGatewayAccessTokenCache()
+    const load = async () => {
+      loads += 1
+
+      if (loads === 1) {
+        throw new Error('temporary gateway-session failure')
+      }
+
+      return { accessToken: 'recovered', expiresAt: new Date(Date.now() + 300_000).toISOString() }
+    }
+
+    await expect(getAccessToken('employee-1', load)).rejects.toThrow('temporary gateway-session failure')
+    await expect(getAccessToken('employee-1', load)).resolves.toBe('recovered')
+    expect(loads).toBe(2)
+  })
+
+  it('refreshes the employee gateway session when its binding or device credential changes', async () => {
+    let loads = 0
+    const getAccessToken = createMyKingEmployeeGatewayAccessTokenCache()
+    const load = async () => ({
+      accessToken: `access-${++loads}`,
+      expiresAt: new Date(Date.now() + 300_000).toISOString()
+    })
+
+    await expect(getAccessToken('enrollment-1:device-1:credential-1', load)).resolves.toBe('access-1')
+    await expect(getAccessToken('enrollment-1:device-1:credential-1', load)).resolves.toBe('access-1')
+    await expect(getAccessToken('enrollment-1:device-2:credential-1', load)).resolves.toBe('access-2')
+    await expect(getAccessToken('enrollment-1:device-2:credential-2', load)).resolves.toBe('access-3')
+    expect(loads).toBe(3)
+  })
+
   it('adds only the company gateway hosts to the existing Chromium proxy bypass list', () => {
     expect(
       mergeMyKingEmployeeProxyBypassList('localhost;*.internal.test', [

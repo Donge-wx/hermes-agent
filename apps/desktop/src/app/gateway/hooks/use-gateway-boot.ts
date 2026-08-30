@@ -747,7 +747,9 @@ export function useGatewayBoot({
           // post-connect pass covers the remote backend default. Non-fatal: a
           // failed sync must not abort boot (the remembered cwd remains).
           seedDefaultCwd().catch(err => console.warn('Failed to sync default workspace cwd post-connect', err)),
-          callbacksRef.current.refreshHermesConfig(),
+          callbacksRef.current
+            .refreshHermesConfig()
+            .catch(err => console.warn('Failed to refresh My King config after gateway connect', err)),
           // Session-list population is never boot-fatal. The gateway WS is
           // already open by this point — a failed sidebar fetch (transient
           // blip, or an endpoint the fallback couldn't cover) must leave the

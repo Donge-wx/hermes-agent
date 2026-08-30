@@ -152,6 +152,7 @@ import {
 } from './employee-enrollment-contract'
 import { createMyKingEmployeeEnrollment } from './employee-enrollment'
 import {
+  createMyKingEmployeeGatewayAccessTokenCache,
   mergeMyKingEmployeeProxyBypassList,
   myKingEmployeeGatewayRequiresDirectProxy,
   preserveMyKingEmployeeManagedMarker,
@@ -9786,6 +9787,8 @@ function currentMyKingEmployeeGatewayRoute() {
   })
 }
 
+const getCachedMyKingEmployeeGatewayAccessToken = createMyKingEmployeeGatewayAccessTokenCache()
+
 async function getMyKingEmployeeGatewayAccessToken() {
   const binding = readMyKingEmployeeBinding(MY_KING_EMPLOYEE_CONNECTOR_PATHS.bindingPath)
   const saved = readDesktopConnectionConfig().remote
@@ -9799,30 +9802,40 @@ async function getMyKingEmployeeGatewayAccessToken() {
     )
   }
 
-  const response = await postMyKingEmployeeJson({
-    url: `${enrollmentBaseUrl}/api/employee-enrollments/${encodeURIComponent(binding.enrollmentId)}/gateway-session`,
-    authorization: `Bearer ${deviceToken}`,
-    timeoutMs: 15_000,
-    body: { deviceId: binding.deviceId }
+  const cacheKey = `${binding.enrollmentId}:${binding.deviceId}:${crypto
+    .createHash('sha256')
+    .update(deviceToken)
+    .digest('hex')}`
+
+  return getCachedMyKingEmployeeGatewayAccessToken(cacheKey, async () => {
+    const response = await postMyKingEmployeeJson({
+      url: `${enrollmentBaseUrl}/api/employee-enrollments/${encodeURIComponent(binding.enrollmentId)}/gateway-session`,
+      authorization: `Bearer ${deviceToken}`,
+      timeoutMs: 15_000,
+      body: { deviceId: binding.deviceId }
+    })
+    const record =
+      response !== null && typeof response === 'object' && !Array.isArray(response)
+        ? Object.fromEntries(Object.entries(response))
+        : {}
+    const accessToken = typeof record.accessToken === 'string' ? record.accessToken : ''
+
+    if (!accessToken || record.tokenType !== 'Bearer') {
+      throw new MyKingEmployeeEnrollmentError(
+        'invalid-server-response',
+        'The company server returned an invalid gateway session.'
+      )
+    }
+
+    return {
+      accessToken,
+      expiresAt: typeof record.expiresAt === 'number' || typeof record.expiresAt === 'string' ? record.expiresAt : null
+    }
   })
-  const record =
-    response !== null && typeof response === 'object' && !Array.isArray(response)
-      ? Object.fromEntries(Object.entries(response))
-      : {}
-  const accessToken = typeof record.accessToken === 'string' ? record.accessToken : ''
-
-  if (!accessToken || record.tokenType !== 'Bearer') {
-    throw new MyKingEmployeeEnrollmentError(
-      'invalid-server-response',
-      'The company server returned an invalid gateway session.'
-    )
-  }
-
-  return accessToken
 }
 
-async function mintMyKingEmployeeGatewayWsUrl(baseUrl) {
-  const accessToken = await getMyKingEmployeeGatewayAccessToken()
+async function mintMyKingEmployeeGatewayWsUrl(baseUrl, currentAccessToken?: string) {
+  const accessToken = currentAccessToken || (await getMyKingEmployeeGatewayAccessToken())
   const response = await postMyKingEmployeeJson({
     url: `${baseUrl}/api/auth/ws-ticket`,
     authorization: `Bearer ${accessToken}`,
@@ -9875,7 +9888,7 @@ async function resolveMyKingEmployeeGatewayBackend(url) {
         remoteKind: 'url',
         headers: {},
         token: accessToken,
-        wsUrl: await mintMyKingEmployeeGatewayWsUrl(baseUrl)
+        wsUrl: await mintMyKingEmployeeGatewayWsUrl(baseUrl, accessToken)
       }
     }
 
