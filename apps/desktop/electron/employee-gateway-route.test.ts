@@ -84,6 +84,19 @@ describe('My King managed employee gateway route', () => {
     })
   })
 
+  it('connects directly to a Tailscale employee gateway instead of sending it to the system proxy', () => {
+    expect(
+      resolveMyKingEmployeeRuntimeProxyConfig({
+        autoDetect: false,
+        noProxyServer: false,
+        pacScript: '',
+        proxyBypassRules: '',
+        proxyRules: '',
+        urls: ['https://mac-studio.tail2b3890.ts.net:8443/api/employee-gateways/employee-1']
+      })
+    ).toEqual({ mode: 'direct' })
+  })
+
   it('does not enable a proxy when Chromium was launched with proxying disabled', () => {
     expect(
       resolveMyKingEmployeeRuntimeProxyConfig({

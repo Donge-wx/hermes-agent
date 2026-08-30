@@ -59,6 +59,14 @@ export function mergeMyKingEmployeeProxyBypassList(current: string, urls: readon
   return entries.join(';')
 }
 
+export function myKingEmployeeGatewayRequiresDirectProxy(urls: readonly unknown[]): boolean {
+  return urls.some(rawUrl => {
+    const normalized = parseMyKingPublicHttpsUrl(rawUrl)
+
+    return normalized ? new URL(normalized).hostname.toLowerCase().endsWith('.ts.net') : false
+  })
+}
+
 export function resolveMyKingEmployeeRuntimeProxyConfig(input: {
   readonly autoDetect: boolean
   readonly noProxyServer: boolean
@@ -67,7 +75,7 @@ export function resolveMyKingEmployeeRuntimeProxyConfig(input: {
   readonly proxyRules: string
   readonly urls: readonly unknown[]
 }): MyKingEmployeeRuntimeProxyConfig {
-  if (input.noProxyServer) {
+  if (input.noProxyServer || myKingEmployeeGatewayRequiresDirectProxy(input.urls)) {
     return { mode: 'direct' }
   }
 

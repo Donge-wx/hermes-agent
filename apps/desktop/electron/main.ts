@@ -153,6 +153,7 @@ import {
 import { createMyKingEmployeeEnrollment } from './employee-enrollment'
 import {
   mergeMyKingEmployeeProxyBypassList,
+  myKingEmployeeGatewayRequiresDirectProxy,
   preserveMyKingEmployeeManagedMarker,
   removeMyKingEmployeeStaticGatewayCredential,
   resolveMyKingEmployeeGatewayClearUrl,
@@ -795,16 +796,19 @@ const MY_KING_EMPLOYEE_CONNECTOR_PATHS = resolveMyKingEmployeeConnectorPaths({
   userData: app.getPath('userData')
 })
 const MY_KING_EMPLOYEE_BINDING_AT_BOOT = readMyKingEmployeeBinding(MY_KING_EMPLOYEE_CONNECTOR_PATHS.bindingPath)
+const MY_KING_EMPLOYEE_PROXY_URLS = [
+  INSTALL_STAMP?.employeeEnrollmentBaseUrl,
+  INSTALL_STAMP?.managedEmployeeGatewayUrl,
+  MY_KING_EMPLOYEE_BINDING_AT_BOOT?.remoteGatewayUrl
+]
 let myKingEmployeeProxyBypass = mergeMyKingEmployeeProxyBypassList(
   app.commandLine.getSwitchValue('proxy-bypass-list'),
-  [
-    INSTALL_STAMP?.employeeEnrollmentBaseUrl,
-    INSTALL_STAMP?.managedEmployeeGatewayUrl,
-    MY_KING_EMPLOYEE_BINDING_AT_BOOT?.remoteGatewayUrl
-  ]
+  MY_KING_EMPLOYEE_PROXY_URLS
 )
 
-if (myKingEmployeeProxyBypass) {
+if (myKingEmployeeGatewayRequiresDirectProxy(MY_KING_EMPLOYEE_PROXY_URLS)) {
+  app.commandLine.appendSwitch('no-proxy-server')
+} else if (myKingEmployeeProxyBypass) {
   app.commandLine.appendSwitch('proxy-bypass-list', myKingEmployeeProxyBypass)
 }
 
