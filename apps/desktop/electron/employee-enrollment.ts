@@ -182,12 +182,13 @@ export function createMyKingEmployeeEnrollment(options: MyKingEmployeeEnrollment
     }
 
     publish('connecting-remote-gateway')
+    writeMyKingEmployeeBinding(options.connectorPaths.bindingPath, binding)
     try {
       await connectMyKingEmployeeGateway(() =>
         options.applyRemoteGateway(binding.remoteGatewayUrl, ready.gatewayAuth.token)
       )
-      writeMyKingEmployeeBinding(options.connectorPaths.bindingPath, binding)
     } catch (error) {
+      fs.rmSync(options.connectorPaths.bindingPath, { force: true })
       pending = null
       removeStaging(completed.staging)
       throw error

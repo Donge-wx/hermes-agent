@@ -228,7 +228,7 @@ describe('My King employee enrollment', () => {
     ])
     expect(setup.calls).toHaveLength(2)
     expect(setup.prepareCount()).toBe(1)
-    expect(setup.gatewayApplyBindingIds).toEqual([null])
+    expect(setup.gatewayApplyBindingIds).toEqual(['enrollment-1'])
     expect(setup.gatewayProbeBindingIds).toEqual(['enrollment-1'])
     expect(status.binding?.lastCheckAt).toMatch(/^\d{4}-\d{2}-\d{2}T/)
   })
