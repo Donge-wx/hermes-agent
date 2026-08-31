@@ -1,9 +1,10 @@
 """Raw HTTP attachment transport for managed employee Desktop sessions.
 
 The Desktop uploads each chunk as raw HTTP bytes, avoiding WebSocket/base64
-overhead.  This adapter never owns upload state: it delegates begin, finish,
-cancel, cleanup, reservations, and completed-result caching to
-``tui_gateway.server`` so HTTP and WebSocket uploads share one lifecycle.
+overhead.  It delegates begin, finish, cancel, cleanup, reservations, and
+completed-result caching to ``tui_gateway.server``.  The dashboard and JSON-RPC
+gateway can run in separate processes, so a persisted session is rehydrated as
+a small upload-only gateway record when it is not already present here.
 """
 
 # noqa: SIZE_OK - one cohesive FastAPI route registration boundary
@@ -170,9 +171,61 @@ def register_http_session_upload(
             raise HTTPException(
                 status_code=503, detail="TUI gateway session state is unavailable"
             ) from exc
-        if not isinstance(session, dict):
-            raise HTTPException(status_code=404, detail="session not found")
         scope = tui_server._employee_tenant_scope()
+        if not isinstance(session, dict):
+            try:
+                db = tui_server._get_db()
+                persisted = db.get_session(sid) if db is not None else None
+            except Exception as exc:  # noqa: BROAD_EXCEPT_OK - durable state boundary
+                raise HTTPException(
+                    status_code=503, detail="session state is unavailable"
+                ) from exc
+            if not isinstance(persisted, dict):
+                raise HTTPException(status_code=404, detail="session not found")
+
+            employee_home = Path(scope[1]).resolve(strict=False)
+            candidate_cwd = Path(str(persisted.get("cwd") or employee_home)).resolve(
+                strict=False
+            )
+            try:
+                candidate_cwd.relative_to(employee_home)
+            except ValueError:
+                candidate_cwd = employee_home
+
+            ready = threading.Event()
+            ready.set()
+            hydrated = {
+                "_http_upload_only": True,
+                "agent": None,
+                "agent_build_started": True,
+                "agent_ready": ready,
+                "attached_images": [],
+                "close_on_disconnect": False,
+                "cols": 80,
+                "created_at": 0.0,
+                "cwd": str(candidate_cwd),
+                "history": [],
+                "history_lock": threading.Lock(),
+                "image_counter": 0,
+                "last_active": 0.0,
+                "profile_home": None,
+                "running": False,
+                "session_key": str(persisted.get("id") or sid),
+                "source": str(persisted.get("source") or "desktop"),
+            }
+            try:
+                with tui_server._sessions_lock:
+                    existing = tui_server._sessions.get(sid)
+                    if isinstance(existing, dict):
+                        session = existing
+                    else:
+                        tui_server._sessions[sid] = hydrated
+                        session = hydrated
+            except Exception as exc:  # noqa: BROAD_EXCEPT_OK - TUI state boundary
+                raise HTTPException(
+                    status_code=503, detail="TUI gateway session state is unavailable"
+                ) from exc
+
         try:
             Path(str(session.get("cwd") or "")).resolve(strict=False).relative_to(
                 Path(scope[1]).resolve(strict=False)

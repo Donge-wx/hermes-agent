@@ -137,6 +137,45 @@ def test_raw_http_upload_roundtrip_uses_employee_session_workspace(employee_http
     assert not restart_guard.exists()
 
 
+def test_raw_http_upload_rehydrates_a_persisted_session(
+    employee_http_upload, monkeypatch
+):
+    client, workspace, (session_id, _other_session, _outside_session) = employee_http_upload
+    from tui_gateway import server as tui_server
+
+    with tui_server._sessions_lock:
+        tui_server._sessions.pop(session_id, None)
+
+    class PersistedSessionDb:
+        @staticmethod
+        def get_session(requested_session_id):
+            if requested_session_id != session_id:
+                return None
+            return {"id": session_id, "cwd": str(workspace), "source": "desktop"}
+
+    monkeypatch.setattr(tui_server, "_get_db", lambda: PersistedSessionDb())
+    payload = b"persisted-session-upload"
+    started = _begin(client, session_id, "persisted.bin", len(payload))
+    upload_id = started["upload_id"]
+
+    uploaded = client.post(
+        "/api/session-attachments/upload-chunk",
+        params={"upload_id": upload_id, "session_id": session_id, "offset": 0},
+        content=payload,
+        headers={"content-type": "application/octet-stream"},
+    )
+    assert uploaded.status_code == 200, uploaded.text
+
+    completed = client.post(
+        "/api/session-attachments/upload-finish",
+        json={"upload_id": upload_id, "session_id": session_id},
+    )
+    assert completed.status_code == 200, completed.text
+    assert (workspace / completed.json()["path"]).read_bytes() == payload
+    with tui_server._sessions_lock:
+        assert tui_server._sessions[session_id]["_http_upload_only"] is True
+
+
 def test_raw_http_upload_accepts_out_of_order_parallel_chunks(employee_http_upload):
     client, workspace, (session_id, _other_session, _outside_session) = employee_http_upload
     payload = b"abcdefghij"
