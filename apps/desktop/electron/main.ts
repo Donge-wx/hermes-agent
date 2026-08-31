@@ -1325,7 +1325,15 @@ protocol.registerSchemesAsPrivileged([
 
 function registerMediaProtocol() {
   const handler = createMediaProtocolHandler({
-    ensureRemoteBearer: baseUrl => ensureNativeAccessToken(baseUrl).catch(() => null),
+    ensureRemoteBearer: async baseUrl => {
+      const employeeRoute = currentMyKingEmployeeGatewayRoute()
+
+      if (employeeRoute && normalizeRemoteBaseUrl(employeeRoute.url) === normalizeRemoteBaseUrl(baseUrl)) {
+        return getMyKingEmployeeGatewayAccessToken()
+      }
+
+      return ensureNativeAccessToken(baseUrl).catch(() => null)
+    },
     fetchLocal: async (resolvedPath, headers, method) => {
       const range = /^bytes=(\d+)-(\d*)$/i.exec(headers.get('range') || '')
 
