@@ -1706,7 +1706,7 @@ function myKingEmployeeApiError(status: number, value: unknown): MyKingEmployeeE
     )
   }
 
-  if (status >= 500) {
+  if (status === 429 || status >= 500) {
     return new MyKingEmployeeEnrollmentError('company-unavailable', 'The company server is temporarily unavailable.')
   }
 
@@ -1740,6 +1740,10 @@ async function postMyKingEmployeeJson(request: MyKingEmployeeHttpRequest): Promi
   try {
     body = rawBody ? JSON.parse(rawBody) : null
   } catch {
+    if (!response.ok) {
+      throw myKingEmployeeApiError(response.status, null)
+    }
+
     throw new MyKingEmployeeEnrollmentError('invalid-server-response', 'The company server returned invalid JSON.')
   }
 

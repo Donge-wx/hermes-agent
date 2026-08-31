@@ -341,7 +341,12 @@ export function useGatewayBoot({
       // restart doesn't get redialed by every desktop client in lockstep —
       // an immediate-retry reconnect storm can exhaust the gateway's file
       // descriptors while it's still coming back up.
-      const delay = reconnectBackoffDelayMs(reconnectAttempt)
+      const delay = primaryEmployeeManaged
+        ? Math.max(
+            BOOT_RETRY_BASE_DELAY_MS,
+            reconnectBackoffDelayMs(reconnectAttempt, { baseDelayMs: BOOT_RETRY_BASE_DELAY_MS })
+          )
+        : reconnectBackoffDelayMs(reconnectAttempt)
       reconnectAttempt += 1
       reconnectTimer = setTimeout(() => {
         reconnectTimer = null

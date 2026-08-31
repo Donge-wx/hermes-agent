@@ -1,0 +1,10 @@
+FROM myking/hermes-agent:v2026.8.19-wsproxy.2
+
+USER root
+WORKDIR /opt/hermes
+COPY --chown=root:root hermes_cli/web_server.py hermes_cli/http_session_upload.py hermes_cli/managed_upload_guard.py hermes_cli/managed_update_policy.py /opt/hermes/hermes_cli/
+COPY --chown=root:root hermes_state.py hermes_state_common.py hermes_state_portability.py hermes_state_schema.py hermes_state_search.py /opt/hermes/
+COPY --chown=root:root tui_gateway/server.py tui_gateway/ws.py tui_gateway/methods_prompt.py /opt/hermes/tui_gateway/
+COPY --chown=root:root tui_gateway/methods_browser_control.py /opt/hermes/tui_gateway/
+COPY --chown=root:root agent/compaction_display.py /opt/hermes/agent/
+COPY --chown=root:root gateway/browser_control_broker.py /opt/hermes/gateway/

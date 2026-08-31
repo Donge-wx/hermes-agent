@@ -22,7 +22,7 @@ export function isMyKingEmployeeGatewaySessionRejection(error: unknown): boolean
 }
 
 export function createMyKingEmployeeGatewayAccessTokenCache({
-  failureBackoffMs = 1_000,
+  failureBackoffMs = 5_000,
   now = Date.now,
   refreshSkewMs = 30_000
 }: {
