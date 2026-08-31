@@ -1,4 +1,5 @@
 import type { MyKingEmployeeBinding } from './employee-connector'
+import { MyKingEmployeeEnrollmentError } from './employee-enrollment-contract'
 import { parseMyKingPublicHttpsUrl } from './install-stamp'
 
 export type MyKingEmployeeGatewayRoute = {
@@ -13,17 +14,26 @@ export type MyKingEmployeeRuntimeProxyConfig = {
   readonly proxyRules?: string
 }
 
+export function isMyKingEmployeeGatewaySessionRejection(error: unknown): boolean {
+  return (
+    error instanceof MyKingEmployeeEnrollmentError &&
+    (error.code === 'invalid-credentials' || error.code === 'gateway-auth-required')
+  )
+}
+
 export function createMyKingEmployeeGatewayAccessTokenCache({
+  failureBackoffMs = 1_000,
   now = Date.now,
   refreshSkewMs = 30_000
 }: {
+  readonly failureBackoffMs?: number
   readonly now?: () => number
   readonly refreshSkewMs?: number
 } = {}) {
   let cached: { readonly accessToken: string; readonly expiresAtMs: number; readonly key: string } | null = null
-  let pending: { readonly key: string; readonly request: Promise<string> } | null = null
+  let pending: { failedUntil: null | number; readonly key: string; readonly request: Promise<string> } | null = null
 
-  return (
+  const getAccessToken = (
     key: string,
     load: () => Promise<{ readonly accessToken: string; readonly expiresAt: null | number | string }>
   ): Promise<string> => {
@@ -31,15 +41,14 @@ export function createMyKingEmployeeGatewayAccessTokenCache({
       return Promise.resolve(cached.accessToken)
     }
 
-    if (pending?.key === key) {
+    if (pending?.key === key && (pending.failedUntil === null || now() < pending.failedUntil)) {
       return pending.request
     }
 
-    let request: Promise<string>
-
-    request = (async () => {
-      try {
-        const session = await load()
+    let entry: NonNullable<typeof pending>
+    const request = Promise.resolve()
+      .then(load)
+      .then(session => {
         const expiresAtMs =
           typeof session.expiresAt === 'number' ? session.expiresAt : Date.parse(String(session.expiresAt || ''))
 
@@ -48,16 +57,33 @@ export function createMyKingEmployeeGatewayAccessTokenCache({
         }
 
         return session.accessToken
-      } finally {
-        if (pending?.request === request) {
+      })
+
+    entry = { failedUntil: null, key, request }
+    pending = entry
+    void request.then(
+      () => {
+        if (pending === entry) {
           pending = null
         }
+      },
+      () => {
+        if (pending === entry) {
+          entry.failedUntil = now() + failureBackoffMs
+        }
       }
-    })()
-    pending = { key, request }
+    )
 
     return request
   }
+
+  getAccessToken.invalidate = (key?: string) => {
+    if (!key || cached?.key === key) {
+      cached = null
+    }
+  }
+
+  return getAccessToken
 }
 
 export function resolveMyKingEmployeeGatewayRoute(input: {

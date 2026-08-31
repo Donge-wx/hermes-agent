@@ -82,30 +82,10 @@ const RECONNECT_ESCALATE_AFTER_MS = 45_000
 // confirmed reauth rejections never enter this loop — a missing capability
 // differs from a transient failure.
 const BOOT_RETRY_MAX_ATTEMPTS = 5
+const EMPLOYEE_RECONNECT_MAX_ATTEMPTS = 5
 // Base delay for boot retries. Deliberately slower than the socket reconnect
 // loop's 300ms: each attempt may rebuild an SSH master + remote dashboard.
 const BOOT_RETRY_BASE_DELAY_MS = 2_000
-
-async function warmEmployeeGatewayNetwork(connection: HermesConnection) {
-  if (connection.employeeManaged !== true) {
-    return
-  }
-
-  try {
-    const gatewayBaseUrl = connection.baseUrl.replace(/\/+$/, '')
-
-    await fetch(`${gatewayBaseUrl}/api/health`, {
-      method: 'GET',
-      cache: 'no-store',
-      credentials: 'omit',
-      mode: 'no-cors',
-      referrerPolicy: 'no-referrer',
-      signal: AbortSignal.timeout(2_000)
-    })
-  } catch (error) {
-    console.warn('Failed to warm managed employee gateway network', error)
-  }
-}
 
 function employeeEnrollmentRequired(error: unknown) {
   return String(error).includes('Connect this device with My King Employee Enrollment')
@@ -212,6 +192,7 @@ export function useGatewayBoot({
     // Bounded automatic boot retry for transient REMOTE failures (#82679).
     let bootRetryAttempt = 0
     let bootRetryTimer: ReturnType<typeof setTimeout> | null = null
+    let primaryEmployeeManaged = false
 
     const clearBootRetryTimer = () => {
       if (bootRetryTimer !== null) {
@@ -224,13 +205,11 @@ export function useGatewayBoot({
     // retryable (dropped SSH/HTTP registered connection, mint timeout).
     // Local failures and confirmed reauth rejections come back false and go
     // straight to the recovery overlay.
-    const bootFailureIsRetryable = async (): Promise<boolean> => {
+    const bootFailureProgress = async (): Promise<DesktopBootProgress | null> => {
       try {
-        const snapshot = await desktop.getBootProgress()
-
-        return snapshot?.retryable === true
+        return await desktop.getBootProgress()
       } catch {
-        return false
+        return null
       }
     }
 
@@ -246,7 +225,7 @@ export function useGatewayBoot({
       }
     }
 
-    const attemptReconnect = async () => {
+    const attemptReconnect = async (propagateReauth = false) => {
       if (cancelled || reconnecting || gatewayOpen() || $gatewaySwitching.get()) {
         return
       }
@@ -271,6 +250,8 @@ export function useGatewayBoot({
           return
         }
 
+        primaryEmployeeManaged = conn.employeeManaged === true
+
         // Only publish the primary descriptor when the primary is active.
         // Otherwise a background-profile view would inherit the primary's
         // mode/baseUrl and break image.attach / fs / media routing (#46651).
@@ -286,7 +267,6 @@ export function useGatewayBoot({
         // explicit auth rejection asks for sign-in; transport failures stay in
         // this reconnect loop. For local/token gateways the URL carries a
         // long-lived token and the re-mint is a cheap no-op.
-        await warmEmployeeGatewayNetwork(conn)
         const wsUrl = await resolveGatewayWsUrl(desktop, conn)
         await gateway.connect(wsUrl)
 
@@ -313,9 +293,18 @@ export function useGatewayBoot({
         // again" message once instead of silently looping the backoff against a
         // ticket that can never succeed. Transport failures fall through to the
         // backoff in the finally block below.
-        if (!cancelled && isGatewayReauthRequired(err) && !reauthNotified) {
+        const reauthRequired = !cancelled && isGatewayReauthRequired(err)
+
+        if (reauthRequired && !reauthNotified) {
           reauthNotified = true
-          notifyError(err, translateNow('boot.errors.gatewaySignInRequired'))
+
+          if (!propagateReauth) {
+            notifyError(err, translateNow('boot.errors.gatewaySignInRequired'))
+          }
+        }
+
+        if (reauthRequired && propagateReauth) {
+          throw err
         }
       } finally {
         reconnecting = false
@@ -325,12 +314,20 @@ export function useGatewayBoot({
             reconnectFailingSince = Date.now()
           }
 
-          if (Date.now() - reconnectFailingSince >= RECONNECT_ESCALATE_AFTER_MS && !escalated) {
+          const employeeRetryExhausted =
+            primaryEmployeeManaged && reconnectAttempt >= EMPLOYEE_RECONNECT_MAX_ATTEMPTS
+
+          if (
+            (employeeRetryExhausted || Date.now() - reconnectFailingSince >= RECONNECT_ESCALATE_AFTER_MS) &&
+            !escalated
+          ) {
             escalated = true
             failDesktopBoot(translateNow('boot.errors.gatewayConnectionLost'))
           }
 
-          scheduleReconnect()
+          if (!employeeRetryExhausted) {
+            scheduleReconnect()
+          }
         }
       }
     }
@@ -352,7 +349,7 @@ export function useGatewayBoot({
       }, delay)
     }
 
-    const reconnectNow = async () => {
+    const reconnectNow = async (propagateReauth = false) => {
       if (cancelled || !bootCompleted || $gatewaySwitching.get()) {
         return
       }
@@ -364,7 +361,7 @@ export function useGatewayBoot({
       reconnectSecondaryGateways()
 
       if (!gatewayOpen()) {
-        await attemptReconnect()
+        await attemptReconnect(propagateReauth)
       }
     }
 
@@ -435,8 +432,9 @@ export function useGatewayBoot({
           return
         }
 
+        primaryEmployeeManaged = conn.employeeManaged === true
+
         publish(conn)
-        await warmEmployeeGatewayNetwork(conn)
         const wsUrl = await resolveGatewayWsUrl(desktop, conn)
         await gateway.connect(wsUrl)
 
@@ -479,7 +477,7 @@ export function useGatewayBoot({
       // Soft switch / post-boot startHermes re-emits progress — ignore so the
       // cold-boot CONNECTING overlay stays down. Errors still surface.
       if ($gatewaySwitching.get() || bootCompleted) {
-        if (payload.error) {
+        if (payload.error && !(payload.employeeManaged === true && payload.retryable === true)) {
           applyVisibleDesktopBootProgress(payload)
         }
 
@@ -508,6 +506,10 @@ export function useGatewayBoot({
     // dead-code-eliminates out of the bundle.
     const survivor = import.meta.hot ? takeGatewaySurvivor() : null
     const adoptedFromHmr = Boolean(survivor && !survivorIsStale(survivor))
+
+    if (adoptedFromHmr) {
+      primaryEmployeeManaged = survivor?.connection?.employeeManaged === true
+    }
 
     if (survivor && !adoptedFromHmr) {
       // Parked socket died between edits (e.g. backend restart) — release it.
@@ -603,7 +605,7 @@ export function useGatewayBoot({
     // window regaining focus/visibility. Each nudges an immediate reconnect.
     const offPowerResume = desktop.onPowerResume?.(() => void reconnectNow())
     const offConnectionApplied = desktop.onConnectionApplied?.(() => void softSwitch())
-    const offGatewayReconnect = registerGatewayReconnect(reconnectNow)
+    const offGatewayReconnect = registerGatewayReconnect(() => reconnectNow(true))
 
     // Registry lifecycle: a removed connection's secondaries must close NOW
     // (remote/cloud have no local process whose death would drop the socket —
@@ -696,6 +698,8 @@ export function useGatewayBoot({
           return
         }
 
+        primaryEmployeeManaged = conn.employeeManaged === true
+
         setDesktopBootStep({
           phase: 'renderer.gateway.connect',
           message: translateNow('boot.steps.connectingGateway'),
@@ -721,7 +725,6 @@ export function useGatewayBoot({
         // conn.wsUrl is stale; resolveGatewayWsUrl() re-mints it rather than
         // connecting with a dead ticket. Auth rejection asks for sign-in;
         // connectivity failures remain retryable.
-        await warmEmployeeGatewayNetwork(conn)
         const wsUrl = await resolveGatewayWsUrl(desktop, conn)
         await gateway.connect(wsUrl)
 
@@ -772,6 +775,23 @@ export function useGatewayBoot({
         if (!cancelled) {
           const message = desktopBootErrorMessage(err)
 
+          const progress = await bootFailureProgress()
+
+          if (progress?.employeeManaged === true && progress.retryable === true && !cancelled) {
+            completeDesktopBoot()
+            bootCompleted = true
+            setSessionsLoading(false)
+            const delay = reconnectBackoffDelayMs(bootRetryAttempt, { baseDelayMs: BOOT_RETRY_BASE_DELAY_MS })
+            bootRetryAttempt += 1
+            clearBootRetryTimer()
+            bootRetryTimer = setTimeout(() => {
+              bootRetryTimer = null
+              void boot()
+            }, delay)
+
+            return
+          }
+
           // Transient remote failure (dropped SSH/HTTP registered connection,
           // mint timeout): self-heal with bounded, jittered retries instead of
           // parking on "Desktop boot failed" until the user re-enters the same
@@ -780,7 +800,7 @@ export function useGatewayBoot({
           // exactly what manual re-entry forced. Exhausted retries, local
           // failures, and confirmed reauth rejections end in the real recovery
           // affordance (the boot-failure overlay), never an infinite spinner.
-          if (bootRetryAttempt < BOOT_RETRY_MAX_ATTEMPTS && (await bootFailureIsRetryable()) && !cancelled) {
+          if (bootRetryAttempt < BOOT_RETRY_MAX_ATTEMPTS && progress?.retryable === true && !cancelled) {
             const delay = reconnectBackoffDelayMs(bootRetryAttempt, { baseDelayMs: BOOT_RETRY_BASE_DELAY_MS })
             bootRetryAttempt += 1
             resumeDesktopBootForRetry(translateNow('boot.steps.retryingRemoteBackend'))

@@ -236,6 +236,35 @@ test('a credentialed 403 is also a terminal reauth failure', async () => {
   )
 })
 
+test('a downstream managed-gateway 401 stays retryable after durable device authentication succeeded', async () => {
+  let attempts = 0
+  let currentTime = 0
+
+  await assert.rejects(
+    waitForHermesReady('https://gateway.example', {
+      fetchPublicJson: async () => ({}),
+      fetchJson: async () => ({}),
+      probeHealth: async () => {
+        attempts += 1
+        throw new Error('401: {"detail":"ticket rejected during gateway recovery"}')
+      },
+      probeIsCredentialed: true,
+      authRejectionIsTerminal: false,
+      sleep: async () => {},
+      now: () => {
+        currentTime += 20
+
+        return currentTime
+      },
+      timeoutMs: 100,
+      pollMs: 1
+    }),
+    (error: unknown) => isReauthRequiredError(error) === false
+  )
+
+  assert.ok(attempts > 1, `managed-gateway 401 should retry, got ${attempts} attempt(s)`)
+})
+
 test('a credentialed probe still uses the 404 fallback for a genuinely missing route', async () => {
   // With credentials the gate lets the request through to the SPA catch-all,
   // so an old backend answers a real 404 — that must still fall back, not be

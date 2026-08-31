@@ -1052,6 +1052,7 @@ export interface DesktopCloudAgentSignInResult {
 }
 
 export interface DesktopBootProgress {
+  employeeManaged?: boolean
   error: string | null
   fakeMode: boolean
   /** True when the boot failure is a Nous Cloud agent that is down (HTTP 502/503/504). */

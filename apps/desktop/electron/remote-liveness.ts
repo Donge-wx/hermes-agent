@@ -12,6 +12,7 @@ export interface RemoteLivenessFailure {
 
 interface RemoteConnectionDescriptor {
   baseUrl?: null | string
+  employeeManaged?: boolean
   mode?: null | string
 }
 
@@ -118,6 +119,7 @@ export class RemoteLivenessTracker {
 }
 
 export interface PooledRemoteEntry {
+  employeeManaged?: boolean
   process?: unknown
   remoteBaseUrl?: null | string
 }
@@ -148,7 +150,9 @@ export async function revalidatePooledRemoteBackends({
   stopBackend,
   tracker
 }: RevalidatePooledRemoteBackendsOptions): Promise<{ dropped: string[] }> {
-  const remotes = [...entries].filter(([, entry]) => !entry.process && entry.remoteBaseUrl)
+  const remotes = [...entries].filter(
+    ([, entry]) => !entry.process && entry.remoteBaseUrl && entry.employeeManaged !== true
+  )
   const dropped: string[] = []
 
   await Promise.all(
@@ -223,6 +227,12 @@ export async function revalidateRemoteConnection<TConnection extends RemoteConne
     return { ok: true, rebuilt: false }
   } catch {
     if (currentConnectionPromise() !== connectionPromise) {
+      return { ok: true, rebuilt: false }
+    }
+
+    if (connection.employeeManaged === true) {
+      log('Cached managed employee backend is temporarily unavailable; retaining its session for automatic recovery.')
+
       return { ok: true, rebuilt: false }
     }
 

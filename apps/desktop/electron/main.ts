@@ -43,7 +43,12 @@ import { stopBackendChild as stopBackendChildImpl, stopBackendTreesForUpdate } f
 import { dashboardFallbackArgs, sourceDeclaresServe } from './backend-command'
 import { createBackendConnectionState } from './backend-connection-state'
 import { buildDesktopBackendEnv, hermesManagedNodePathEntries, normalizeHermesHomeRoot } from './backend-env'
-import { isReauthRequiredError, makeNousCloudBackendDownError, waitForHermesReady } from './backend-health'
+import {
+  isReauthRequiredError,
+  makeNousCloudBackendDownError,
+  makeReauthRequiredError,
+  waitForHermesReady
+} from './backend-health'
 import { backendCommandMatches, createBackendOwnership, createBackendShutdownCoordinator } from './backend-ownership'
 import {
   canImportHermesCli,
@@ -153,6 +158,7 @@ import {
 import { createMyKingEmployeeEnrollment } from './employee-enrollment'
 import {
   createMyKingEmployeeGatewayAccessTokenCache,
+  isMyKingEmployeeGatewaySessionRejection,
   mergeMyKingEmployeeProxyBypassList,
   myKingEmployeeGatewayRequiresDirectProxy,
   preserveMyKingEmployeeManagedMarker,
@@ -1484,6 +1490,7 @@ let desktopLogFlushPromise = Promise.resolve()
 let nativeThemeListenerInstalled = false
 
 let bootProgressState = {
+  employeeManaged: false,
   error: null,
   fakeMode: BOOT_FAKE_MODE,
   isCloudBackendDown: false,
@@ -1802,6 +1809,19 @@ async function verifyMyKingEmployeeGateway(expectedUrl) {
     throw new MyKingEmployeeEnrollmentError(
       'isolation-failed',
       'The employee gateway route did not stay on the assigned company gateway.'
+    )
+  }
+
+  const wsUrl = await freshGatewayWsUrl(primaryProfileKey())
+  const wsProbe = await probeGatewayWebSocket(wsUrl, {
+    WebSocketImpl: globalThis.WebSocket,
+    headers: connection.headers
+  })
+
+  if (!wsProbe.ok) {
+    throw new MyKingEmployeeEnrollmentError(
+      'gateway-unreachable',
+      wsProbe.error || 'The employee gateway WebSocket did not accept the managed session.'
     )
   }
 }
@@ -6359,11 +6379,12 @@ async function gatewayAuthProviders(baseUrl, headers = {}) {
 // must be probed with the SAME credentials the rest of the connection uses:
 // an anonymous probe 401s forever against a live session, and it can never
 // see the 404 that identifies a backend predating /api/health (the auth gate
-// answers before the SPA catch-all). `probeIsCredentialed` tells
-// waitForHermesReady how to read a 401 — rejected session vs gated route.
+// answers before the SPA catch-all). Employee-managed routes prove durable
+// login at gateway-session, so a later probe rejection remains retryable.
 async function buildReadinessHealthProbe(baseUrl, authMode, token, employeeManaged = false) {
   if (employeeManaged) {
     return {
+      authRejectionIsTerminal: false,
       probeHealth: (url, options: any = {}) => fetchJson(url, null, { ...options, bearer: token }),
       probeIsCredentialed: true
     }
@@ -6400,7 +6421,7 @@ async function buildReadinessHealthProbe(baseUrl, authMode, token, employeeManag
 }
 
 async function waitForHermes(baseUrl, token, signal?, authMode?, headers = {}, employeeManaged = false) {
-  const { probeHealth, probeIsCredentialed } = await buildReadinessHealthProbe(
+  const { authRejectionIsTerminal, probeHealth, probeIsCredentialed } = await buildReadinessHealthProbe(
     baseUrl,
     authMode,
     token,
@@ -6415,7 +6436,8 @@ async function waitForHermes(baseUrl, token, signal?, authMode?, headers = {}, e
       ? (url, _token, options = {}) => probeHealth(url, requestOptionsWithHeaders(options, headers))
       : fetchJson,
     probeHealth: (url, options = {}) => probeHealth(url, requestOptionsWithHeaders(options, headers)),
-    probeIsCredentialed
+    probeIsCredentialed,
+    authRejectionIsTerminal
   })
 }
 
@@ -9392,10 +9414,12 @@ async function buildRemoteConnection(
       throw err
     }
 
-    let ticket
+    let ticket = ''
 
     try {
-      ticket = await mintGatewayWsTicket(baseUrl, remoteHeaders)
+      if (source !== 'employee') {
+        ticket = await mintGatewayWsTicket(baseUrl, remoteHeaders)
+      }
     } catch (error) {
       // For a Nous-managed Cloud agent, a 502/503/504 from the WS-ticket mint
       // means the backend server itself is down — the actionable Cloud-down
@@ -9417,12 +9441,15 @@ async function buildRemoteConnection(
       )
     }
 
-    const wsUrl = buildGatewayWsUrlWithTicket(baseUrl, ticket)
+    const wsUrl = ticket ? buildGatewayWsUrlWithTicket(baseUrl, ticket) : ''
 
-    rememberRemoteWsHeaders(wsUrl, remoteHeaders)
+    if (wsUrl) {
+      rememberRemoteWsHeaders(wsUrl, remoteHeaders)
+    }
 
     return {
       baseUrl,
+      ...(source === 'employee' ? { employeeManaged: true } : {}),
       mode: 'remote',
       source,
       authMode: 'oauth',
@@ -9861,12 +9888,22 @@ async function getMyKingEmployeeGatewayAccessToken(forceRefresh = false) {
   }
 
   return getCachedMyKingEmployeeGatewayAccessToken(cacheKey, async () => {
-    const response = await postMyKingEmployeeJson({
-      url: `${enrollmentBaseUrl}/api/employee-enrollments/${encodeURIComponent(binding.enrollmentId)}/gateway-session`,
-      authorization: `Bearer ${deviceToken}`,
-      timeoutMs: 15_000,
-      body: { deviceId: binding.deviceId }
-    })
+    let response: unknown
+
+    try {
+      response = await postMyKingEmployeeJson({
+        url: `${enrollmentBaseUrl}/api/employee-enrollments/${encodeURIComponent(binding.enrollmentId)}/gateway-session`,
+        authorization: `Bearer ${deviceToken}`,
+        timeoutMs: 15_000,
+        body: { deviceId: binding.deviceId }
+      })
+    } catch (error) {
+      if (isMyKingEmployeeGatewaySessionRejection(error)) {
+        throw makeReauthRequiredError(error.message)
+      }
+
+      throw error
+    }
     const record =
       response !== null && typeof response === 'object' && !Array.isArray(response)
         ? Object.fromEntries(Object.entries(response))
@@ -9941,7 +9978,7 @@ async function resolveMyKingEmployeeGatewayBackend(url) {
         remoteKind: 'url',
         headers: {},
         token: accessToken,
-        wsUrl: await mintMyKingEmployeeGatewayWsUrl(baseUrl, accessToken)
+        wsUrl: ''
       }
     }
 
@@ -10910,6 +10947,7 @@ async function spawnPoolBackend(profile, entry, opts: { forceLocal?: boolean; po
     // Recorded on the entry so revalidation can probe this descriptor without
     // awaiting connectionPromise, which may still be pending for a sibling.
     entry.remoteBaseUrl = remote.baseUrl
+    entry.employeeManaged = remote.employeeManaged === true
 
     return {
       ...remote,
@@ -11230,9 +11268,11 @@ async function startHermes() {
   // must NOT latch (it's transient — see shouldLatchBackendStartFailure), while
   // a local failure latches to break install-restart loops.
   let attemptedRemote = primaryBackendIsRemote()
+  let attemptedEmployeeManaged = false
 
   const connectionPromise = (async () => {
     const connectRemote = async remote => {
+      attemptedEmployeeManaged = remote.employeeManaged === true
       // resolveRemote() may take arbitrarily long (settings resolve / ws-ticket
       // mint). If a newer attempt started meanwhile (e.g. the user switched
       // remotes and Apply invalidated this attempt), bail before probing.
@@ -11257,6 +11297,7 @@ async function startHermes() {
       }
 
       updateBootProgress({
+        employeeManaged: attemptedEmployeeManaged,
         phase: 'backend.ready',
         message: 'Remote My King backend is ready',
         progress: 94,
@@ -11573,6 +11614,7 @@ async function startHermes() {
 
     updateBootProgress(
       {
+        employeeManaged: attemptedEmployeeManaged,
         error: message,
         isCloudBackendDown: isCloudBackendDown || undefined,
         message: `Desktop boot failed: ${message}`,
@@ -12921,7 +12963,17 @@ ipcMain.handle('hermes:connection:revalidate', async () => {
         connectionPromise,
         currentConnectionPromise: () => backendConnectionState.getPromise(),
         log: rememberLog,
-        probe: fetchPublicJson,
+        probe: async (url, options) => {
+          const connection = await connectionPromise
+
+          if (connection.employeeManaged === true) {
+            const accessToken = await getMyKingEmployeeGatewayAccessToken()
+
+            return fetchJson(url, null, { ...options, bearer: accessToken })
+          }
+
+          return fetchPublicJson(url, options)
+        },
         resetConnection: resetHermesConnection,
         tracker: remoteLiveness
       }),

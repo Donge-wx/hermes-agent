@@ -6,7 +6,7 @@ import { $desktopBoot } from '@/store/boot'
 import { closeSecondaryGateways, isActivePrimary } from '@/store/gateway'
 import { reconnectGateway } from '@/store/gateway-reconnect'
 import { $activeGatewayProfile, $profiles, ensureGatewayProfile } from '@/store/profile'
-import { $connection, $currentCwd, $gatewayState } from '@/store/session'
+import { $connection, $currentCwd, $gatewayState, $sessionsLoading } from '@/store/session'
 
 import { takeGatewaySurvivor } from './gateway-hmr-survivor'
 import { useGatewayBoot } from './use-gateway-boot'
@@ -233,7 +233,7 @@ async function advanceBackoff() {
 }
 
 describe('useGatewayBoot remote reconnect loop (real hook, fake socket)', () => {
-  it('warms an employee-managed gateway before resolving and opening its WebSocket', async () => {
+  it('opens an employee-managed WebSocket without an anonymous health warmup', async () => {
     const events: string[] = []
     const employeeConnection = {
       ...primaryConn,
@@ -250,11 +250,7 @@ describe('useGatewayBoot remote reconnect loop (real hook, fake socket)', () => 
 
       return employeeConnection.wsUrl
     })
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
-      events.push('warm')
-
-      return new Response(null, { status: 204 })
-    })
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
 
     class RecordingSocket extends FakeWebSocket {
       constructor(url: string) {
@@ -269,15 +265,12 @@ describe('useGatewayBoot remote reconnect loop (real hook, fake socket)', () => 
     render(<Harness />)
     await flushAsync()
 
-    expect(events.slice(0, 3)).toEqual(['warm', 'resolve', 'socket'])
-    expect(globalThis.fetch).toHaveBeenCalledWith(
-      'https://vps.example.com/api/employee-gateways/test-id/api/health',
-      expect.objectContaining({ method: 'GET', mode: 'no-cors' })
-    )
+    expect(events).toEqual(['resolve', 'socket'])
+    expect(fetchSpy).not.toHaveBeenCalled()
     expect($gatewayState.get()).toBe('open')
   })
 
-  it('continues resolving and opening an employee WebSocket when network warmup fails', async () => {
+  it('resolves exactly one employee ticket and opens exactly one WebSocket', async () => {
     const desktop = {
       ...fakeDesktop(),
       getConnection: vi.fn(async () => ({
@@ -286,13 +279,13 @@ describe('useGatewayBoot remote reconnect loop (real hook, fake socket)', () => 
         employeeManaged: true
       }))
     }
-    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('Failed to fetch'))
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
     ;(window as { hermesDesktop?: unknown }).hermesDesktop = desktop
 
     render(<Harness />)
     await flushAsync()
 
-    expect(globalThis.fetch).toHaveBeenCalledOnce()
+    expect(fetchSpy).not.toHaveBeenCalled()
     expect(desktop.getGatewayWsUrl).toHaveBeenCalledOnce()
     expect(FakeWebSocket.instances).toHaveLength(1)
     expect($gatewayState.get()).toBe('open')
@@ -509,6 +502,38 @@ describe('useGatewayBoot remote reconnect loop (real hook, fake socket)', () => 
     expect($desktopBoot.get().error).toBeTruthy()
   })
 
+  it('keeps the employee session while bounding reconnect attempts after a prolonged outage', async () => {
+    const employeeConnection = {
+      ...primaryConn,
+      authMode: 'oauth' as const,
+      employeeManaged: true
+    }
+    const desktop = {
+      ...fakeDesktop(),
+      getConnection: vi.fn(async () => employeeConnection)
+    }
+
+    ;(window as { hermesDesktop?: unknown }).hermesDesktop = desktop
+    render(<Harness />)
+    await flushAsync()
+    expect($gatewayState.get()).toBe('open')
+
+    FakeWebSocket.mode = 'fail'
+    act(() => FakeWebSocket.instances[0].drop())
+    await flushAsync()
+
+    for (let i = 0; i < 8; i += 1) {
+      await advanceBackoff()
+    }
+
+    expect($desktopBoot.get().error).toBeTruthy()
+    expect($connection.get()).toMatchObject({ employeeManaged: true })
+    expect(FakeWebSocket.instances).toHaveLength(6)
+
+    await advanceBackoff()
+    expect(FakeWebSocket.instances).toHaveLength(6)
+  })
+
   it('FIX: a successful reconnect clears the recoverable error', async () => {
     render(<Harness />)
     await flushAsync()
@@ -691,6 +716,7 @@ describe('useGatewayBoot remote reconnect loop (real hook, fake socket)', () => 
       running: false,
       timestamp: Date.now()
     }))
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 204 }))
     ;(window as { hermesDesktop?: unknown }).hermesDesktop = desktop
 
     render(<Harness />)
@@ -743,6 +769,59 @@ describe('useGatewayBoot remote reconnect loop (real hook, fake socket)', () => 
     // No further attempts after the budget is spent — bounded, not infinite.
     await advanceBackoff()
     expect(desktop.getConnection).toHaveBeenCalledTimes(6)
+  })
+
+  it('keeps an employee-managed cold start offline and reconnects automatically when the network returns', async () => {
+    const employeeConnection = {
+      ...primaryConn,
+      authMode: 'oauth' as const,
+      employeeManaged: true
+    }
+    let online = false
+    const desktop = {
+      ...fakeDesktop(),
+      getConnection: vi.fn(async (_profile?: null | string) => {
+        if (!online) {
+          throw new Error('Could not reach the employee gateway.')
+        }
+
+        return employeeConnection
+      }),
+      getBootProgress: vi.fn(async () => ({
+        employeeManaged: true,
+        error: 'Could not reach the employee gateway.',
+        fakeMode: false,
+        message: 'Desktop boot failed: Could not reach the employee gateway.',
+        phase: 'backend.error',
+        progress: 24,
+        retryable: true,
+        running: false,
+        timestamp: Date.now()
+      }))
+    }
+    ;(window as { hermesDesktop?: unknown }).hermesDesktop = desktop
+
+    render(<Harness />)
+    await flushAsync()
+
+    for (let i = 0; i < 7; i += 1) {
+      await advanceBackoff()
+    }
+
+    expect(desktop.getConnection.mock.calls.length).toBeGreaterThan(6)
+    expect($desktopBoot.get().error).toBeNull()
+    expect($desktopBoot.get().visible).toBe(false)
+    expect($sessionsLoading.get()).toBe(false)
+
+    online = true
+
+    for (let i = 0; i < 3 && $gatewayState.get() !== 'open'; i += 1) {
+      await advanceBackoff()
+    }
+
+    expect($gatewayState.get()).toBe('open')
+    expect($connection.get()).toMatchObject({ employeeManaged: true })
+    expect($desktopBoot.get().error).toBeNull()
   })
 
   it('FIX #82679: a NON-retryable boot failure (local / confirmed reauth) fails immediately without auto-retry', async () => {

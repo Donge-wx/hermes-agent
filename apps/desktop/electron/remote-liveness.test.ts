@@ -200,6 +200,28 @@ describe('revalidateRemoteConnection', () => {
     expect(test.log).toHaveBeenLastCalledWith(expect.stringContaining('dropping stale connection'))
   })
 
+  it('retains a managed employee session through repeated transient failures', async () => {
+    const connection = {
+      baseUrl: 'https://gateway.example.com/',
+      employeeManaged: true,
+      mode: 'remote'
+    }
+    const connectionPromise = Promise.resolve(connection)
+    const probe = vi.fn().mockRejectedValue(new Error('offline'))
+    const test = harness({
+      connectionPromise,
+      currentConnectionPromise: () => connectionPromise,
+      probe
+    })
+
+    for (let attempt = 0; attempt < REMOTE_LIVENESS_FAILURE_LIMIT * 2; attempt += 1) {
+      await expect(revalidateRemoteConnection(test.options)).resolves.toEqual({ ok: true, rebuilt: false })
+    }
+
+    expect(test.resetConnection).not.toHaveBeenCalled()
+    expect(test.log).toHaveBeenLastCalledWith(expect.stringContaining('retaining its session'))
+  })
+
   it('ignores a late failed probe after the cached connection is replaced', async () => {
     let rejectProbe: (error: Error) => void = () => undefined
 
@@ -254,7 +276,9 @@ describe('revalidateRemoteConnection', () => {
 })
 
 describe('revalidatePooledRemoteBackends', () => {
-  const harness = (entries: Array<[string, { process?: unknown; remoteBaseUrl?: null | string }]>) => {
+  const harness = (
+    entries: Array<[string, { employeeManaged?: boolean; process?: unknown; remoteBaseUrl?: null | string }]>
+  ) => {
     const unreachable = new Set<string>()
     const log = vi.fn()
     const stopBackend = vi.fn()
@@ -276,6 +300,18 @@ describe('revalidatePooledRemoteBackends', () => {
         revalidatePooledRemoteBackends({ entries, log, probe, stopBackend, tracker })
     }
   }
+
+  it('does not anonymously probe managed employee pool entries', async () => {
+    const test = harness([
+      ['employee', { employeeManaged: true, process: null, remoteBaseUrl: 'https://employee.example.com' }]
+    ])
+    test.unreachable.add('https://employee.example.com')
+
+    await expect(test.run(new RemoteLivenessTracker(1))).resolves.toEqual({ dropped: [] })
+    expect(test.probe).not.toHaveBeenCalled()
+    expect(test.stopBackend).not.toHaveBeenCalled()
+    expect(test.log).not.toHaveBeenCalled()
+  })
 
   it('probes only pooled entries backed by a remote host', async () => {
     const local = { process: {}, remoteBaseUrl: null }

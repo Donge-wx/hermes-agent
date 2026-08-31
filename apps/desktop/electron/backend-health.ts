@@ -30,9 +30,10 @@ export interface HermesReadyOptions {
   probeHealth?: (url: string, options?: { timeoutMs?: number }) => Promise<unknown>
   /**
    * Whether `probeHealth` actually presents credentials. Distinguishes the
-   * two very different meanings of a 401 (see `waitForHermesReady`).
+   * credentialed and anonymous health-route behavior.
    */
   probeIsCredentialed?: boolean
+  authRejectionIsTerminal?: boolean
 }
 
 export const REMOTE_SESSION_EXPIRED_MESSAGE =
@@ -237,6 +238,7 @@ export async function waitForHermesReady(baseUrl: string, options: HermesReadyOp
   const deadline = now() + timeoutMs
   const probeHealth = options.probeHealth ?? options.fetchPublicJson
   const probeIsCredentialed = Boolean(options.probeIsCredentialed)
+  const authRejectionIsTerminal = options.authRejectionIsTerminal ?? probeIsCredentialed
   let lastError: unknown = null
   let useStatusFallback = false
 
@@ -256,13 +258,13 @@ export async function waitForHermesReady(baseUrl: string, options: HermesReadyOp
     } catch (error) {
       lastError = error
 
-      // A confirmed 401/403 from a CREDENTIALED probe means the session was
-      // rejected, not that the route is missing. Fail fast into a reauth
+      // A confirmed 401/403 from the authoritative login probe means the
+      // session was rejected, not that the route is missing. Fail fast into a reauth
       // state: falling back to the public /api/status would answer 200 and
       // report a dead session as "ready", deferring the failure to the first
       // real API call. Applies to the /api/status leg too — it is routed
       // through the same credentials.
-      if (probeIsCredentialed && isAuthRejectionError(error)) {
+      if (authRejectionIsTerminal && isAuthRejectionError(error)) {
         throw makeReauthRequiredError(error instanceof Error ? error.message : String(error))
       }
 

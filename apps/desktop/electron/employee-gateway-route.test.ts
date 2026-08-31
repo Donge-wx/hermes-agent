@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   createMyKingEmployeeGatewayAccessTokenCache,
+  isMyKingEmployeeGatewaySessionRejection,
   mergeMyKingEmployeeProxyBypassList,
   preserveMyKingEmployeeManagedMarker,
   removeMyKingEmployeeStaticGatewayCredential,
@@ -11,6 +12,7 @@ import {
   resolveMyKingEmployeeRuntimeProxyConfig,
   resolveMyKingEmployeeGatewayRoute
 } from './employee-gateway-route'
+import { MyKingEmployeeEnrollmentError } from './employee-enrollment-contract'
 
 const binding = {
   version: 1 as const,
@@ -24,6 +26,24 @@ const binding = {
 }
 
 describe('My King managed employee gateway route', () => {
+  it('requires login only when the durable employee gateway session is rejected', () => {
+    expect(
+      isMyKingEmployeeGatewaySessionRejection(
+        new MyKingEmployeeEnrollmentError('invalid-credentials', 'durable credential rejected')
+      )
+    ).toBe(true)
+    expect(
+      isMyKingEmployeeGatewaySessionRejection(
+        new MyKingEmployeeEnrollmentError('gateway-auth-required', 'durable credential revoked')
+      )
+    ).toBe(true)
+    expect(
+      isMyKingEmployeeGatewaySessionRejection(
+        new MyKingEmployeeEnrollmentError('company-unavailable', 'downstream gateway unavailable')
+      )
+    ).toBe(false)
+  })
+
   it('shares one employee gateway session across concurrent requests until its refresh window', async () => {
     let now = Date.parse('2026-08-30T00:00:00.000Z')
     let loads = 0
@@ -53,21 +73,45 @@ describe('My King managed employee gateway route', () => {
     expect(loads).toBe(2)
   })
 
-  it('does not cache a failed employee gateway session request', async () => {
+  it('shares a failed gateway-session request during backoff, then single-flights the retry', async () => {
+    let now = 0
     let loads = 0
-    const getAccessToken = createMyKingEmployeeGatewayAccessTokenCache()
+    const failure = new Error('429: Too Many Requests')
+    const getAccessToken = createMyKingEmployeeGatewayAccessTokenCache({ failureBackoffMs: 1_000, now: () => now })
     const load = async () => {
       loads += 1
 
       if (loads === 1) {
-        throw new Error('temporary gateway-session failure')
+        throw failure
       }
 
-      return { accessToken: 'recovered', expiresAt: new Date(Date.now() + 300_000).toISOString() }
+      return { accessToken: 'recovered', expiresAt: now + 300_000 }
     }
 
-    await expect(getAccessToken('employee-1', load)).rejects.toThrow('temporary gateway-session failure')
-    await expect(getAccessToken('employee-1', load)).resolves.toBe('recovered')
+    const first = getAccessToken('employee-1', load)
+    expect(getAccessToken('employee-1', load)).toBe(first)
+    await expect(first).rejects.toBe(failure)
+    expect(getAccessToken('employee-1', load)).toBe(first)
+    expect(loads).toBe(1)
+
+    now = 1_000
+    const retry = getAccessToken('employee-1', load)
+    expect(getAccessToken('employee-1', load)).toBe(retry)
+    await expect(retry).resolves.toBe('recovered')
+    expect(loads).toBe(2)
+  })
+
+  it('invalidates an access token rejected before its advertised expiry', async () => {
+    let loads = 0
+    const getAccessToken = createMyKingEmployeeGatewayAccessTokenCache()
+    const load = async () => ({
+      accessToken: `access-${++loads}`,
+      expiresAt: new Date(Date.now() + 300_000).toISOString()
+    })
+
+    await expect(getAccessToken('employee-1', load)).resolves.toBe('access-1')
+    getAccessToken.invalidate('employee-1')
+    await expect(getAccessToken('employee-1', load)).resolves.toBe('access-2')
     expect(loads).toBe(2)
   })
 
@@ -338,5 +382,18 @@ describe('My King employee gateway credential isolation', () => {
 
     expect(implementation).not.toContain('clearOauthSession')
     expect(implementation).not.toContain('_clearNativeTokens')
+  })
+
+  it('mints one fresh ticket for the employee enrollment verification probe', () => {
+    const source = fs.readFileSync(new URL('./main.ts', import.meta.url), 'utf8')
+    const start = source.indexOf('async function verifyMyKingEmployeeGateway(')
+    const end = source.indexOf('\nasync function applyMyKingEmployeeGateway', start)
+    const implementation = source.slice(start, end)
+
+    expect(start).toBeGreaterThan(-1)
+    expect(end).toBeGreaterThan(start)
+    expect(implementation.match(/freshGatewayWsUrl\(/g)).toHaveLength(1)
+    expect(implementation).toContain('probeGatewayWebSocket(wsUrl')
+    expect(implementation).not.toContain('probeGatewayWebSocket(connection.wsUrl')
   })
 })
