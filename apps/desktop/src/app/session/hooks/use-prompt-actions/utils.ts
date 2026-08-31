@@ -42,8 +42,11 @@ export function isProviderSetupError(error: unknown) {
 
 export function inlineErrorMessage(error: unknown, fallback: string): string {
   const raw = error instanceof Error ? error.message : typeof error === 'string' ? error : fallback
+  const message = (raw.match(/Error invoking remote method '[^']+': Error: (.+)$/)?.[1] ?? raw)
+    .replace(/^Error:\s*/, '')
+    .trim()
 
-  return (raw.match(/Error invoking remote method '[^']+': Error: (.+)$/)?.[1] ?? raw).replace(/^Error:\s*/, '').trim()
+  return /changed while it was being uploaded/i.test(message) ? translateNow('desktop.fileStillSaving') : message
 }
 
 export function isSessionNotFoundError(error: unknown): boolean {

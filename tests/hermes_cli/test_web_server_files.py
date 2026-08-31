@@ -174,6 +174,23 @@ def test_stream_requires_header_auth_and_supports_ranges(forced_files_client):
     assert client.get("/api/files/stream", params=params).status_code == 401
 
 
+def test_stream_allows_media_larger_than_legacy_whole_file_limit(
+    forced_files_client, monkeypatch
+):
+    client, root = forced_files_client
+    file_path = _seed_file(client, root, name="out/large.mp4")
+    monkeypatch.setattr(web_server, "_MANAGED_FILE_MAX_BYTES", 4)
+
+    response = client.get(
+        "/api/files/stream",
+        params={"path": str(file_path)},
+        headers={"Range": "bytes=0-0"},
+    )
+
+    assert response.status_code == 206
+    assert response.content == b"h"
+
+
 def test_stream_rejects_non_media_active_content(forced_files_client):
     client, root = forced_files_client
 

@@ -34,6 +34,7 @@ import { Check, Pencil, X } from '@/lib/icons'
 import { createMemoizedMathPlugin } from '@/lib/katex-memo'
 import { shikiLanguageForFilename } from '@/lib/markdown-code'
 import { normalizeFilePreviewMath } from '@/lib/markdown-preprocess'
+import { mediaKind, resolveMediaPlaybackSrc } from '@/lib/media'
 import { cn } from '@/lib/utils'
 import type { PreviewTarget } from '@/store/preview'
 import { setPreviewDirty } from '@/store/preview-edit'
@@ -715,6 +716,9 @@ export function LocalFilePreview({ reloadKey, target }: { reloadKey: number; tar
   const filePath = filePathForTarget(target)
   const isImage = target.previewKind === 'image'
   const isPdf = target.previewKind === 'pdf'
+  const isVideo = mediaKind(filePath) === 'video'
+  const [videoSrc, setVideoSrc] = useState('')
+  const [videoFailed, setVideoFailed] = useState(false)
 
   // eslint-disable-next-line no-restricted-syntax -- legitimate non-atom ref write (see eslint rule comment)
   useEffect(() => {
@@ -731,9 +735,29 @@ export function LocalFilePreview({ reloadKey, target }: { reloadKey: number; tar
   // HTML files are rendered as source code, not in a webview - so they take
   // the same path as plain text files. `previewKind === 'binary'` arrives
   // when the file is forcibly previewed past the binary refusal screen.
-  const isText = target.previewKind === 'text' || target.previewKind === 'binary' || target.previewKind === 'html'
+  const isText = !isVideo && (target.previewKind === 'text' || target.previewKind === 'binary' || target.previewKind === 'html')
 
-  const blockedByTarget = !isImage && !isPdf && !forcePreview && (target.binary || target.large)
+  const blockedByTarget = !isImage && !isPdf && !isVideo && !forcePreview && (target.binary || target.large)
+
+  useEffect(() => {
+    let active = true
+    setVideoSrc('')
+    setVideoFailed(false)
+
+    if (isVideo) {
+      void resolveMediaPlaybackSrc(filePath)
+        .then(src => {
+          if (active) setVideoSrc(src)
+        })
+        .catch(() => {
+          if (active) setVideoFailed(true)
+        })
+    }
+
+    return () => {
+      active = false
+    }
+  }, [filePath, fsCacheKey, isVideo])
 
   useEffect(() => {
     let active = true
@@ -1038,6 +1062,28 @@ export function LocalFilePreview({ reloadKey, target }: { reloadKey: number; tar
 
   if (state.loading) {
     return <PageLoader label={t.preview.loading} />
+  }
+
+  if (isVideo && videoSrc && !videoFailed) {
+    return (
+      <div className="flex h-full w-full items-center justify-center overflow-auto bg-transparent p-4">
+        <video
+          className="max-h-full max-w-full rounded-lg bg-black shadow-sm"
+          controls
+          onError={() => setVideoFailed(true)}
+          preload="metadata"
+          src={videoSrc}
+        />
+      </div>
+    )
+  }
+
+  if (isVideo) {
+    return videoFailed ? (
+      <PreviewEmptyState body={t.preview.noInlineBody(target.mimeType || 'video')} title={t.preview.noInlineTitle} />
+    ) : (
+      <PageLoader label={t.preview.loading} />
+    )
   }
 
   if (state.error) {

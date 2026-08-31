@@ -2663,6 +2663,100 @@ describe('usePromptActions file attachment sync', () => {
     }
   }
 
+  it('prefers the Electron HTTP attachment result over the WebSocket upload', async () => {
+    const uploadSessionAttachmentHttp = vi.fn(async () => ({
+      attached: true,
+      ref_text: '@file:.hermes/desktop-attachments/http-report.txt',
+      uploaded: true
+    }))
+    Object.defineProperty(window, 'hermesDesktop', {
+      configurable: true,
+      value: { uploadSessionAttachmentHttp }
+    })
+    $connection.set({ mode: 'remote', profile: 'wangxudong' } as never)
+    const requestGateway = vi.fn(async () => ({}) as never)
+
+    const uploaded = await uploadComposerAttachment(fileAttachment(), {
+      remote: true,
+      requestGateway,
+      sessionId: RUNTIME_SESSION_ID
+    })
+
+    expect(uploadSessionAttachmentHttp).toHaveBeenCalledWith(
+      {
+        filePath: '/Users/alice/Downloads/report.txt',
+        name: 'report.txt',
+        profile: 'wangxudong',
+        sessionId: RUNTIME_SESSION_ID
+      },
+      expect.any(Function)
+    )
+    expect(uploaded.refText).toBe('@file:.hermes/desktop-attachments/http-report.txt')
+    expect(requestGateway).not.toHaveBeenCalled()
+  })
+
+  it('falls back to the existing one-shot WebSocket upload when HTTP capability is absent', async () => {
+    const uploadSessionAttachmentHttp = vi.fn(async () => null)
+    const readFileDataUrl = vi.fn(async () => 'data:text/plain;base64,aGVsbG8=')
+    Object.defineProperty(window, 'hermesDesktop', {
+      configurable: true,
+      value: { readFileDataUrl, uploadSessionAttachmentHttp }
+    })
+    $connection.set({ mode: 'remote' } as never)
+    const requestGateway = vi.fn(
+      async () =>
+        ({
+          attached: true,
+          ref_text: '@file:.hermes/desktop-attachments/ws-report.txt',
+          uploaded: true
+        }) as never
+    )
+
+    const uploaded = await uploadComposerAttachment(fileAttachment(), {
+      remote: true,
+      requestGateway,
+      sessionId: RUNTIME_SESSION_ID
+    })
+
+    expect(uploadSessionAttachmentHttp).toHaveBeenCalledOnce()
+    expect(readFileDataUrl).toHaveBeenCalledWith('/Users/alice/Downloads/report.txt')
+    expect(requestGateway).toHaveBeenCalledWith(
+      'file.attach',
+      {
+        data_url: 'data:text/plain;base64,aGVsbG8=',
+        name: 'report.txt',
+        path: '/Users/alice/Downloads/report.txt',
+        session_id: RUNTIME_SESSION_ID
+      }
+    )
+    expect(uploaded.refText).toBe('@file:.hermes/desktop-attachments/ws-report.txt')
+  })
+
+  it('surfaces a transient HTTP failure without clearing the active connection', async () => {
+    const transientError = new Error('503: upstream temporarily unavailable')
+    const uploadSessionAttachmentHttp = vi.fn(async () => {
+      throw transientError
+    })
+    Object.defineProperty(window, 'hermesDesktop', {
+      configurable: true,
+      value: { uploadSessionAttachmentHttp }
+    })
+    const connection = { employeeManaged: true, mode: 'remote', profile: 'wangxudong' } as never
+    $connection.set(connection)
+    const requestGateway = vi.fn(async () => ({}) as never)
+
+    await expect(
+      uploadComposerAttachment(fileAttachment(), {
+        remote: true,
+        requestGateway,
+        sessionId: RUNTIME_SESSION_ID
+      })
+    ).rejects.toBe(transientError)
+
+    expect($connection.get()).toBe(connection)
+    expect(requestGateway).not.toHaveBeenCalled()
+  })
+
   it('uploads file bytes via file.attach on a remote gateway and submits the rewritten ref', async () => {
     // Remote gateway can't read the client-disk path, so the desktop must upload
     // the bytes and submit the workspace-relative ref the gateway hands back —

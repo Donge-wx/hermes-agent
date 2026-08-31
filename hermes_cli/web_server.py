@@ -143,6 +143,41 @@ except ImportError:
 WEB_DIST = Path(os.environ["HERMES_WEB_DIST"]) if "HERMES_WEB_DIST" in os.environ else Path(__file__).parent / "web_dist"
 _log = logging.getLogger(__name__)
 
+_EMPLOYEE_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$")
+_MANAGED_MARKER_TRUE = frozenset({"1", "true", "yes", "on"})
+_MANAGED_MARKER_FALSE = frozenset({"0", "false", "no", "off"})
+
+
+def _managed_employee_marker_state() -> str:
+    raw = os.environ.get("HERMES_MANAGED_EMPLOYEE", "").strip().casefold()
+    if not raw or raw in _MANAGED_MARKER_FALSE:
+        return "ordinary"
+    if raw in _MANAGED_MARKER_TRUE:
+        return "managed"
+    return "invalid"
+
+
+def _employee_tenant_scope() -> Optional[Tuple[str, Path]]:
+    if _managed_employee_marker_state() == "ordinary":
+        return None
+    raw_name = os.environ.get("HERMES_EMPLOYEE_NAME", "").strip()
+    raw_home = os.environ.get("HERMES_EMPLOYEE_HOME", "").strip()
+    if (
+        _managed_employee_marker_state() != "managed"
+        or not _EMPLOYEE_ID_RE.fullmatch(raw_name)
+        or raw_name.casefold() == "admin"
+        or not raw_home
+    ):
+        raise HTTPException(status_code=503, detail="employee tenant configuration is invalid")
+    home = Path(raw_home).expanduser()
+    if not home.is_absolute():
+        raise HTTPException(status_code=503, detail="employee tenant configuration is invalid")
+    resolved = home.resolve(strict=False)
+    process_home = Path(os.environ.get("HERMES_HOME", "")).expanduser().resolve(strict=False)
+    if os.path.normcase(str(process_home)) != os.path.normcase(str(resolved)):
+        raise HTTPException(status_code=503, detail="employee tenant configuration is invalid")
+    return raw_name, resolved
+
 
 def _process_start_marker(pid: int) -> str:
     """Return a cross-runtime marker for the current incarnation of ``pid``.
@@ -1968,6 +2003,7 @@ _MEDIA_CONTENT_TYPES = {
 _MEDIA_MAX_BYTES = 25 * 1024 * 1024
 _MANAGED_FILES_ROOT_ENV = "HERMES_DASHBOARD_FILES_ROOT"
 _MANAGED_FILE_MAX_BYTES = 100 * 1024 * 1024
+_MANAGED_MEDIA_STREAM_MAX_BYTES = 1024 * 1024 * 1024
 _STREAMABLE_MEDIA_EXTENSIONS = frozenset(
     {
         ".avi",
@@ -2695,7 +2731,10 @@ def _managed_file_response(
         size = target.stat().st_size
     except OSError as exc:
         raise HTTPException(status_code=500, detail=f"Could not stat file: {exc}")
-    if size > _MANAGED_FILE_MAX_BYTES:
+    size_limit = (
+        _MANAGED_MEDIA_STREAM_MAX_BYTES if media_only else _MANAGED_FILE_MAX_BYTES
+    )
+    if size > size_limit:
         raise HTTPException(status_code=413, detail="File is too large")
 
     mime_type = mimetypes.guess_type(target.name)[0] or "application/octet-stream"
@@ -18934,6 +18973,10 @@ _mount_plugin_api_routes()
 # not whether the routes exist.
 from hermes_cli.dashboard_auth.routes import router as _dashboard_auth_router  # noqa: E402
 app.include_router(_dashboard_auth_router)
+
+from hermes_cli.http_session_upload import register_http_session_upload
+
+register_http_session_upload(app, employee_scope=_employee_tenant_scope)
 
 mount_spa(app)
 

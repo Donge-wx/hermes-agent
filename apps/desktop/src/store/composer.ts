@@ -24,6 +24,7 @@ export interface ComposerAttachment {
    * workspace (remote upload or local stage), and 'error' if that failed.
    * Drives the spinner / error state on the composer attachment card. */
   uploadState?: 'uploading' | 'error'
+  uploadProgress?: number
 }
 
 export type ComposerAttachmentPatch = Partial<Omit<ComposerAttachment, 'id' | 'occurrenceId'>>

@@ -9,6 +9,8 @@ import json
 import logging
 import os
 import queue
+import re
+import shutil
 import subprocess
 import sys
 import threading
@@ -32,6 +34,10 @@ from hermes_constants import (
     set_hermes_home_override,
 )
 from hermes_cli.env_loader import load_hermes_dotenv
+from hermes_cli.managed_upload_guard import (
+    managed_upload_restart_guard_enabled,
+    set_managed_upload_restart_guard,
+)
 from utils import is_truthy_value
 from tools.environments.local import hermes_subprocess_env
 from agent.replay_cleanup import sanitize_replay_history
@@ -58,6 +64,64 @@ _hermes_home = get_hermes_home()
 load_hermes_dotenv(
     hermes_home=_hermes_home, project_env=Path(__file__).parent.parent / ".env"
 )
+
+_EMPLOYEE_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$")
+_MANAGED_MARKER_TRUE = frozenset({"1", "true", "yes", "on"})
+_MANAGED_MARKER_FALSE = frozenset({"0", "false", "no", "off"})
+
+
+def _managed_employee_marker_state() -> str:
+    raw = os.environ.get("HERMES_MANAGED_EMPLOYEE", "").strip().casefold()
+    if not raw or raw in _MANAGED_MARKER_FALSE:
+        return "ordinary"
+    if raw in _MANAGED_MARKER_TRUE:
+        return "managed"
+    return "invalid"
+
+
+def _employee_tenant_scope() -> tuple[str, Path] | None:
+    if _managed_employee_marker_state() == "ordinary":
+        return None
+    raw_name = os.environ.get("HERMES_EMPLOYEE_NAME", "").strip()
+    raw_home = os.environ.get("HERMES_EMPLOYEE_HOME", "").strip()
+    if (
+        _managed_employee_marker_state() != "managed"
+        or not _EMPLOYEE_ID_RE.fullmatch(raw_name)
+        or raw_name.casefold() == "admin"
+        or not raw_home
+    ):
+        raise ValueError("employee tenant configuration is invalid")
+    home = Path(raw_home).expanduser()
+    if not home.is_absolute():
+        raise ValueError("employee tenant configuration is invalid")
+    resolved = home.resolve(strict=False)
+    process_home = Path(os.environ.get("HERMES_HOME", "")).expanduser().resolve(strict=False)
+    if os.path.normcase(str(process_home)) != os.path.normcase(str(resolved)):
+        raise ValueError("employee tenant configuration is invalid")
+    return raw_name, resolved
+
+
+def _employee_path(raw_path: str | os.PathLike[str]) -> Path:
+    scope = _employee_tenant_scope()
+    if scope is None:
+        return Path(raw_path).expanduser().resolve(strict=False)
+    _employee, home = scope
+    raw = str(raw_path or "").strip()
+    if not raw or "\x00" in raw:
+        raise ValueError("working directory is invalid")
+    candidate = Path(raw).expanduser()
+    if not candidate.is_absolute():
+        candidate = home / "workspace" / candidate
+    try:
+        resolved = candidate.resolve(strict=False)
+        common = os.path.commonpath(
+            (os.path.normcase(str(home)), os.path.normcase(str(resolved)))
+        )
+    except (OSError, RuntimeError, ValueError) as exc:
+        raise ValueError("working directory is invalid") from exc
+    if common != os.path.normcase(str(home)):
+        raise ValueError("path outside employee home")
+    return resolved
 
 
 # ── Panic logger ─────────────────────────────────────────────────────
@@ -931,6 +995,7 @@ def _teardown_session(session: dict | None, *, end_reason: str = "tui_close") ->
     """
     if not session:
         return
+    _cleanup_file_attach_uploads(session)
     _finalize_session(session, end_reason=end_reason)
     _announce_session_reclaimed(session, end_reason)
     try:
@@ -11857,45 +11922,724 @@ def _attachment_ref_path(session: dict, target: Path) -> str:
         return str(target.resolve())
 
 
-def _desktop_attachment_dir(session: dict) -> Path:
-    """Resolve the file-attachment staging dir against the session's effective home.
+_FILE_ATTRIBUTE_REPARSE_POINT = 0x400
 
-    Anchored on the session profile's ``attachments/`` dir (same rule as
-    ``_session_images_dir``): ``file.attach`` runs BEFORE ``prompt.submit``
-    installs the session's profile HERMES_HOME override, while the docker/ssh
-    sandbox mounts are resolved against the *session profile's* home at run
-    time — so the staged file must land where the bind mount points, or the
-    container can never see it (#76577). ``attachments/`` is registered in
-    ``tools.credential_files._CACHE_DIRS`` and auto-mounted into containers.
+
+def _file_attach_path_is_reparse(path: Path) -> bool:
+    try:
+        info = path.lstat()
+    except OSError:
+        return False
+    return path.is_symlink() or bool(
+        int(getattr(info, "st_file_attributes", 0) or 0)
+        & _FILE_ATTRIBUTE_REPARSE_POINT
+    )
+
+
+def _assert_safe_attachment_root(root: Path) -> Path:
+    """Reject symlink/junction roots and require workspace containment."""
+    lexical_root = Path(root)
+    attachment_root = (
+        lexical_root.parent if lexical_root.name == ".uploads" else lexical_root
+    )
+    hermes_root = attachment_root.parent
+    if attachment_root.name != "desktop-attachments" or hermes_root.name != ".hermes":
+        raise ValueError("unsafe attachment directory")
+    workspace = hermes_root.parent.resolve(strict=True)
+    check_paths = [hermes_root, attachment_root]
+    if lexical_root != attachment_root:
+        check_paths.append(lexical_root)
+    for candidate in check_paths:
+        if _file_attach_path_is_reparse(candidate):
+            raise ValueError("unsafe attachment directory: reparse point")
+        if not candidate.is_dir():
+            raise ValueError("unsafe attachment directory: not a directory")
+        try:
+            candidate.resolve(strict=True).relative_to(workspace)
+        except (OSError, ValueError) as exc:
+            raise ValueError("unsafe attachment directory: outside workspace") from exc
+    return workspace
+
+
+def _ensure_safe_attachment_subdir(workspace: Path, *parts: str) -> Path:
+    workspace = workspace.resolve(strict=True)
+    current = workspace
+    for part in parts:
+        candidate = current / part
+        if candidate.exists() or candidate.is_symlink():
+            if _file_attach_path_is_reparse(candidate) or not candidate.is_dir():
+                raise ValueError("unsafe attachment directory: reparse point or non-directory")
+        else:
+            candidate.mkdir()
+        if _file_attach_path_is_reparse(candidate):
+            raise ValueError("unsafe attachment directory: reparse point")
+        try:
+            candidate.resolve(strict=True).relative_to(workspace)
+        except (OSError, ValueError) as exc:
+            raise ValueError("unsafe attachment directory: outside workspace") from exc
+        current = candidate
+    _assert_safe_attachment_root(current)
+    return current
+
+
+def _assert_safe_attachment_file(path: Path) -> None:
+    workspace = _assert_safe_attachment_root(path.parent)
+    if _file_attach_path_is_reparse(path) or not path.is_file():
+        raise ValueError("unsafe attachment file")
+    try:
+        path.resolve(strict=True).relative_to(workspace)
+    except (OSError, ValueError) as exc:
+        raise ValueError("unsafe attachment file: outside workspace") from exc
+
+
+def _file_attach_object_identity(value: os.stat_result) -> tuple[int, int]:
+    return (int(value.st_dev), int(value.st_ino))
+
+
+def _file_attach_identity_record(identity: tuple[int, int]) -> list[int]:
+    return [int(identity[0]), int(identity[1])]
+
+
+def _file_attach_expected_identity(value: object, *, label: str) -> tuple[int, int]:
+    if (
+        not isinstance(value, (list, tuple))
+        or len(value) != 2
+        or isinstance(value[0], bool)
+        or isinstance(value[1], bool)
+    ):
+        raise ValueError(f"attachment cleanup identity metadata is missing for {label}")
+    try:
+        return (int(value[0]), int(value[1]))
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            f"attachment cleanup identity metadata is invalid for {label}"
+        ) from exc
+
+
+def _unlink_file_attach_temp(upload: dict) -> bool:
+    primary = Path(str(upload.get("path") or ""))
+    raw_cleanup_paths = upload.get("cleanup_paths")
+    raw_cleanup_identities = upload.get("cleanup_path_identities")
+    cleanup_identities = (
+        raw_cleanup_identities if isinstance(raw_cleanup_identities, dict) else {}
+    )
+    entries: list[tuple[Path, object]] = [
+        (primary, upload.get("path_identity"))
+    ]
+    if isinstance(raw_cleanup_paths, list):
+        entries.extend(
+            (Path(str(value)), cleanup_identities.get(str(value)))
+            for value in raw_cleanup_paths
+            if str(value)
+        )
+    raw_completed_paths = upload.get("cleanup_completed_paths")
+    completed_paths = (
+        {str(value) for value in raw_completed_paths if str(value)}
+        if isinstance(raw_completed_paths, list)
+        else set()
+    )
+    seen: set[str] = set()
+    try:
+        for path, raw_identity in entries:
+            key = os.path.normcase(str(path.resolve(strict=False)))
+            if key in seen:
+                continue
+            seen.add(key)
+            if key in completed_paths:
+                continue
+            expected_identity = _file_attach_expected_identity(
+                raw_identity, label=str(path)
+            )
+            if not os.path.lexists(path):
+                raise OSError(
+                    f"attachment cleanup identity was lost before deferred cleanup: {path}"
+                )
+            _unlink_attachment_path_if_identity(path, expected_identity)
+            completed_paths.add(key)
+            upload["cleanup_completed_paths"] = sorted(completed_paths)
+        upload.pop("cleanup_error", None)
+        upload.pop("cleanup_paths", None)
+        upload.pop("cleanup_path_identities", None)
+        upload.pop("cleanup_completed_paths", None)
+        upload.pop("path_identity", None)
+        return True
+    except (OSError, ValueError) as exc:
+        upload["cleanup_error"] = str(exc)
+        return False
+
+
+def _desktop_attachment_dir(session: dict) -> Path:
+    raw_workspace = _session_cwd(session)
+    workspace = (
+        _employee_path(raw_workspace)
+        if _employee_tenant_scope() is not None
+        else Path(raw_workspace)
+    ).resolve(strict=True)
+    return _ensure_safe_attachment_subdir(
+        workspace, ".hermes", "desktop-attachments"
+    )
+
+
+def _desktop_attachment_upload_dir(session: dict) -> Path:
+    raw_workspace = _session_cwd(session)
+    workspace = (
+        _employee_path(raw_workspace)
+        if _employee_tenant_scope() is not None
+        else Path(raw_workspace)
+    ).resolve(strict=True)
+    return _ensure_safe_attachment_subdir(
+        workspace, ".hermes", "desktop-attachments", ".uploads"
+    )
+
+
+_FILE_ATTACH_DEFAULT_MAX_CHUNK_BYTES = 8 * 1024 * 1024
+_FILE_ATTACH_MIN_CHUNK_BYTES = 64 * 1024
+_FILE_ATTACH_DEFAULT_MAX_TOTAL_BYTES = 1024 * 1024 * 1024
+_FILE_ATTACH_MIN_TOTAL_BYTES = 16 * 1024 * 1024
+_FILE_ATTACH_MAX_TOTAL_BYTES_CAP = 8 * 1024 * 1024 * 1024
+_FILE_ATTACH_DEFAULT_MAX_ACTIVE_UPLOADS = 2
+_FILE_ATTACH_MAX_ACTIVE_UPLOADS_CAP = 8
+_FILE_ATTACH_DEFAULT_STALE_SECONDS = 30 * 60.0
+_FILE_ATTACH_MIN_STALE_SECONDS = 60.0
+_FILE_ATTACH_MAX_STALE_SECONDS = 24 * 60 * 60.0
+# A begin request that never delivers even one chunk usually means the client
+# lost its route after receiving the begin response.  Keep that reservation
+# only briefly so it cannot consume the per-session active-upload quota for
+# the full general stale timeout.
+_FILE_ATTACH_DEFAULT_BEGIN_IDLE_SECONDS = 120.0
+_FILE_ATTACH_MIN_BEGIN_IDLE_SECONDS = 30.0
+_FILE_ATTACH_MAX_BEGIN_IDLE_SECONDS = 10 * 60.0
+_FILE_ATTACH_DEFAULT_FREE_SPACE_RESERVE_BYTES = 256 * 1024 * 1024
+_FILE_ATTACH_MIN_FREE_SPACE_RESERVE_BYTES = 64 * 1024 * 1024
+_FILE_ATTACH_MAX_FREE_SPACE_RESERVE_BYTES = 4 * 1024 * 1024 * 1024
+_file_attach_disk_reservation_lock = threading.RLock()
+_file_attach_disk_reservations: dict[str, dict[str, Any]] = {}
+_file_attach_cleanup_quarantine: dict[str, dict[str, Any]] = {}
+
+
+def _file_attach_max_chunk_bytes() -> int:
+    """Return the per-process Desktop upload chunk limit with a safe clamp."""
+    raw = str(os.getenv("HERMES_FILE_ATTACH_MAX_CHUNK_BYTES", "") or "").strip()
+    try:
+        configured = int(raw) if raw else _FILE_ATTACH_DEFAULT_MAX_CHUNK_BYTES
+    except (TypeError, ValueError):
+        configured = _FILE_ATTACH_DEFAULT_MAX_CHUNK_BYTES
+    return max(
+        _FILE_ATTACH_MIN_CHUNK_BYTES,
+        min(configured, _FILE_ATTACH_DEFAULT_MAX_CHUNK_BYTES),
+    )
+
+
+def _file_attach_max_total_bytes() -> int:
+    """Return the configured per-file upload ceiling (default 1 GiB)."""
+    try:
+        desktop_cfg = _load_cfg().get("desktop") or {}
+        configured = int(
+            os.getenv("HERMES_FILE_ATTACH_MAX_TOTAL_BYTES")
+            or desktop_cfg.get("file_upload_max_bytes")
+            or _FILE_ATTACH_DEFAULT_MAX_TOTAL_BYTES
+        )
+    except (AttributeError, TypeError, ValueError):
+        configured = _FILE_ATTACH_DEFAULT_MAX_TOTAL_BYTES
+    return max(
+        _FILE_ATTACH_MIN_TOTAL_BYTES,
+        min(configured, _FILE_ATTACH_MAX_TOTAL_BYTES_CAP),
+    )
+
+
+def _file_attach_max_active_uploads() -> int:
+    """Return the bounded number of incomplete uploads allowed per session."""
+    try:
+        desktop_cfg = _load_cfg().get("desktop") or {}
+        configured = int(
+            os.getenv("HERMES_FILE_ATTACH_MAX_ACTIVE_UPLOADS")
+            or desktop_cfg.get("file_upload_max_active")
+            or _FILE_ATTACH_DEFAULT_MAX_ACTIVE_UPLOADS
+        )
+    except (AttributeError, TypeError, ValueError):
+        configured = _FILE_ATTACH_DEFAULT_MAX_ACTIVE_UPLOADS
+    return max(1, min(configured, _FILE_ATTACH_MAX_ACTIVE_UPLOADS_CAP))
+
+
+def _file_attach_stale_seconds() -> float:
+    """Return the idle timeout used to reap abandoned upload state."""
+    try:
+        desktop_cfg = _load_cfg().get("desktop") or {}
+        configured = float(
+            os.getenv("HERMES_FILE_ATTACH_STALE_SECONDS")
+            or desktop_cfg.get("file_upload_stale_seconds")
+            or _FILE_ATTACH_DEFAULT_STALE_SECONDS
+        )
+    except (AttributeError, TypeError, ValueError):
+        configured = _FILE_ATTACH_DEFAULT_STALE_SECONDS
+    return max(
+        _FILE_ATTACH_MIN_STALE_SECONDS,
+        min(configured, _FILE_ATTACH_MAX_STALE_SECONDS),
+    )
+
+
+def _file_attach_begin_idle_seconds() -> float:
+    """Return the short recovery window for a begin with no chunk progress."""
+    try:
+        desktop_cfg = _load_cfg().get("desktop") or {}
+        configured = float(
+            os.getenv("HERMES_FILE_ATTACH_BEGIN_IDLE_SECONDS")
+            or desktop_cfg.get("file_upload_begin_idle_seconds")
+            or _FILE_ATTACH_DEFAULT_BEGIN_IDLE_SECONDS
+        )
+    except (AttributeError, TypeError, ValueError):
+        configured = _FILE_ATTACH_DEFAULT_BEGIN_IDLE_SECONDS
+    return max(
+        _FILE_ATTACH_MIN_BEGIN_IDLE_SECONDS,
+        min(configured, _FILE_ATTACH_MAX_BEGIN_IDLE_SECONDS),
+    )
+
+
+def _file_attach_free_space_reserve_bytes() -> int:
+    """Return the disk space that attachments may never consume."""
+    try:
+        desktop_cfg = _load_cfg().get("desktop") or {}
+        configured = int(
+            os.getenv("HERMES_FILE_ATTACH_FREE_SPACE_RESERVE_BYTES")
+            or desktop_cfg.get("file_upload_free_space_reserve_bytes")
+            or _FILE_ATTACH_DEFAULT_FREE_SPACE_RESERVE_BYTES
+        )
+    except (AttributeError, TypeError, ValueError):
+        configured = _FILE_ATTACH_DEFAULT_FREE_SPACE_RESERVE_BYTES
+    return max(
+        _FILE_ATTACH_MIN_FREE_SPACE_RESERVE_BYTES,
+        min(configured, _FILE_ATTACH_MAX_FREE_SPACE_RESERVE_BYTES),
+    )
+
+
+def _file_attach_available_bytes(path: Path) -> int:
+    return int(shutil.disk_usage(path).free)
+
+
+def _file_attach_disk_key(path: Path) -> int:
+    """Return the filesystem device identity shared by drive, UNC, and mount aliases."""
+    return int(path.resolve().stat().st_dev)
+
+
+def _reserve_file_attach_disk_space(path: Path, bytes_to_add: int) -> str:
+    """Atomically reserve future upload bytes across every session in this gateway."""
+    _retry_file_attach_cleanup_quarantine()
+    amount = max(0, int(bytes_to_add))
+    disk_key = _file_attach_disk_key(path)
+    token = uuid.uuid4().hex
+    with _file_attach_disk_reservation_lock:
+        already_reserved = sum(
+            int(entry.get("remaining") or 0)
+            for entry in _file_attach_disk_reservations.values()
+            if entry.get("disk_key") == disk_key
+        )
+        reserve = _file_attach_free_space_reserve_bytes()
+        required = already_reserved + amount + reserve
+        available = _file_attach_available_bytes(path)
+        if available < required:
+            raise ValueError(
+                "insufficient free disk space for attachment upload "
+                f"(required {required} bytes including {already_reserved} bytes "
+                f"reserved by active uploads, available {available} bytes)"
+            )
+        _file_attach_disk_reservations[token] = {
+            "disk_key": disk_key,
+            "remaining": amount,
+        }
+    return token
+
+
+def _run_file_attach_reserved_write(token: str, path: Path, amount: int, writer):
+    """Atomically defend the volume reserve, write bytes, and consume one reservation."""
+    amount = max(0, int(amount))
+    disk_key = _file_attach_disk_key(path)
+    with _file_attach_disk_reservation_lock:
+        entry = _file_attach_disk_reservations.get(token)
+        if not isinstance(entry, dict) or entry.get("disk_key") != disk_key:
+            raise RuntimeError("attachment upload has no matching disk reservation")
+        remaining = int(entry.get("remaining") or 0)
+        if amount > remaining:
+            raise RuntimeError("attachment upload exceeded its disk reservation")
+        reserved = sum(
+            int(candidate.get("remaining") or 0)
+            for candidate in _file_attach_disk_reservations.values()
+            if candidate.get("disk_key") == disk_key
+        )
+        required = reserved + _file_attach_free_space_reserve_bytes()
+        available = _file_attach_available_bytes(path)
+        if available < required:
+            raise ValueError(
+                "insufficient free disk space for attachment upload "
+                f"(required {required} bytes including {reserved} bytes "
+                f"reserved by active uploads, available {available} bytes)"
+            )
+        result = writer()
+        entry["remaining"] = remaining - amount
+        return result
+
+
+def _append_file_attach_reserved_chunk(
+    token: str,
+    path: Path,
+    expected_identity: tuple[int, int],
+    payload: bytes,
+) -> None:
+    def _append() -> None:
+        with path.open("r+b", buffering=0) as handle:
+            opened_stat = os.fstat(handle.fileno())
+            if _file_attach_object_identity(opened_stat) != expected_identity:
+                raise OSError("attachment destination identity changed after begin")
+            initial_size = int(opened_stat.st_size)
+            handle.seek(0, os.SEEK_END)
+            try:
+                written = handle.write(payload)
+                if written != len(payload):
+                    raise OSError("attachment chunk write was incomplete")
+                if os.fstat(handle.fileno()).st_size != initial_size + len(payload):
+                    raise OSError("attachment chunk write size mismatch")
+                _assert_attachment_path_identity(path, expected_identity)
+            except BaseException as write_error:
+                try:
+                    handle.truncate(initial_size)
+                    if os.fstat(handle.fileno()).st_size != initial_size:
+                        raise OSError("attachment rollback did not restore the original size")
+                except (OSError, ValueError) as cleanup_error:
+                    raise _FileAttachCleanupError(
+                        path, expected_identity, write_error, cleanup_error
+                    ) from write_error
+                raise
+
+    _run_file_attach_reserved_write(token, path.parent, len(payload), _append)
+
+
+def _write_file_attach_reserved_chunk_at_offset(
+    token: str,
+    path: Path,
+    expected_identity: tuple[int, int],
+    offset: int,
+    payload: bytes,
+) -> None:
+    """Write an independently validated HTTP chunk at its declared offset.
+
+    This is intentionally separate from the legacy append helper.  Managed HTTP
+    uploads can have a small number of in-flight requests, whereas the older
+    WebSocket contract remains strictly ordered and append-only.
     """
-    profile_home = session.get("profile_home")
-    base = Path(profile_home) if profile_home else _hermes_home
-    root = base / "attachments"
-    root.mkdir(parents=True, exist_ok=True)
-    return root
+
+    def _write() -> None:
+        with path.open("r+b", buffering=0) as handle:
+            opened_stat = os.fstat(handle.fileno())
+            if _file_attach_object_identity(opened_stat) != expected_identity:
+                raise OSError("attachment destination identity changed after begin")
+            handle.seek(offset, os.SEEK_SET)
+            written = handle.write(payload)
+            if written != len(payload):
+                raise OSError("attachment chunk write was incomplete")
+            if os.fstat(handle.fileno()).st_size < offset + len(payload):
+                raise OSError("attachment chunk write size mismatch")
+            _assert_attachment_path_identity(path, expected_identity)
+
+    _run_file_attach_reserved_write(token, path.parent, len(payload), _write)
+
+
+def _release_file_attach_disk_reservation(token: str) -> None:
+    """Idempotently release one exact reservation without touching other uploads."""
+    if not token:
+        return
+    with _file_attach_disk_reservation_lock:
+        _file_attach_disk_reservations.pop(token, None)
+
+
+def _release_upload_disk_reservation(upload: dict) -> None:
+    token = str(upload.pop("disk_reservation_token", "") or "")
+    _release_file_attach_disk_reservation(token)
+
+
+def _quarantine_file_attach_cleanup(upload: dict) -> str:
+    token = str(upload.get("disk_reservation_token") or "")
+    if not token:
+        token = f"cleanup-{uuid.uuid4().hex}"
+    with _file_attach_disk_reservation_lock:
+        _file_attach_cleanup_quarantine[token] = upload
+    return token
+
+
+def _retry_file_attach_cleanup_quarantine() -> None:
+    with _file_attach_disk_reservation_lock:
+        for token, upload in list(_file_attach_cleanup_quarantine.items()):
+            if not isinstance(upload, dict) or not _unlink_file_attach_temp(upload):
+                continue
+            _release_upload_disk_reservation(upload)
+            _file_attach_cleanup_quarantine.pop(token, None)
 
 
 def _sanitize_attachment_name(name: str) -> str:
     import re as _re
 
-    candidate = Path(str(name or "").strip()).name
-    candidate = _re.sub(r"[\x00-\x1f]+", "_", candidate)
-    candidate = candidate.strip().strip(".")
-    return candidate or "attachment"
+    raw = str(name or "").strip().replace("\\", "/")
+    candidate = raw.rstrip("/").split("/")[-1] if raw else ""
+    candidate = _re.sub(r"[<>:\"/\\|?*\x00-\x1f]+", "_", candidate)
+    candidate = candidate.strip().strip(".") or "attachment"
+
+    stem = Path(candidate).stem
+    if _re.fullmatch(r"(?i:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])", stem):
+        candidate = f"_{candidate}"
+
+    max_name_chars = 180
+    if len(candidate) > max_name_chars:
+        suffix = Path(candidate).suffix[:20]
+        stem = Path(candidate).stem
+        candidate = f"{stem[: max_name_chars - len(suffix)]}{suffix}"
+    return candidate
 
 
-def _unique_attachment_path(root: Path, filename: str) -> Path:
-    candidate = root / filename
-    if not candidate.exists():
-        return candidate
+def _attachment_path_candidates(root: Path, filename: str):
+    yield root / filename
     stem = Path(filename).stem or "attachment"
     suffix = Path(filename).suffix
     counter = 2
     while True:
-        next_candidate = root / f"{stem}-{counter}{suffix}"
-        if not next_candidate.exists():
-            return next_candidate
+        yield root / f"{stem}-{counter}{suffix}"
         counter += 1
+
+
+def _open_exclusive_attachment_file(path: Path):
+    if os.name != "nt":
+        return path.open("xb")
+
+    import ctypes
+    import msvcrt
+    from ctypes import wintypes
+
+    generic_write = 0x40000000
+    delete_access = 0x00010000
+    share_all = 0x00000001 | 0x00000002 | 0x00000004
+    create_new = 1
+    file_attribute_normal = 0x00000080
+    file_flag_open_reparse_point = 0x00200000
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    create_file = kernel32.CreateFileW
+    create_file.argtypes = [
+        wintypes.LPCWSTR,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        wintypes.LPVOID,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        wintypes.HANDLE,
+    ]
+    create_file.restype = wintypes.HANDLE
+    raw_handle = create_file(
+        str(path),
+        generic_write | delete_access,
+        share_all,
+        None,
+        create_new,
+        file_attribute_normal | file_flag_open_reparse_point,
+        None,
+    )
+    invalid_handle = ctypes.c_void_p(-1).value
+    if raw_handle == invalid_handle:
+        error = ctypes.get_last_error()
+        if error in {80, 183}:
+            raise FileExistsError(error, "attachment destination already exists", str(path))
+        raise ctypes.WinError(error)
+    try:
+        fd = msvcrt.open_osfhandle(raw_handle, os.O_WRONLY | os.O_BINARY)
+    except BaseException:
+        kernel32.CloseHandle(raw_handle)
+        raise
+    return os.fdopen(fd, "wb", buffering=0)
+
+
+def _mark_open_attachment_for_delete(handle) -> None:
+    if os.name != "nt":
+        raise OSError("open-handle attachment deletion is unavailable")
+
+    import ctypes
+    import msvcrt
+    from ctypes import wintypes
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    set_information = kernel32.SetFileInformationByHandle
+    set_information.argtypes = [wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p, wintypes.DWORD]
+    set_information.restype = wintypes.BOOL
+    disposition = wintypes.BOOL(True)
+    raw_handle = msvcrt.get_osfhandle(handle.fileno())
+    if not set_information(raw_handle, 4, ctypes.byref(disposition), ctypes.sizeof(disposition)):
+        raise ctypes.WinError(ctypes.get_last_error())
+
+
+class _FileAttachCleanupError(OSError):
+    def __init__(
+        self,
+        path: Path,
+        identity: tuple[int, int],
+        write_error: BaseException,
+        cleanup_error: BaseException,
+    ):
+        self.path = Path(path)
+        self.identity = identity
+        self.write_error = write_error
+        self.cleanup_error = cleanup_error
+        super().__init__(f"{write_error}; attachment cleanup failed: {cleanup_error}")
+
+
+def _assert_attachment_path_identity(path: Path, expected_identity: tuple[int, int]) -> None:
+    _assert_safe_attachment_file(path)
+    try:
+        current = os.lstat(path)
+    except FileNotFoundError as exc:
+        raise OSError("attachment destination no longer names the opened file") from exc
+    if _file_attach_object_identity(current) != expected_identity:
+        raise OSError("attachment destination identity changed after open")
+
+
+def _unlink_attachment_path_if_identity(
+    path: Path, expected_identity: tuple[int, int]
+) -> None:
+    if os.name != "nt":
+        try:
+            _assert_attachment_path_identity(path, expected_identity)
+        except ValueError:
+            # The normal lexical safety check can fail after an ancestor is
+            # swapped to a symlink. Bind the exceptional cleanup to one
+            # directory object so the inode check and unlink still address the
+            # same target; a different target fails closed before deletion.
+            flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
+            parent_fd = os.open(path.parent, flags)
+            try:
+                current = os.stat(path.name, dir_fd=parent_fd, follow_symlinks=False)
+                if _file_attach_object_identity(current) != expected_identity:
+                    raise OSError("attachment destination identity changed after open")
+                os.unlink(path.name, dir_fd=parent_fd)
+                try:
+                    os.stat(path.name, dir_fd=parent_fd, follow_symlinks=False)
+                except FileNotFoundError:
+                    return
+                raise OSError("attachment cleanup did not remove the partial file")
+            finally:
+                os.close(parent_fd)
+        path.unlink()
+        if os.path.lexists(path):
+            raise OSError("attachment cleanup did not remove the partial file")
+        return
+    _assert_attachment_path_identity(path, expected_identity)
+    path.unlink()
+    if os.path.lexists(path):
+        raise OSError("attachment cleanup did not remove the partial file")
+
+
+def _write_unique_attachment(
+    root: Path, filename: str, expected_size: int, writer
+) -> Path:
+    """Write an exact-size attachment without following reparse roots."""
+    expected_size = max(0, int(expected_size))
+    _assert_safe_attachment_root(root)
+    for candidate in _attachment_path_candidates(root, filename):
+        try:
+            handle = _open_exclusive_attachment_file(candidate)
+        except FileExistsError:
+            continue
+        opened_identity = _file_attach_object_identity(os.fstat(handle.fileno()))
+        try:
+            _assert_attachment_path_identity(candidate, opened_identity)
+            if writer(handle) != expected_size:
+                raise OSError("attachment write was incomplete")
+            handle.flush()
+            if os.fstat(handle.fileno()).st_size != expected_size:
+                raise OSError("attachment write did not persist the exact expected size")
+            _assert_attachment_path_identity(candidate, opened_identity)
+            handle.close()
+            return candidate
+        except BaseException as write_error:
+            try:
+                if not handle.closed and os.name == "nt":
+                    _mark_open_attachment_for_delete(handle)
+                    handle.close()
+                else:
+                    _unlink_attachment_path_if_identity(candidate, opened_identity)
+                    if not handle.closed:
+                        handle.close()
+            except (OSError, ValueError) as cleanup_error:
+                raise _FileAttachCleanupError(
+                    candidate, opened_identity, write_error, cleanup_error
+                ) from write_error
+            finally:
+                if not handle.closed:
+                    handle.close()
+            raise
+    raise RuntimeError("could not allocate attachment path")
+
+
+def _file_attach_stat_identity(value: os.stat_result) -> tuple[int, int, int, int, int]:
+    return (
+        int(value.st_dev),
+        int(value.st_ino),
+        int(value.st_size),
+        int(value.st_mtime_ns),
+        int(value.st_ctime_ns),
+    )
+
+
+def _copy_unique_attachment(
+    source: Path,
+    root: Path,
+    filename: str,
+    expected_identity: tuple[int, int, int, int, int],
+) -> Path:
+    expected_size = expected_identity[2]
+
+    def _copy(handle) -> int:
+        with source.open("rb") as source_handle:
+            before = os.fstat(source_handle.fileno())
+            if _file_attach_stat_identity(before) != expected_identity:
+                raise ValueError("source file changed while being copied")
+            remaining = expected_size
+            copied = 0
+            while remaining:
+                chunk = source_handle.read(min(1024 * 1024, remaining))
+                if not chunk:
+                    raise ValueError("source file changed while being copied")
+                if handle.write(chunk) != len(chunk):
+                    raise OSError("attachment copy was incomplete")
+                copied += len(chunk)
+                remaining -= len(chunk)
+            if source_handle.read(1):
+                raise ValueError("source file changed while being copied")
+            after = os.fstat(source_handle.fileno())
+            if _file_attach_stat_identity(after) != expected_identity:
+                raise ValueError("source file changed while being copied")
+            return copied
+
+    return _write_unique_attachment(root, filename, expected_size, _copy)
+
+
+def _publish_unique_attachment(temp_path: Path, root: Path, filename: str) -> Path:
+    """Atomically publish a complete temp file without following reparse roots."""
+    _assert_safe_attachment_file(temp_path)
+    temp_identity = _file_attach_object_identity(os.lstat(temp_path))
+    _assert_safe_attachment_root(root)
+    for candidate in _attachment_path_candidates(root, filename):
+        try:
+            os.link(temp_path, candidate)
+        except FileExistsError:
+            continue
+        try:
+            _assert_attachment_path_identity(candidate, temp_identity)
+            _unlink_attachment_path_if_identity(temp_path, temp_identity)
+        except BaseException as publish_error:
+            try:
+                if not os.path.lexists(candidate):
+                    raise OSError("published candidate identity was lost before cleanup")
+                _unlink_attachment_path_if_identity(candidate, temp_identity)
+            except (OSError, ValueError) as cleanup_error:
+                raise _FileAttachCleanupError(
+                    candidate, temp_identity, publish_error, cleanup_error
+                ) from publish_error
+            raise
+        return candidate
+    raise RuntimeError("could not allocate attachment path")
 
 
 def _resolve_gateway_attachment_path(raw: str) -> Path | None:
@@ -11915,7 +12659,9 @@ def _resolve_gateway_attachment_path(raw: str) -> Path | None:
     return Path(resolved).resolve() if resolved is not None else None
 
 
-def _decode_attachment_data_url(data_url: str) -> bytes:
+def _decode_attachment_data_url(
+    data_url: str, *, max_bytes: int | None = None
+) -> bytes:
     """Decode a ``data:<any-mime>;base64,<b64>`` payload to bytes.
 
     Unlike ``_decode_attach_base64`` (image-mime-specific), this accepts any
@@ -11931,10 +12677,44 @@ def _decode_attachment_data_url(data_url: str) -> bytes:
     if m:
         cleaned = m.group(1)
     cleaned = _re.sub(r"\s+", "", cleaned)
+    if max_bytes is not None:
+        max_encoded_chars = 4 * ((max_bytes + 2) // 3)
+        if len(cleaned) > max_encoded_chars:
+            raise ValueError(f"file exceeds maximum file size ({max_bytes} bytes)")
     try:
-        return _base64.b64decode(cleaned, validate=True)
+        payload = _base64.b64decode(cleaned, validate=True)
     except (ValueError, _binascii.Error) as exc:
         raise ValueError("invalid data_url payload") from exc
+    if max_bytes is not None and len(payload) > max_bytes:
+        raise ValueError(f"file exceeds maximum file size ({max_bytes} bytes)")
+    return payload
+
+
+def _run_one_shot_file_attach_write(
+    reservation_token: str,
+    upload_dir: Path,
+    amount: int,
+    writer,
+):
+    release_reservation = True
+    try:
+        return _run_file_attach_reserved_write(
+            reservation_token, upload_dir, amount, writer
+        )
+    except _FileAttachCleanupError as exc:
+        _quarantine_file_attach_cleanup(
+            {
+                "path": str(exc.path),
+                "path_identity": _file_attach_identity_record(exc.identity),
+                "disk_reservation_token": reservation_token,
+                "cleanup_error": str(exc.cleanup_error),
+            }
+        )
+        release_reservation = False
+        raise
+    finally:
+        if release_reservation:
+            _release_file_attach_disk_reservation(reservation_token)
 
 
 def _stage_session_file_attachment(
@@ -11944,20 +12724,6 @@ def _stage_session_file_attachment(
     data_url: str,
     name: str,
 ) -> tuple[Path, bool]:
-    """Make a desktop file attachment available to the remote gateway agent.
-
-    Three cases:
-      1. The path resolves to a file already INSIDE the session workspace — use
-         it as-is (no copy, ``uploaded=False``).
-      2. The path resolves to a gateway-visible file OUTSIDE the workspace — copy
-         it into the session home's ``attachments/`` dir (bind-mounted into
-         container backends) so the ``@file:`` ref resolves inside the sandbox.
-      3. The path doesn't exist on the gateway (the common remote case: it's a
-         path on the CLIENT's disk) — decode the uploaded ``data_url`` bytes and
-         write them into the session home's ``attachments/`` dir.
-
-    Returns ``(stored_path, uploaded)``.
-    """
     workspace = Path(_session_cwd(session)).resolve()
     resolved = _resolve_gateway_attachment_path(raw_path)
     if resolved is not None:
@@ -11973,10 +12739,429 @@ def _stage_session_file_attachment(
         payload = _decode_attachment_data_url(data_url)
         filename = _sanitize_attachment_name(name or Path(str(raw_path or "")).name)
 
-    upload_dir = _desktop_attachment_dir(session)
-    target = _unique_attachment_path(upload_dir, _sanitize_attachment_name(filename))
+    profile_home = session.get("profile_home")
+    base = Path(profile_home) if profile_home else _hermes_home
+    upload_dir = base / "attachments"
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    sanitized = _sanitize_attachment_name(filename)
+    target = upload_dir / sanitized
+    counter = 2
+    while target.exists():
+        target = upload_dir / f"{Path(sanitized).stem or 'attachment'}-{counter}{Path(sanitized).suffix}"
+        counter += 1
     target.write_bytes(payload)
     return target.resolve(), True
+
+
+def _file_attach_result(session: dict, stored_path: Path, uploaded: bool) -> dict:
+    ref_path = _attachment_ref_path(session, stored_path)
+    return {
+        "attached": True,
+        "name": stored_path.name,
+        "path": str(stored_path),
+        "ref_path": ref_path,
+        "ref_text": f"@file:{_format_ref_value(ref_path)}",
+        "uploaded": uploaded,
+    }
+
+
+def _file_attach_uploads(session: dict) -> dict:
+    uploads = session.setdefault("_desktop_file_uploads", {})
+    if not isinstance(uploads, dict):
+        uploads = {}
+        session["_desktop_file_uploads"] = uploads
+    return uploads
+
+
+def _file_attach_completed_results(session: dict) -> dict:
+    completed = session.setdefault("_desktop_file_upload_results", {})
+    if not isinstance(completed, dict):
+        completed = {}
+        session["_desktop_file_upload_results"] = completed
+    return completed
+
+
+def _file_attach_cancelled_requests(session: dict) -> dict:
+    cancelled = session.setdefault("_desktop_file_upload_cancelled", {})
+    if not isinstance(cancelled, dict):
+        cancelled = {}
+        session["_desktop_file_upload_cancelled"] = cancelled
+    return cancelled
+
+
+def _remember_file_attach_cancelled_request(session: dict, upload_id: str) -> None:
+    cancelled = _file_attach_cancelled_requests(session)
+    cancelled[upload_id] = time.time()
+    while len(cancelled) > 64:
+        oldest_id = min(cancelled, key=lambda item: float(cancelled[item] or 0))
+        cancelled.pop(oldest_id, None)
+
+
+def _remember_file_attach_result(session: dict, upload_id: str, result: dict) -> None:
+    completed = _file_attach_completed_results(session)
+    completed[upload_id] = {"completed_at": time.time(), "result": dict(result)}
+    while len(completed) > 16:
+        oldest_id = min(
+            completed,
+            key=lambda item: float(completed[item].get("completed_at") or 0),
+        )
+        completed.pop(oldest_id, None)
+
+
+def _file_attach_lock(session: dict) -> threading.RLock:
+    """Return the per-session lock that serializes upload state and file I/O."""
+    with _sessions_lock:
+        lock = session.get("_desktop_file_upload_lock")
+        if not isinstance(lock, type(threading.RLock())):
+            lock = threading.RLock()
+            session["_desktop_file_upload_lock"] = lock
+        return lock
+
+
+def _refresh_managed_http_upload_restart_guard(upload_id: str, upload: dict) -> None:
+    """Refresh a guard only for the managed HTTP upload that owns it."""
+
+    if bool(upload.get("managed_http_restart_guard")):
+        set_managed_upload_restart_guard(upload_id, active=True)
+
+
+def _release_managed_http_upload_restart_guard(upload_id: str, upload: dict) -> None:
+    """Best-effort release after the upload lifecycle has ended in this TUI."""
+
+    if not bool(upload.get("managed_http_restart_guard")):
+        return
+    try:
+        set_managed_upload_restart_guard(upload_id, active=False)
+    except (OSError, ValueError) as exc:
+        logger.warning("Could not release managed upload restart guard %s: %s", upload_id, exc)
+
+
+def _cleanup_file_attach_uploads(session: dict) -> None:
+    """Remove incomplete uploads, quarantining ownership when cleanup fails."""
+    with _file_attach_lock(session):
+        uploads = session.get("_desktop_file_uploads", {})
+        session.pop("_desktop_file_upload_results", None)
+        session.pop("_desktop_file_upload_cancelled", None)
+        if not isinstance(uploads, dict):
+            session.pop("_desktop_file_uploads", None)
+            return
+        for upload_id, upload in list(uploads.items()):
+            if not isinstance(upload, dict):
+                uploads.pop(upload_id, None)
+                continue
+            if _unlink_file_attach_temp(upload):
+                _release_upload_disk_reservation(upload)
+            else:
+                _quarantine_file_attach_cleanup(upload)
+            _release_managed_http_upload_restart_guard(upload_id, upload)
+            uploads.pop(upload_id, None)
+        if not uploads:
+            session.pop("_desktop_file_uploads", None)
+
+
+def _reap_stale_file_attach_uploads(
+    session: dict, *, now: float | None = None
+) -> None:
+    """Delete uploads that have been idle beyond the configured timeout."""
+    uploads = _file_attach_uploads(session)
+    cutoff = (time.time() if now is None else now) - _file_attach_stale_seconds()
+    for upload_id, upload in list(uploads.items()):
+        if not isinstance(upload, dict):
+            uploads.pop(upload_id, None)
+            continue
+        updated_at = float(upload.get("updated_at") or upload.get("created_at") or 0)
+        if updated_at > cutoff:
+            continue
+        if not _unlink_file_attach_temp(upload):
+            upload["updated_at"] = time.time() if now is None else now
+            continue
+        _release_upload_disk_reservation(upload)
+        _release_managed_http_upload_restart_guard(upload_id, upload)
+        uploads.pop(upload_id, None)
+
+    completed = session.get("_desktop_file_upload_results")
+    if isinstance(completed, dict):
+        for upload_id, cached in list(completed.items()):
+            completed_at = (
+                float(cached.get("completed_at") or 0)
+                if isinstance(cached, dict)
+                else 0
+            )
+            if completed_at <= cutoff:
+                completed.pop(upload_id, None)
+
+    cancelled = session.get("_desktop_file_upload_cancelled")
+    if isinstance(cancelled, dict):
+        for upload_id, cancelled_at in list(cancelled.items()):
+            if float(cancelled_at or 0) <= cutoff:
+                cancelled.pop(upload_id, None)
+
+
+def _reap_unstarted_file_attach_uploads(
+    session: dict, *, preserve_upload_id: str = "", now: float | None = None
+) -> int:
+    """Free only old begin records that have never accepted a single chunk.
+
+    The caller has already checked the same request id, so a retry of that id
+    is never displaced.  A later *different* begin can recover an abandoned
+    begin response even when the server never observed a body disconnect.
+    """
+
+    timestamp = time.time() if now is None else float(now)
+    cutoff = timestamp - _file_attach_begin_idle_seconds()
+    preserved = str(preserve_upload_id or "").strip()
+    uploads = _file_attach_uploads(session)
+    reaped = 0
+    for upload_id, upload in list(uploads.items()):
+        if upload_id == preserved or not isinstance(upload, dict):
+            continue
+        try:
+            received = int(upload.get("received") or 0)
+        except (TypeError, ValueError):
+            received = 0
+        ranges = upload.get("parallel_chunk_ranges")
+        has_parallel_progress = isinstance(ranges, dict) and bool(ranges)
+        started_at = float(upload.get("created_at") or upload.get("updated_at") or 0)
+        if received > 0 or has_parallel_progress or started_at > cutoff:
+            continue
+        if not _unlink_file_attach_temp(upload):
+            # Preserve the reservation if ownership-safe cleanup cannot prove
+            # success.  The normal stale reaper follows the same rule.
+            upload["updated_at"] = timestamp
+            continue
+        _release_upload_disk_reservation(upload)
+        _release_managed_http_upload_restart_guard(upload_id, upload)
+        uploads.pop(upload_id, None)
+        reaped += 1
+    return reaped
+
+
+def _mark_desktop_file_attach_transport_disconnected(
+    session: dict, upload_id: str, *, now: float | None = None
+) -> bool:
+    """Remember a recoverable HTTP transport disconnect for one upload.
+
+    A raw HTTP request can be dropped after ``file.attach.begin`` but before
+    its chunk body reaches the gateway.  Keep the upload record so the
+    desktop's retry of the *same* request id can continue, while marking it
+    eligible for replacement if the desktop instead starts a new upload.
+    """
+
+    normalized_upload_id = str(upload_id or "").strip()
+    if not normalized_upload_id:
+        return False
+    timestamp = time.time() if now is None else float(now)
+    with _file_attach_lock(session):
+        upload = _file_attach_uploads(session).get(normalized_upload_id)
+        if not isinstance(upload, dict):
+            return False
+        upload["transport_disconnected_at"] = timestamp
+        upload["updated_at"] = timestamp
+        return True
+
+
+def _reap_disconnected_file_attach_uploads(
+    session: dict, *, preserve_upload_id: str = ""
+) -> int:
+    """Free abandoned transport-disconnected uploads while the session lock is held.
+
+    This deliberately does not reap a record merely because a connection
+    dropped: the desktop retries individual chunks using the same upload id.
+    It is called only after the same-id retry path has been checked.  A
+    different begin request is therefore authoritative and can promptly clear
+    an abandoned transfer instead of leaving a hidden reservation behind.
+    """
+
+    preserved = str(preserve_upload_id or "").strip()
+    uploads = _file_attach_uploads(session)
+    reaped = 0
+    for upload_id, upload in list(uploads.items()):
+        if upload_id == preserved or not isinstance(upload, dict):
+            continue
+        if not upload.get("transport_disconnected_at"):
+            continue
+        if _unlink_file_attach_temp(upload):
+            _release_upload_disk_reservation(upload)
+        else:
+            _quarantine_file_attach_cleanup(upload)
+        _release_managed_http_upload_restart_guard(upload_id, upload)
+        uploads.pop(upload_id, None)
+        reaped += 1
+    return reaped
+
+
+def _optional_non_negative_int(value: Any, field: str) -> int | None:
+    if value is None or value == "":
+        return None
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{field} must be an integer") from exc
+    if parsed < 0:
+        raise ValueError(f"{field} must be non-negative")
+    return parsed
+
+
+def _desktop_file_upload_by_id(session: dict, upload_id: str) -> dict:
+    uploads = _file_attach_uploads(session)
+    upload = uploads.get(upload_id)
+    if not isinstance(upload, dict):
+        raise ValueError("unknown upload_id")
+    return upload
+
+
+def _file_attach_request_id(params: dict) -> str:
+    raw = str(params.get("request_id", "") or "").strip()
+    if not raw:
+        raise ValueError("request_id required")
+    try:
+        return uuid.UUID(raw).hex
+    except (AttributeError, ValueError) as exc:
+        raise ValueError("request_id must be a UUID") from exc
+
+
+def _append_desktop_file_attach_chunk(
+    session: dict,
+    *,
+    upload_id: str,
+    offset: int,
+    payload: bytes,
+) -> dict:
+    """Append one already-decoded chunk using the shared upload lifecycle.
+
+    The WebSocket RPC decodes base64 before calling this helper.  The managed
+    employee HTTP adapter supplies the same raw bytes directly, so both
+    transports share locks, disk reservations, retry semantics, cleanup, and
+    completed-result tracking.
+    """
+    if not upload_id:
+        raise ValueError("upload_id required")
+    if offset < 0:
+        raise ValueError("offset must be non-negative")
+    if not isinstance(payload, (bytes, bytearray, memoryview)):
+        raise ValueError("chunk payload must be bytes")
+    payload = bytes(payload)
+    lock = _file_attach_lock(session)
+    lock.acquire()
+    try:
+        upload = _desktop_file_upload_by_id(session, upload_id)
+        temp_path = Path(str(upload.get("path") or ""))
+        temp_identity = _file_attach_expected_identity(
+            upload.get("path_identity"), label=str(temp_path)
+        )
+        _assert_attachment_path_identity(temp_path, temp_identity)
+        max_chunk_bytes = _file_attach_max_chunk_bytes()
+        if len(payload) > max_chunk_bytes:
+            raise ValueError(
+                f"chunk too large ({len(payload)} bytes; limit {max_chunk_bytes} bytes)"
+            )
+        payload_sha256 = hashlib.sha256(payload).hexdigest()
+        if bool(upload.get("parallel_http")):
+            declared_size = upload.get("declared_size")
+            if declared_size is None:
+                raise ValueError("parallel HTTP upload has no declared size")
+            declared_size = int(declared_size)
+            chunk_end = offset + len(payload)
+            if chunk_end > declared_size:
+                raise ValueError("chunk exceeds declared size")
+            ranges = upload.get("parallel_chunk_ranges")
+            if not isinstance(ranges, dict):
+                raise ValueError("parallel HTTP upload state is invalid")
+            offset_key = str(offset)
+            existing = ranges.get(offset_key)
+            if isinstance(existing, dict):
+                if (
+                    int(existing.get("size") or -1) == len(payload)
+                    and str(existing.get("sha256") or "") == payload_sha256
+                ):
+                    upload.pop("transport_disconnected_at", None)
+                    upload["updated_at"] = time.time()
+                    _refresh_managed_http_upload_restart_guard(upload_id, upload)
+                    return {
+                        "upload_id": upload_id,
+                        "received": int(upload.get("received") or 0),
+                        "duplicate": True,
+                    }
+                raise ValueError("conflicting retry for an already received chunk")
+            for raw_offset, record in ranges.items():
+                if not isinstance(record, dict):
+                    raise ValueError("parallel HTTP upload state is invalid")
+                try:
+                    recorded_offset = int(raw_offset)
+                    recorded_size = int(record.get("size") or 0)
+                except (TypeError, ValueError) as exc:
+                    raise ValueError("parallel HTTP upload state is invalid") from exc
+                if recorded_offset < 0 or recorded_size <= 0:
+                    raise ValueError("parallel HTTP upload state is invalid")
+                recorded_end = recorded_offset + recorded_size
+                if max(offset, recorded_offset) < min(chunk_end, recorded_end):
+                    raise ValueError("parallel HTTP chunk overlaps an already received chunk")
+            _write_file_attach_reserved_chunk_at_offset(
+                str(upload.get("disk_reservation_token") or ""),
+                temp_path,
+                temp_identity,
+                offset,
+                payload,
+            )
+            ranges[offset_key] = {"sha256": payload_sha256, "size": len(payload)}
+            received = sum(
+                int(record.get("size") or 0)
+                for record in ranges.values()
+                if isinstance(record, dict)
+            )
+            upload.pop("transport_disconnected_at", None)
+            upload["received"] = received
+            upload["updated_at"] = time.time()
+            _refresh_managed_http_upload_restart_guard(upload_id, upload)
+            return {"upload_id": upload_id, "received": received}
+
+        expected = int(upload.get("received") or 0)
+        try:
+            actual_size = temp_path.stat().st_size
+        except FileNotFoundError as exc:
+            raise ValueError("upload temp file missing") from exc
+        if actual_size != expected:
+            raise ValueError("upload state mismatch")
+        if offset != expected:
+            is_last_chunk_retry = (
+                offset == upload.get("last_chunk_offset")
+                and len(payload) == upload.get("last_chunk_size")
+                and payload_sha256 == upload.get("last_chunk_sha256")
+                and offset + len(payload) == expected
+            )
+            if is_last_chunk_retry:
+                upload.pop("transport_disconnected_at", None)
+                upload["updated_at"] = time.time()
+                return {
+                    "upload_id": upload_id,
+                    "received": expected,
+                    "duplicate": True,
+                }
+            raise ValueError(f"unexpected offset {offset}; expected {expected}")
+        declared_size = upload.get("declared_size")
+        if declared_size is not None and expected + len(payload) > int(declared_size):
+            raise ValueError("chunk exceeds declared size")
+        max_total_bytes = _file_attach_max_total_bytes()
+        if expected + len(payload) > max_total_bytes:
+            raise ValueError(
+                f"file exceeds maximum file size ({max_total_bytes} bytes)"
+            )
+        _append_file_attach_reserved_chunk(
+            str(upload.get("disk_reservation_token") or ""),
+            temp_path,
+            temp_identity,
+            payload,
+        )
+        received = expected + len(payload)
+        upload.pop("transport_disconnected_at", None)
+        upload["received"] = received
+        upload["updated_at"] = time.time()
+        upload["last_chunk_offset"] = offset
+        upload["last_chunk_size"] = len(payload)
+        upload["last_chunk_sha256"] = payload_sha256
+        return {"upload_id": upload_id, "received": received}
+    finally:
+        lock.release()
 
 
 # ── Methods: respond ─────────────────────────────────────────────────

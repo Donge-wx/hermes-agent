@@ -1,6 +1,7 @@
 import type { AppendMessage } from '@assistant-ui/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { DEFAULT_LOCALE, setRuntimeI18nLocale } from '@/i18n'
 import type { ChatMessage } from '@/lib/chat-messages'
 
 import {
@@ -135,6 +136,19 @@ describe('inlineErrorMessage', () => {
 
   it('falls back for non-error, non-string input', () => {
     expect(inlineErrorMessage(undefined, 'fallback')).toBe('fallback')
+  })
+
+  it('turns a mid-write upload failure into a recoverable message', () => {
+    setRuntimeI18nLocale('en')
+    expect(
+      inlineErrorMessage(
+        new Error(
+          "Error invoking remote method 'hermes:uploadSessionAttachmentHttp': Error: report.mp4 changed while it was being uploaded"
+        ),
+        'fallback'
+      )
+    ).toBe('The file is still being written. Wait for it to finish saving, then retry.')
+    setRuntimeI18nLocale(DEFAULT_LOCALE)
   })
 })
 

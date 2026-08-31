@@ -87,7 +87,6 @@ interface HandoffResult {
 
 const WINDOWS_ABSOLUTE_PATH_RE = /^(?:[A-Za-z]:[\\/]|\\\\)/
 const POSIX_ABSOLUTE_PATH_RE = /^\/(?!\/)/
-
 // Terminal backends whose execution environment has its own filesystem
 // (docker/ssh/singularity/modal/...) cannot see the desktop's host paths —
 // they must be crossed as bytes, like remote attachments. Mirrors the
@@ -127,10 +126,11 @@ export async function uploadComposerAttachment(
     storedSessionId?: null | string
     /** Called when the attach recovered onto a fresh live id. */
     onSessionRecovered?: (sessionId: string) => void
+    onUploadProgress?: (percent: number) => void
     terminalBackend?: string
   }
 ): Promise<ComposerAttachment> {
-  const { backendCwd, remote, requestGateway, storedSessionId, onSessionRecovered, terminalBackend } = opts
+  const { backendCwd, remote, requestGateway, storedSessionId, onSessionRecovered, onUploadProgress, terminalBackend } = opts
   const path = attachment.path ?? ''
   const label = attachment.label || pathLabel(path)
   const uploadBytes = remote || attachmentPathNeedsUpload(path, backendCwd, terminalBackend)
@@ -143,18 +143,14 @@ export async function uploadComposerAttachment(
   let imagePayload: Awaited<ReturnType<typeof readImageForRemoteAttach>> | null = null
   let fileDataUrl: null | string = null
 
-  if (uploadBytes) {
+  if (uploadBytes && attachment.kind === 'image') {
     try {
-      if (attachment.kind === 'image') {
-        imagePayload = await readImageForRemoteAttach(path, attachment.previewUrl)
-      } else {
-        fileDataUrl = await readFileDataUrlForAttach(path)
-      }
+      imagePayload = await readImageForRemoteAttach(path, attachment.previewUrl)
     } catch (err) {
       throw friendlyRemoteAttachError(err, label)
     }
 
-    if (attachment.kind === 'image' ? !imagePayload : !fileDataUrl) {
+    if (!imagePayload) {
       throw new Error(`Could not read ${label}`)
     }
   }
@@ -184,6 +180,48 @@ export async function uploadComposerAttachment(
         label: attachedPath ? pathLabel(attachedPath) : attachment.label,
         path: attachedPath,
         uploadState: undefined
+      }
+    }
+
+    if (uploadBytes && window.hermesDesktop?.uploadSessionAttachmentHttp) {
+      const httpResult = await window.hermesDesktop.uploadSessionAttachmentHttp(
+        {
+          filePath: path,
+          name: label,
+          profile: $connection.get()?.profile ?? null,
+          sessionId: liveSessionId
+        },
+        progress => {
+          const percent = progress.totalBytes > 0 ? Math.floor((progress.uploadedBytes / progress.totalBytes) * 100) : 100
+          onUploadProgress?.(Math.max(0, Math.min(100, percent)))
+        }
+      )
+
+      if (httpResult) {
+        if (!httpResult.attached || !httpResult.ref_text) {
+          throw new Error(httpResult.message || `Could not attach ${label}`)
+        }
+
+        return {
+          ...attachment,
+          attachedSessionId: liveSessionId,
+          path: httpResult.ref_path || httpResult.path || attachment.path,
+          refText: httpResult.ref_text,
+          uploadProgress: 100,
+          uploadState: undefined
+        }
+      }
+    }
+
+    if (uploadBytes && !fileDataUrl) {
+      try {
+        fileDataUrl = await readFileDataUrlForAttach(path)
+      } catch (err) {
+        throw friendlyRemoteAttachError(err, label)
+      }
+
+      if (!fileDataUrl) {
+        throw new Error(`Could not read ${label}`)
       }
     }
 
@@ -383,6 +421,8 @@ export function usePromptActions({
             sessionId: liveSessionId,
             storedSessionId,
             onSessionRecovered,
+            onUploadProgress: percent =>
+              patchMainComposerAttachmentOccurrence(original, { uploadProgress: percent, uploadState: 'uploading' }),
             terminalBackend: $terminalBackend.get()
           })
 
@@ -396,6 +436,7 @@ export function usePromptActions({
                 label: nextAttachment.label,
                 path: nextAttachment.path,
                 refText: nextAttachment.refText,
+                uploadProgress: nextAttachment.uploadProgress,
                 uploadState: nextAttachment.uploadState
               })
             } else {
@@ -430,7 +471,7 @@ export function usePromptActions({
     async (sessionId: string, attachment: ComposerAttachment) => {
       const remote = $connection.get()?.mode === 'remote'
 
-      setComposerAttachmentUploadState(attachment.id, 'uploading')
+      patchMainComposerAttachmentOccurrence(attachment, { uploadProgress: 0, uploadState: 'uploading' })
 
       try {
         // Update-only: if the user removed the chip while this was uploading,
@@ -441,6 +482,8 @@ export function usePromptActions({
             remote,
             requestGateway,
             sessionId,
+            onUploadProgress: percent =>
+              patchMainComposerAttachmentOccurrence(attachment, { uploadProgress: percent, uploadState: 'uploading' }),
             terminalBackend: $terminalBackend.get()
           })
         )

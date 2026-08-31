@@ -1105,6 +1105,352 @@ def _(rid, params: dict) -> dict:
         )
 
 
+@method("file.attach.capabilities")
+def _(rid, params: dict) -> dict:
+    """Declare the recovery guarantees required by resumable Desktop uploads."""
+    _session, err = _sess_building(params, rid)
+    if err:
+        return err
+    return _ok(
+        rid,
+        {
+            "contract": DESKTOP_BACKEND_CONTRACT,
+            "request_id_cancel": True,
+        },
+    )
+
+
+@method("file.attach.begin")
+def _(rid, params: dict) -> dict:
+    """Begin a chunked non-image file upload from Desktop remote mode."""
+    session, err = _sess_building(params, rid)
+    if err:
+        return err
+    session_id = str(params.get("session_id") or "")
+    lock = _file_attach_lock(session)
+    lock.acquire()
+    try:
+        # A close can pop the session after _sess() but before this handler
+        # gets its upload lock.  Re-check under the sessions lock before
+        # allocating a temp file/reservation so detached session dicts cannot
+        # orphan an upload that cleanup will never see.
+        with _sessions_lock:
+            if _sessions.get(session_id) is not session:
+                return _err(rid, 4001, "session not found")
+        raw = str(params.get("path", "") or "").strip()
+        name = str(params.get("name", "") or "").strip()
+        filename = _sanitize_attachment_name(name or raw)
+        declared_size = _optional_non_negative_int(
+            params.get("size", params.get("byte_size")), "size"
+        )
+        parallel_http = bool(params.get("parallel_http"))
+        if parallel_http and declared_size is None:
+            raise ValueError("parallel HTTP uploads require a declared size")
+        upload_id = _file_attach_request_id(params)
+        max_total_bytes = _file_attach_max_total_bytes()
+        if declared_size is not None and declared_size > max_total_bytes:
+            raise ValueError(
+                f"file exceeds maximum file size ({max_total_bytes} bytes)"
+            )
+        uploads = _file_attach_uploads(session)
+        existing = uploads.get(upload_id)
+        if isinstance(existing, dict):
+            if (
+                existing.get("filename") != filename
+                or existing.get("raw_path") != raw
+                or existing.get("declared_size") != declared_size
+            ):
+                raise ValueError("request_id already used for a different upload")
+            # A retry deliberately reuses its request id.  It proves that the
+            # original desktop still owns this transfer, so a later capacity
+            # check must not treat the earlier transient disconnect as an
+            # abandoned upload.
+            existing.pop("transport_disconnected_at", None)
+            _refresh_managed_http_upload_restart_guard(upload_id, existing)
+            existing["updated_at"] = time.time()
+            return _ok(
+                rid,
+                {
+                    "upload_id": upload_id,
+                    "received": int(existing.get("received") or 0),
+                    "max_chunk_bytes": _file_attach_max_chunk_bytes(),
+                    "parallel_chunks": bool(existing.get("parallel_http")),
+                    "duplicate": True,
+                },
+            )
+        # Keep a same-id retry resumable even after the short initial window;
+        # only a distinct begin request is allowed to reap its old state.
+        _reap_stale_file_attach_uploads(session)
+        if upload_id in _file_attach_completed_results(session):
+            raise ValueError("request_id already completed")
+        if upload_id in _file_attach_cancelled_requests(session):
+            raise ValueError("request_id already cancelled")
+        # Do not make a fresh user action wait for the long stale timeout after
+        # a browser/tunnel body disconnect.  Same-id retries above retain their
+        # state; only a new request can displace a marked abandoned transfer.
+        if any(
+            isinstance(upload, dict) and upload.get("transport_disconnected_at")
+            for upload in uploads.values()
+        ):
+            _reap_disconnected_file_attach_uploads(
+                session, preserve_upload_id=upload_id
+            )
+        _reap_unstarted_file_attach_uploads(session, preserve_upload_id=upload_id)
+        max_active_uploads = _file_attach_max_active_uploads()
+        if len(uploads) >= max_active_uploads:
+            raise ValueError(
+                f"too many active uploads (limit {max_active_uploads})"
+            )
+        upload_dir = _desktop_attachment_upload_dir(session)
+        reservation_bytes = declared_size if declared_size is not None else max_total_bytes
+        reservation_token = _reserve_file_attach_disk_space(
+            upload_dir, reservation_bytes
+        )
+        temp_path = upload_dir / f"{upload_id}.part"
+        try:
+            temp_path.touch(exist_ok=False)
+        except FileExistsError as exc:
+            _release_file_attach_disk_reservation(reservation_token)
+            raise ValueError("request_id has unrecoverable upload state") from exc
+        except BaseException:
+            _release_file_attach_disk_reservation(reservation_token)
+            raise
+        temp_identity = _file_attach_object_identity(os.lstat(temp_path))
+        now = time.time()
+        managed_http_restart_guard = (
+            parallel_http and managed_upload_restart_guard_enabled()
+        )
+        try:
+            uploads[upload_id] = {
+                "created_at": now,
+                "updated_at": now,
+                "declared_size": declared_size,
+                "disk_reservation_token": reservation_token,
+                "filename": filename,
+                "path": str(temp_path),
+                "path_identity": _file_attach_identity_record(temp_identity),
+                "managed_http_restart_guard": managed_http_restart_guard,
+                "parallel_chunk_ranges": {} if parallel_http else None,
+                "parallel_http": parallel_http,
+                "raw_path": raw,
+                "received": 0,
+            }
+        except BaseException as registration_error:
+            rollback_upload = {
+                "path": str(temp_path),
+                "path_identity": _file_attach_identity_record(temp_identity),
+                "disk_reservation_token": reservation_token,
+            }
+            if _unlink_file_attach_temp(rollback_upload):
+                _release_upload_disk_reservation(rollback_upload)
+                raise
+            cleanup_error = OSError(
+                str(rollback_upload.get("cleanup_error") or "unknown cleanup failure")
+            )
+            _quarantine_file_attach_cleanup(rollback_upload)
+            raise _FileAttachCleanupError(
+                temp_path, temp_identity, registration_error, cleanup_error
+            ) from registration_error
+        upload = uploads[upload_id]
+        try:
+            _refresh_managed_http_upload_restart_guard(upload_id, upload)
+        except (OSError, ValueError) as guard_error:
+            uploads.pop(upload_id, None)
+            _release_managed_http_upload_restart_guard(upload_id, upload)
+            if _unlink_file_attach_temp(upload):
+                _release_upload_disk_reservation(upload)
+            else:
+                _quarantine_file_attach_cleanup(upload)
+            raise OSError("upload restart guard is unavailable") from guard_error
+        return _ok(
+            rid,
+            {
+                "upload_id": upload_id,
+                "received": 0,
+                "max_chunk_bytes": _file_attach_max_chunk_bytes(),
+                "parallel_chunks": parallel_http,
+            },
+        )
+    except Exception as e:
+        return _err(rid, 5028, str(e))
+    finally:
+        lock.release()
+
+
+@method("file.attach.chunk")
+def _(rid, params: dict) -> dict:
+    """Append one base64 chunk to an in-progress file.attach upload."""
+    session, err = _sess_building(params, rid)
+    if err:
+        return err
+    # Preserve the legacy teardown contract: a session close waits once a WS
+    # chunk has started decoding.  The shared helper below uses the same RLock
+    # re-entrantly, while raw HTTP reads its bounded body before it acquires it.
+    lock = _file_attach_lock(session)
+    lock.acquire()
+    try:
+        upload_id = str(params.get("upload_id", "") or "").strip()
+        offset = _optional_non_negative_int(params.get("offset"), "offset")
+        if offset is None:
+            raise ValueError("offset required")
+        content = str(params.get("content_base64", "") or "")
+        max_chunk_bytes = _file_attach_max_chunk_bytes()
+        max_encoded_chars = 4 * ((max_chunk_bytes + 2) // 3)
+        if len(content) > max_encoded_chars:
+            raise ValueError(
+                f"encoded chunk too large ({len(content)} chars; "
+                f"limit {max_encoded_chars} chars)"
+            )
+        payload = _decode_attachment_data_url(content)
+        return _ok(
+            rid,
+            _append_desktop_file_attach_chunk(
+                session,
+                upload_id=upload_id,
+                offset=offset,
+                payload=payload,
+            ),
+        )
+    except Exception as e:
+        return _err(rid, 5028, str(e))
+    finally:
+        lock.release()
+
+
+@method("file.attach.finish")
+def _(rid, params: dict) -> dict:
+    """Finalize a chunked Desktop file upload and return the normal @file ref."""
+    session, err = _sess_building(params, rid)
+    if err:
+        return err
+    upload_id = str(params.get("upload_id", "") or "").strip()
+    if not upload_id:
+        return _err(rid, 4015, "upload_id required")
+    lock = _file_attach_lock(session)
+    lock.acquire()
+    uploads = _file_attach_uploads(session)
+    try:
+        cached = _file_attach_completed_results(session).get(upload_id)
+        if isinstance(cached, dict) and isinstance(cached.get("result"), dict):
+            return _ok(rid, dict(cached["result"]))
+        upload = _desktop_file_upload_by_id(session, upload_id)
+        temp_path = Path(str(upload.get("path") or ""))
+        temp_identity = _file_attach_expected_identity(
+            upload.get("path_identity"), label=str(temp_path)
+        )
+        _assert_attachment_path_identity(temp_path, temp_identity)
+        declared_size = upload.get("declared_size")
+        if bool(upload.get("parallel_http")):
+            if declared_size is None:
+                raise ValueError("parallel HTTP upload has no declared size")
+            declared_size = int(declared_size)
+            ranges = upload.get("parallel_chunk_ranges")
+            if not isinstance(ranges, dict):
+                raise ValueError("parallel HTTP upload state is invalid")
+            received = 0
+            expected_offset = 0
+            try:
+                ordered_ranges = sorted(ranges.items(), key=lambda item: int(item[0]))
+            except (TypeError, ValueError) as exc:
+                raise ValueError("parallel HTTP upload state is invalid") from exc
+            for raw_offset, record in ordered_ranges:
+                if not isinstance(record, dict):
+                    raise ValueError("parallel HTTP upload state is invalid")
+                try:
+                    offset = int(raw_offset)
+                    size = int(record.get("size") or 0)
+                except (TypeError, ValueError) as exc:
+                    raise ValueError("parallel HTTP upload state is invalid") from exc
+                if offset != expected_offset or size <= 0:
+                    raise ValueError(
+                        f"upload incomplete ({received}/{declared_size} bytes)"
+                    )
+                expected_offset += size
+                received += size
+            if received != declared_size or expected_offset != declared_size:
+                raise ValueError(f"upload incomplete ({received}/{declared_size} bytes)")
+            actual_size = temp_path.stat().st_size
+            if actual_size != declared_size:
+                raise ValueError("upload size mismatch")
+            upload["received"] = received
+        else:
+            received = int(upload.get("received") or 0)
+            actual_size = temp_path.stat().st_size
+            if actual_size != received:
+                raise ValueError("upload size mismatch")
+            if declared_size is not None and received != int(declared_size):
+                raise ValueError(f"upload incomplete ({received}/{declared_size} bytes)")
+        target = _publish_unique_attachment(
+            temp_path,
+            _desktop_attachment_dir(session),
+            _sanitize_attachment_name(str(upload.get("filename") or "attachment")),
+        )
+        _release_upload_disk_reservation(upload)
+        uploads.pop(upload_id, None)
+        _release_managed_http_upload_restart_guard(upload_id, upload)
+        result = _file_attach_result(session, target.resolve(), True)
+        result["bytes"] = received
+        _remember_file_attach_result(session, upload_id, result)
+        return _ok(rid, result)
+    except _FileAttachCleanupError as e:
+        cleanup_paths = upload.setdefault("cleanup_paths", [])
+        cleanup_identities = upload.setdefault("cleanup_path_identities", {})
+        candidate_path = str(e.path)
+        if isinstance(cleanup_paths, list) and candidate_path not in cleanup_paths:
+            cleanup_paths.append(candidate_path)
+        if isinstance(cleanup_identities, dict):
+            cleanup_identities[candidate_path] = _file_attach_identity_record(e.identity)
+        upload["cleanup_error"] = str(e.cleanup_error)
+        return _err(rid, 5028, str(e))
+    except Exception as e:
+        return _err(rid, 5028, str(e))
+    finally:
+        lock.release()
+
+
+@method("file.attach.cancel")
+def _(rid, params: dict) -> dict:
+    """Cancel by upload id or begin request id, including a lost begin response."""
+    session, err = _sess_building(params, rid)
+    if err:
+        return err
+    upload_id = str(params.get("upload_id", "") or "").strip()
+    request_id_raw = str(params.get("request_id", "") or "").strip()
+    try:
+        request_upload_id = _file_attach_request_id(params) if request_id_raw else ""
+    except ValueError as exc:
+        return _err(rid, 4015, str(exc))
+    if upload_id and request_upload_id and upload_id != request_upload_id:
+        return _err(rid, 4015, "upload_id and request_id do not match")
+    upload_id = upload_id or request_upload_id
+    if not upload_id:
+        return _err(rid, 4015, "upload_id or request_id required")
+    lock = _file_attach_lock(session)
+    lock.acquire()
+    try:
+        completed = _file_attach_completed_results(session)
+        if upload_id in completed:
+            return _ok(rid, {"cancelled": False, "completed": True})
+        uploads = _file_attach_uploads(session)
+        upload = uploads.get(upload_id)
+        found = isinstance(upload, dict)
+        if isinstance(upload, dict):
+            if not _unlink_file_attach_temp(upload):
+                detail = str(upload.get("cleanup_error") or "unknown cleanup failure")
+                return _err(rid, 5028, f"attachment cleanup failed: {detail}")
+            _release_upload_disk_reservation(upload)
+            uploads.pop(upload_id, None)
+            _release_managed_http_upload_restart_guard(upload_id, upload)
+        if request_upload_id or isinstance(upload, dict):
+            _remember_file_attach_cancelled_request(session, upload_id)
+        # ``cancelled`` remains idempotent for existing callers.  ``found``
+        # lets the HTTP adapter distinguish a real cancellation from a stale
+        # or cross-session request before removing its watchdog restart guard.
+        return _ok(rid, {"cancelled": True, "found": found})
+    finally:
+        lock.release()
+
+
 @method("file.attach")
 def _(rid, params: dict) -> dict:
     """Stage a non-image file attachment into the session workspace.
@@ -1136,18 +1482,7 @@ def _(rid, params: dict) -> dict:
         stored_path, uploaded = _stage_session_file_attachment(
             session, raw_path=raw, data_url=data_url, name=name
         )
-        ref_path = _attachment_ref_path(session, stored_path)
-        return _ok(
-            rid,
-            {
-                "attached": True,
-                "name": stored_path.name,
-                "path": str(stored_path),
-                "ref_path": ref_path,
-                "ref_text": f"@file:{_format_ref_value(ref_path)}",
-                "uploaded": uploaded,
-            },
-        )
+        return _ok(rid, _file_attach_result(session, stored_path, uploaded))
     except Exception as e:
         return _err(rid, 5028, str(e))
 

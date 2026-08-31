@@ -2047,6 +2047,8 @@ export interface Translations {
     previewLabel: (label: string) => string
     couldNotPreview: (label: string) => string
     removeAttachment: (label: string) => string
+    uploadComplete: string
+    uploadProgress: (percent: number) => string
     dictating: string
     preparingAudio: string
     speakingResponse: string
@@ -2901,6 +2903,7 @@ export interface Translations {
     sessionUnavailable: string
     createSessionFailed: string
     promptFailed: string
+    fileStillSaving: string
     providerCredentialRequired: string
     emptySlashCommand: string
     desktopCommands: string

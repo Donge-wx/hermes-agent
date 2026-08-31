@@ -241,6 +241,10 @@ declare global {
           title: string
         } | null
       } | null>
+      uploadSessionAttachmentHttp?: (
+        request: HermesHttpSessionAttachmentRequest,
+        onProgress?: (progress: HermesHttpSessionAttachmentProgress) => void
+      ) => Promise<HermesHttpSessionAttachmentResult | null>
       readFileDataUrl: (filePath: string) => Promise<string>
       /** Remote non-image attach: higher dedicated cap than preview/Settings default. */
       readFileDataUrlForAttach?: (filePath: string) => Promise<string>
@@ -1192,6 +1196,28 @@ export interface HermesPreviewTarget {
   renderMode?: 'preview' | 'source'
   source: string
   url: string
+}
+
+export interface HermesHttpSessionAttachmentRequest {
+  filePath: string
+  name: string
+  profile?: string | null
+  sessionId: string
+}
+
+export interface HermesHttpSessionAttachmentProgress {
+  totalBytes: number
+  uploadedBytes: number
+}
+
+export interface HermesHttpSessionAttachmentResult {
+  attached?: boolean
+  message?: string
+  name?: string
+  path?: string
+  ref_path?: string
+  ref_text?: string
+  uploaded?: boolean
 }
 
 export interface HermesReadFileTextResult {

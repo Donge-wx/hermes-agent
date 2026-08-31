@@ -53,6 +53,8 @@ function AttachmentPill({ attachment, onRemove }: { attachment: ComposerAttachme
   const cwd = useStore(useSessionView().$cwd)
   const isUploading = attachment.uploadState === 'uploading'
   const hasUploadError = attachment.uploadState === 'error'
+  const uploadPercent = Math.max(0, Math.min(100, Math.round(attachment.uploadProgress ?? 0)))
+  const uploadStatus = isUploading ? c.uploadProgress(uploadPercent) : uploadPercent === 100 ? c.uploadComplete : undefined
 
   // A review card's detail is its resolved-comment JSON, not a previewable
   // path — clicking it should do nothing rather than toast a bogus failure.
@@ -189,17 +191,23 @@ function AttachmentPill({ attachment, onRemove }: { attachment: ComposerAttachme
               <span className="block truncate text-[0.72rem] font-medium leading-4 text-foreground/90">
                 {attachment.label}
               </span>
-              {detail && (
+              {(uploadStatus || detail) && (
                 <span
                   className={cn(
                     'block truncate text-[0.62rem] leading-3.5',
                     hasUploadError ? 'text-destructive/80' : 'text-muted-foreground/65'
                   )}
+                  data-slot={uploadStatus ? 'attachment-upload-progress' : undefined}
                 >
-                  {detail}
+                  {uploadStatus || detail}
                 </span>
               )}
             </span>
+            {isUploading && (
+              <span className="absolute inset-x-2 bottom-0 h-0.5 overflow-hidden rounded-full bg-muted">
+                <span className="block h-full bg-primary transition-[width]" style={{ width: `${uploadPercent}%` }} />
+              </span>
+            )}
           </button>
           {onRemove && (
             <button

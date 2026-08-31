@@ -41,6 +41,21 @@ describe('AttachmentList', () => {
     expect(screen.getByText('img.png')).toBeDefined()
   })
 
+  it('shows byte upload progress and the completed state on the attachment chip', async () => {
+    const uploading = { ...makeAttachment('uploading', 'clip.mp4'), uploadProgress: 42, uploadState: 'uploading' as const }
+    const rendered = await renderWithI18n(<AttachmentList attachments={[uploading]} />)
+
+    expect(screen.getByText(/42%/)).toBeDefined()
+
+    rendered.rerender(
+      <I18nProvider configClient={{ getConfig: async () => ({}), saveConfig: async () => ({ ok: true }) }}>
+        <AttachmentList attachments={[{ ...uploading, uploadProgress: 100, uploadState: undefined }]} />
+      </I18nProvider>
+    )
+
+    expect(screen.getByText(/已上传|Uploaded/)).toBeDefined()
+  })
+
   it('renders empty list without error', async () => {
     const { container } = await renderWithI18n(<AttachmentList attachments={[]} />)
 

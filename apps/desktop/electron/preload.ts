@@ -203,6 +203,21 @@ contextBridge.exposeInMainWorld('hermesDesktop', {
   notify: payload => ipcRenderer.invoke('hermes:notify', payload),
   requestMicrophoneAccess: () => ipcRenderer.invoke('hermes:requestMicrophoneAccess'),
   readWindowBelow: () => ipcRenderer.invoke('hermes:window:readBelow'),
+  uploadSessionAttachmentHttp: (request, onProgress) => {
+    const requestId = crypto.randomUUID()
+    const channel = 'hermes:uploadSessionAttachmentHttp:progress'
+    const listener = (_event, progress) => {
+      if (progress?.requestId === requestId) {
+        onProgress?.({ totalBytes: progress.totalBytes, uploadedBytes: progress.uploadedBytes })
+      }
+    }
+
+    ipcRenderer.on(channel, listener)
+
+    return ipcRenderer
+      .invoke('hermes:uploadSessionAttachmentHttp', { ...request, requestId })
+      .finally(() => ipcRenderer.removeListener(channel, listener))
+  },
   readFileDataUrl: filePath => ipcRenderer.invoke('hermes:readFileDataUrl', filePath),
   readFileDataUrlForAttach: filePath => ipcRenderer.invoke('hermes:readFileDataUrlForAttach', filePath),
   dataUrlReadMax: {

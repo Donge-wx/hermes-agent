@@ -34,6 +34,7 @@ describe('PreviewPane console state', () => {
   afterEach(() => {
     cleanup()
     $connection.set(null)
+    Reflect.deleteProperty(window, 'hermesDesktop')
     vi.unstubAllGlobals()
   })
 
@@ -66,6 +67,38 @@ describe('PreviewPane console state', () => {
 
     expect(watchPreviewFile).not.toHaveBeenCalled()
     expect(onPreviewFileChanged).not.toHaveBeenCalled()
+  })
+
+  it('streams an MP4 through the media protocol instead of reading the whole file', async () => {
+    const api = vi.fn()
+    const readFileDataUrl = vi.fn()
+    const readFileText = vi.fn()
+    $connection.set({ mode: 'local' } as never)
+    Object.defineProperty(window, 'hermesDesktop', {
+      configurable: true,
+      value: { api, readFileDataUrl, readFileText }
+    })
+
+    const rendered = render(
+      <PreviewPane
+        target={{
+          kind: 'file',
+          label: 'large.mp4',
+          path: '/tmp/large.mp4',
+          previewKind: 'text',
+          source: '/tmp/large.mp4',
+          url: 'file:///tmp/large.mp4'
+        }}
+      />
+    )
+
+    await waitFor(() => expect(rendered.container.querySelector('video')).not.toBeNull())
+    expect(rendered.container.querySelector('video')?.getAttribute('src')).toBe(
+      'hermes-media://stream/%2Ftmp%2Flarge.mp4'
+    )
+    expect(api).not.toHaveBeenCalled()
+    expect(readFileDataUrl).not.toHaveBeenCalled()
+    expect(readFileText).not.toHaveBeenCalled()
   })
 
   // The console lives in the TAB's store (the toggles sit on the tab, not in the

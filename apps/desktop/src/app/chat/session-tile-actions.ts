@@ -194,7 +194,9 @@ export function useSessionTileActions({ runtimeId, scope, storedSessionId }: Ses
             requestGateway,
             sessionId: liveSessionId,
             storedSessionId: storedIdRef.current,
-            onSessionRecovered
+            onSessionRecovered,
+            onUploadProgress: percent =>
+              scope.attachments.updateIfCurrent(attachment, { uploadProgress: percent, uploadState: 'uploading' })
           })
 
           if (options.updateComposerAttachments ?? true) {
@@ -207,6 +209,7 @@ export function useSessionTileActions({ runtimeId, scope, storedSessionId }: Ses
                 label: next.label,
                 path: next.path,
                 refText: next.refText,
+                uploadProgress: next.uploadProgress,
                 uploadState: next.uploadState
               })
             } else {

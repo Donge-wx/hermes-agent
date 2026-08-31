@@ -221,6 +221,7 @@ import {
   tightenSecretFileMode,
   writeSecretFileAtomic
 } from './hardening'
+import { uploadSessionAttachmentHttp } from './http-session-upload'
 import { cursorPointInWindow } from './hud-cursor'
 import { registerHudIpc } from './hud-ipc'
 import { snapHudBounds } from './hud-snap'
@@ -1319,13 +1320,54 @@ protocol.registerSchemesAsPrivileged([
 function registerMediaProtocol() {
   const handler = createMediaProtocolHandler({
     ensureRemoteBearer: baseUrl => ensureNativeAccessToken(baseUrl).catch(() => null),
-    fetchLocal: (resolvedPath, headers, method) =>
-      electronNet.fetch(pathToFileURL(resolvedPath).toString(), {
-        bypassCustomProtocolHandlers: true,
-        credentials: 'omit',
-        headers,
-        method
-      }),
+    fetchLocal: async (resolvedPath, headers, method) => {
+      const range = /^bytes=(\d+)-(\d*)$/i.exec(headers.get('range') || '')
+
+      if (!range) {
+        return electronNet.fetch(pathToFileURL(resolvedPath).toString(), {
+          bypassCustomProtocolHandlers: true,
+          credentials: 'omit',
+          headers,
+          method
+        })
+      }
+
+      const stat = await fs.promises.stat(resolvedPath)
+      const start = Number(range[1])
+      const requestedEnd = range[2] ? Number(range[2]) : stat.size - 1
+      const end = Math.min(requestedEnd, stat.size - 1)
+
+      if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || start > end) {
+        return new Response(null, { headers: { 'Content-Range': `bytes */${stat.size}` }, status: 416 })
+      }
+
+      const responseHeaders = {
+        'Accept-Ranges': 'bytes',
+        'Content-Length': String(end - start + 1),
+        'Content-Range': `bytes ${start}-${end}/${stat.size}`,
+        'Content-Type': mimeTypeForPath(resolvedPath)
+      }
+      const fileStream = method === 'HEAD' ? null : fs.createReadStream(resolvedPath, { end, start })
+      const iterator = fileStream?.[Symbol.asyncIterator]()
+      const body = iterator
+        ? new ReadableStream<Uint8Array>({
+            async cancel() {
+              await iterator.return?.()
+            },
+            async pull(controller) {
+              const next = await iterator.next()
+
+              if (next.done) {
+                controller.close()
+              } else {
+                controller.enqueue(next.value)
+              }
+            }
+          })
+        : null
+
+      return new Response(body, { headers: responseHeaders, status: 206 })
+    },
     fetchRemote: (url, headers, method) =>
       electronNet.fetch(url, {
         bypassCustomProtocolHandlers: true,
@@ -5200,10 +5242,12 @@ function fetchJson(url, token, options: any = {}) {
   return new Promise((resolve, reject) => {
     const { body, contentType } = options.upload
       ? multipartBody(options.upload)
-      : {
-          body: options.body === undefined ? undefined : Buffer.from(JSON.stringify(options.body)),
-          contentType: 'application/json'
-        }
+      : Buffer.isBuffer(options.rawBody)
+        ? { body: options.rawBody, contentType: options.contentType || 'application/octet-stream' }
+        : {
+            body: options.body === undefined ? undefined : Buffer.from(JSON.stringify(options.body)),
+            contentType: 'application/json'
+          }
 
     const parsed = new URL(url)
     const client = parsed.protocol === 'https:' ? https : http
@@ -7449,7 +7493,8 @@ function fetchJsonViaOauthSession(url, options: any = {}) {
       return
     }
 
-    const body = serializeJsonBody(options.body)
+    const rawBody = Buffer.isBuffer(options.rawBody) ? options.rawBody : undefined
+    const body = rawBody || serializeJsonBody(options.body)
     const timeoutMs = resolveTimeoutMs(options.timeoutMs, DEFAULT_FETCH_TIMEOUT_MS)
 
     const request = electronNet.request({
@@ -7464,6 +7509,10 @@ function fetchJsonViaOauthSession(url, options: any = {}) {
 
     for (const [name, value] of Object.entries({ ...headersForRemoteRequest(url), ...(options.headers || {}) })) {
       request.setHeader(name, String(value))
+    }
+
+    if (rawBody) {
+      request.setHeader('Content-Type', options.contentType || 'application/octet-stream')
     }
 
     let timedOut = false
@@ -9789,7 +9838,7 @@ function currentMyKingEmployeeGatewayRoute() {
 
 const getCachedMyKingEmployeeGatewayAccessToken = createMyKingEmployeeGatewayAccessTokenCache()
 
-async function getMyKingEmployeeGatewayAccessToken() {
+async function getMyKingEmployeeGatewayAccessToken(forceRefresh = false) {
   const binding = readMyKingEmployeeBinding(MY_KING_EMPLOYEE_CONNECTOR_PATHS.bindingPath)
   const saved = readDesktopConnectionConfig().remote
   const deviceToken = saved?.employeeManaged === true ? decryptDesktopSecret(saved.token) : ''
@@ -9806,6 +9855,10 @@ async function getMyKingEmployeeGatewayAccessToken() {
     .createHash('sha256')
     .update(deviceToken)
     .digest('hex')}`
+
+  if (forceRefresh) {
+    getCachedMyKingEmployeeGatewayAccessToken.invalidate(cacheKey)
+  }
 
   return getCachedMyKingEmployeeGatewayAccessToken(cacheKey, async () => {
     const response = await postMyKingEmployeeJson({
@@ -14625,6 +14678,79 @@ ipcMain.handle('hermes:data-url-read-max:set', (_event, maxMb) => {
     defaultMaxMb: DATA_URL_READ_DEFAULT_MAX_MB,
     maxBytes: dataUrlReadMaxBytesFromMb(next)
   }
+})
+
+ipcMain.handle('hermes:uploadSessionAttachmentHttp', async (event, payload: any = {}) => {
+  const filePath = typeof payload.filePath === 'string' ? payload.filePath : ''
+  const name = typeof payload.name === 'string' ? payload.name.trim() : ''
+  const profile = typeof payload.profile === 'string' ? payload.profile : null
+  const sessionId = typeof payload.sessionId === 'string' ? payload.sessionId.trim() : ''
+  const requestId = typeof payload.requestId === 'string' ? payload.requestId : ''
+
+  if (!filePath || !name || !sessionId) {
+    throw new Error('HTTP attachment upload requires filePath, name, and sessionId')
+  }
+
+  const connection = await ensureBackend(profile)
+  const { realPath } = await resolveReadableFileForIpc(filePath, {
+    maxBytes: 8 * 1024 * 1024 * 1024,
+    purpose: 'HTTP attachment upload'
+  })
+
+  return uploadSessionAttachmentHttp({
+      baseUrl: connection.baseUrl,
+      filePath: realPath,
+      name,
+      onProgress: progress => {
+        if (requestId && !event.sender.isDestroyed()) {
+          event.sender.send('hermes:uploadSessionAttachmentHttp:progress', { ...progress, requestId })
+        }
+      },
+      requestJson: async (url, options = {}) => {
+        const body = Buffer.isBuffer(options.body) ? undefined : options.body
+        const rawBody = Buffer.isBuffer(options.body) ? options.body : undefined
+        const requestOptions = {
+          body,
+          contentType: options.contentType,
+          headers: connection.headers,
+          method: options.method,
+          rawBody,
+          timeoutMs: options.timeoutMs
+        }
+
+        if (connection.employeeManaged) {
+          const requestWithEmployeeToken = async (forceRefresh = false) => {
+            const accessToken = await getMyKingEmployeeGatewayAccessToken(forceRefresh)
+
+            return fetchJson(url, null, { ...requestOptions, bearer: accessToken })
+          }
+
+          try {
+            return await requestWithEmployeeToken()
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error)
+            if (/^40[13]:/.test(message)) {
+              return requestWithEmployeeToken(true)
+            }
+
+            throw error
+          }
+        }
+
+        if (connection.authMode === 'oauth') {
+          const nativeAccessToken = await ensureNativeAccessToken(connection.baseUrl).catch(() => null)
+
+          if (nativeAccessToken) {
+            return fetchJson(url, null, { ...requestOptions, bearer: nativeAccessToken })
+          }
+
+          return fetchJsonViaOauthSession(url, requestOptions)
+        }
+
+        return fetchJson(url, connection.token, requestOptions)
+      },
+      sessionId
+    })
 })
 
 ipcMain.handle('hermes:readFileDataUrl', async (_event, filePath) => {
