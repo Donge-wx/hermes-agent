@@ -27,9 +27,10 @@ import {
 } from '@/components/ui/pane-tab'
 import { ContribBoundary, ContribRender } from '@/contrib/react/boundary'
 import { useContributions } from '@/contrib/react/use-contributions'
-import { useI18n } from '@/i18n'
+import { useI18n, usePluginI18n } from '@/i18n'
 import { BRAND } from '@/lib/brand'
 import { useKeybindHint } from '@/lib/keybinds/use-keybind-hint'
+import { isEmployeeAppearanceSettingAvailable } from '@/lib/managed-employee-policy'
 import { cn } from '@/lib/utils'
 
 import { $layoutEditMode } from '../../edit-mode'
@@ -74,7 +75,7 @@ import {
 } from '../tab-selection'
 
 import { startPaneDrag } from './drag-session'
-import { LocalizedPaneTitle } from './localized-pane-title'
+import { localizedPaneTitle, LocalizedPaneTitle } from './localized-pane-title'
 import { tabStripVisibleForZone } from './strip-visibility'
 import { useActiveTabVisible } from './tab-strip-scroll'
 import { paneChrome } from './track-model'
@@ -113,6 +114,7 @@ function ZoneMenu({
   targetPane: () => string
 }) {
   const { t } = useI18n()
+  const botsT = usePluginI18n('hermes-bots')
   // Hiding the strip takes this menu with it, so the row that hides it is the
   // last place to say how to get it back — the status bar's hide row does the
   // same for the same reason.
@@ -157,7 +159,9 @@ function ZoneMenu({
                 renderActionItem(kit, {
                   icon: tab.hidden ? 'eye' : 'eye-closed',
                   key: `strip-tab-${tab.id}`,
-                  label: tab.hidden ? t.zones.showStripTab(tab.title) : t.zones.hideStripTab(tab.title),
+                  label: tab.hidden
+                    ? t.zones.showStripTab(localizedPaneTitle(tab.id, tab.title, t, botsT))
+                    : t.zones.hideStripTab(localizedPaneTitle(tab.id, tab.title, t, botsT)),
                   onSelect: () => setStripTabHidden(tab.id, !tab.hidden)
                 })
               )}
@@ -165,19 +169,20 @@ function ZoneMenu({
           )
         })()}
         <kit.Separator />
-        {renderActionItem(kit, {
-          icon: stripVisible ? 'eye-closed' : 'eye',
-          key: 'zone-tabstrip',
-          label: (
-            <>
-              {/* The hint's `ml-auto` makes the label the row's flexible part,
+        {isEmployeeAppearanceSettingAvailable('appearance.tab-strip') &&
+          renderActionItem(kit, {
+            icon: stripVisible ? 'eye-closed' : 'eye',
+            key: 'zone-tabstrip',
+            label: (
+              <>
+                {/* The hint's `ml-auto` makes the label the row's flexible part,
                   so without this it breaks mid-phrase before the menu widens. */}
-              <span className="whitespace-nowrap">{stripVisible ? t.zones.hideTabStrip : t.zones.showTabStrip}</span>
-              {toggleHint && <span className="ml-auto pl-2 text-(--ui-text-quaternary)">{toggleHint}</span>}
-            </>
-          ),
-          onSelect: () => setTreeGroupTabStrip(nodeId, stripVisible ? 'never' : 'always')
-        })}
+                <span className="whitespace-nowrap">{stripVisible ? t.zones.hideTabStrip : t.zones.showTabStrip}</span>
+                {toggleHint && <span className="ml-auto pl-2 text-(--ui-text-quaternary)">{toggleHint}</span>}
+              </>
+            ),
+            onSelect: () => setTreeGroupTabStrip(nodeId, stripVisible ? 'never' : 'always')
+          })}
         {minimizable &&
           renderActionItem(kit, {
             // Same action-direction contract as the strip button below: the

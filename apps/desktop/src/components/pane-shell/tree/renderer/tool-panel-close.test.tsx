@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { registry } from '@/contrib/registry'
+import { setRuntimeI18nLocale } from '@/i18n'
 import { stubMenuDomApis, stubResizeObserver } from '@/test/jsdom'
 
 import { group, split } from '../model'
@@ -15,6 +16,14 @@ import {
 } from '../store'
 
 import { TreeGroup } from './tree-group'
+
+const { appearanceSettingAvailable } = vi.hoisted(() => ({
+  appearanceSettingAvailable: vi.fn(() => false)
+}))
+
+vi.mock('@/lib/managed-employee-policy', () => ({
+  isEmployeeAppearanceSettingAvailable: appearanceSettingAvailable
+}))
 
 // Ground truth for "right-clicking logs doesn't even show Close, and ⌘W
 // doesn't close it". Renders the REAL zone renderer and opens the REAL
@@ -30,6 +39,7 @@ beforeAll(() => {
 const disposers: (() => void)[] = []
 
 beforeEach(async () => {
+  setRuntimeI18nLocale('en')
   window.localStorage.clear()
 
   // Per-test isolation: earlier cases dismiss / hide panes, and both records
@@ -53,6 +63,7 @@ beforeEach(async () => {
 })
 
 afterEach(() => {
+  appearanceSettingAvailable.mockReturnValue(false)
   cleanup()
   disposers.splice(0).forEach(dispose => dispose())
 })
@@ -72,6 +83,37 @@ const zoneAt = (index: number) => {
 const tabEl = (paneId: string) => document.querySelector<HTMLElement>(`[data-tree-tab="${paneId}"]`)
 
 describe('right-clicking a tool panel tab', () => {
+  it('hides the tab-strip toggle from managed employee zone menus', async () => {
+    appearanceSettingAvailable.mockReturnValue(false)
+    declareDefaultTree(
+      split('column', [
+        group(['workspace'], { active: 'workspace', id: 'grp-main' }),
+        group(['terminal', 'logs'], { active: 'logs', id: 'grp-tools', tabStrip: 'always' })
+      ])
+    )
+    render(<TreeGroup node={zoneAt(1)} parentAxis="column" />)
+
+    openContextMenu(tabEl('logs')!)
+
+    expect(await screen.findByRole('menu')).toBeTruthy()
+    expect(screen.queryByRole('menuitem', { name: /隐藏标签|hide tabs/i })).toBeNull()
+  })
+
+  it('keeps the tab-strip toggle in non-managed zone menus', async () => {
+    appearanceSettingAvailable.mockReturnValue(true)
+    declareDefaultTree(
+      split('column', [
+        group(['workspace'], { active: 'workspace', id: 'grp-main' }),
+        group(['terminal', 'logs'], { active: 'logs', id: 'grp-tools', tabStrip: 'always' })
+      ])
+    )
+    render(<TreeGroup node={zoneAt(1)} parentAxis="column" />)
+
+    openContextMenu(tabEl('logs')!)
+
+    expect(await screen.findByRole('menuitem', { name: /隐藏标签|hide tabs/i })).toBeTruthy()
+  })
+
   it('offers Close when logs is STACKED with the terminal', async () => {
     declareDefaultTree(
       split('column', [

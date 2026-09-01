@@ -168,7 +168,7 @@ export function handleMessageStreamEvent(ctx: GatewayEventContext): boolean {
       const text = coerceGatewayText(payload?.text)
 
       if (text) {
-        finalizeInterimAssistantMessage(sessionId, text, occurredAt)
+        finalizeInterimAssistantMessage(sessionId, text, payload?.already_streamed, occurredAt)
       }
     }
 

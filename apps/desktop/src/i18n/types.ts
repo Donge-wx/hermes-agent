@@ -54,6 +54,7 @@ export interface Translations {
     back: string
     save: string
     saving: string
+    showOptions: string
     cancel: string
     change: string
     choose: string
@@ -1000,9 +1001,44 @@ export interface Translations {
       noProviderKeys: string
       searchKeys: string
       noKeysMatch: string
+      providerDescriptions: Record<string, string>
       localEndpoint: {
         title: string
         description: string
+      }
+      customEndpoints: {
+        title: string
+        active: string
+        apiKeySet: string
+        use: string
+        deleteEndpoint: string
+        emptyTitle: string
+        emptyDescription: string
+        editTitle: string
+        addTitle: string
+        name: string
+        providerId: string
+        endpointUrl: string
+        defaultModel: string
+        context: string
+        auto: string
+        apiKey: string
+        keepCurrentKey: string
+        optional: string
+        useForNewChats: string
+        discoverModels: string
+        test: string
+        save: string
+        newEndpoint: string
+        loadFailed: string
+        saved: string
+        saveFailed: string
+        reachableWithModels: (count: number) => string
+        reachable: string
+        validationFailed: string
+        activationFailed: string
+        deleteFailed: string
+        confirmDelete: (name: string) => string
       }
       loading: string
     }

@@ -2,9 +2,15 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { atom } from 'nanostores'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import type * as ManagedEmployeePolicy from '@/lib/managed-employee-policy'
+
 import { SessionActionsMenu, SessionContextMenu } from './session-actions-menu'
 
 afterEach(cleanup)
+
+const { appearanceSettingAvailable } = vi.hoisted(() => ({
+  appearanceSettingAvailable: vi.fn(() => false)
+}))
 
 // Exercises the real SessionActionsMenu end-to-end (no DropdownMenu mock) so
 // a broken asChild composition on the kebab trigger fails here — the menu
@@ -71,6 +77,11 @@ vi.mock('@/i18n', () => ({
   })
 }))
 vi.mock('@/lib/haptics', () => ({ triggerHaptic: vi.fn() }))
+vi.mock('@/lib/managed-employee-policy', async importOriginal => {
+  const actual = await importOriginal<typeof ManagedEmployeePolicy>()
+
+  return { ...actual, isEmployeeAppearanceSettingAvailable: appearanceSettingAvailable }
+})
 vi.mock('@/lib/profile-color', () => ({ PROFILE_SWATCHES: [] }))
 vi.mock('@/lib/session-export', () => ({ exportSession: vi.fn() }))
 vi.mock('@/store/gateway', () => ({ activeGateway: vi.fn(() => null) }))
@@ -120,7 +131,21 @@ function renderMenu() {
   )
 }
 
+function renderContextMenu(onHideTabBar = vi.fn()) {
+  return render(
+    <SessionContextMenu onHideTabBar={onHideTabBar} sessionId="s1" title="My session">
+      <button aria-label="Session row" type="button">
+        Row
+      </button>
+    </SessionContextMenu>
+  )
+}
+
 describe('SessionActionsMenu', () => {
+  afterEach(() => {
+    appearanceSettingAvailable.mockReturnValue(false)
+  })
+
   it('opens the dropdown on click without a tooltip on the kebab', async () => {
     renderMenu()
 
@@ -284,5 +309,24 @@ describe('SessionActionsMenu', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
     expect(await screen.findByText('Session deleted')).toBeTruthy()
     expect(onDelete).toHaveBeenCalledTimes(1)
+  })
+
+  it('hides the tab-bar action from managed employee session menus', async () => {
+    appearanceSettingAvailable.mockReturnValue(false)
+    renderContextMenu()
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'Session row' }))
+
+    expect(await screen.findByRole('menuitem', { name: /rename/i })).toBeTruthy()
+    expect(screen.queryByRole('menuitem', { name: 'Hide tab bar' })).toBeNull()
+  })
+
+  it('keeps the tab-bar action in non-managed session menus', async () => {
+    appearanceSettingAvailable.mockReturnValue(true)
+    renderContextMenu()
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'Session row' }))
+
+    expect(await screen.findByRole('menuitem', { name: 'Hide tab bar' })).toBeTruthy()
   })
 })

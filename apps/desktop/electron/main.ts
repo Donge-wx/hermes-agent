@@ -5825,37 +5825,7 @@ function usableTitle(value: string): string {
 }
 
 function fetchLinkTitle(rawUrl) {
-  const url = String(rawUrl || '').trim()
-  const key = canonicalTitleCacheKey(url)
-
-  if (!key) {
-    return Promise.resolve('')
-  }
-
-  if (titleCache.has(key)) {
-    return Promise.resolve(titleCache.get(key))
-  }
-
-  if (titleInflight.has(key)) {
-    return titleInflight.get(key)
-  }
-
-  const pending = fetchHtmlTitleWithCurl(url)
-    .catch(() => '')
-    .then(value => usableTitle((value || '').slice(0, 240)))
-    .then(
-      async value => value || usableTitle(((await fetchHtmlTitleWithRenderer(url).catch(() => '')) || '').slice(0, 240))
-    )
-    .then(clean => {
-      cacheTitle(key, clean)
-      titleInflight.delete(key)
-
-      return clean
-    })
-
-  titleInflight.set(key, pending)
-
-  return pending
+  return Promise.resolve(canonicalTitleCacheKey(rawUrl))
 }
 
 // ─── Favicon resolution ──────────────────────────────────────────────────────

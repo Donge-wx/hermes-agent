@@ -27,8 +27,11 @@ describe('revealDesktopPane', () => {
     expect(openReview).toHaveBeenCalledOnce()
     revealDesktopPane('sessions')
     expect(setSidebarOpen).toHaveBeenCalledWith(true)
-    revealDesktopPane('terminal')
-    expect(setTerminalTakeover).toHaveBeenCalledWith(true)
+  })
+
+  it('returns false without revealing the policy-hidden managed terminal', () => {
+    expect(revealDesktopPane('terminal')).toBe(false)
+    expect(setTerminalTakeover).not.toHaveBeenCalled()
   })
 
   it('returns false for an unknown pane and touches nothing', () => {
@@ -37,6 +40,6 @@ describe('revealDesktopPane', () => {
   })
 
   it('returns true for a known pane', () => {
-    expect(revealDesktopPane('terminal')).toBe(true)
+    expect(revealDesktopPane('chat')).toBe(true)
   })
 })

@@ -27,6 +27,7 @@ import { Input } from '@/components/ui/input'
 import { renameSession } from '@/hermes'
 import { useI18n } from '@/i18n'
 import { triggerHaptic } from '@/lib/haptics'
+import { isEmployeeAppearanceSettingAvailable } from '@/lib/managed-employee-policy'
 import { PROFILE_SWATCHES } from '@/lib/profile-color'
 import { exportSession } from '@/lib/session-export'
 import { activeGateway } from '@/store/gateway'
@@ -498,7 +499,7 @@ function useSessionActions({
       )}
       <kit.Separator />
       {dangerItems.map(item => renderActionItem(kit, item))}
-      {onHideTabBar && (
+      {onHideTabBar && isEmployeeAppearanceSettingAvailable('appearance.tab-strip') && (
         <>
           <kit.Separator />
           {renderActionItem(kit, {

@@ -7,6 +7,7 @@ import { $pluginRecords } from '@/contrib/plugins-store'
 import { getEnvVars, getHermesConfigSchema } from '@/hermes'
 import { useI18n } from '@/i18n'
 import { Package, Palette, Settings2, Wrench } from '@/lib/icons'
+import { isEmployeeAppearanceSettingAvailable } from '@/lib/managed-employee-policy'
 import { $agentPlugins, isDesktopRelevantPlugin, loadAgentPlugins } from '@/store/agent-plugins'
 import { $gatewayState } from '@/store/session'
 import { TRANSLUCENCY_SUPPORTED } from '@/store/translucency'
@@ -109,7 +110,7 @@ export function useSettingsSearchCatalog(enabled: boolean) {
   const appearanceContext = t.settings.sections.appearance
   const appearance = t.settings.appearance
 
-  const appearanceEntries: SettingsSearchEntry[] = [
+  const allAppearanceEntries: SettingsSearchEntry[] = [
     {
       context: appearanceContext,
       description: t.language.description,
@@ -188,6 +189,10 @@ export function useSettingsSearchCatalog(enabled: boolean) {
       target: { setting: APPEARANCE_SETTING_IDS.embeds, view: 'config:appearance' }
     }
   ]
+
+  const appearanceEntries = allAppearanceEntries.filter(entry =>
+    isEmployeeAppearanceSettingAvailable(entry.target.setting ?? '')
+  )
 
   const credentialEntries = buildCredentialSearchEntries(
     envVarsFetching || envVarsError ? null : envVars,

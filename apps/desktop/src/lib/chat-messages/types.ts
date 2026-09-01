@@ -49,6 +49,7 @@ export type GatewayEventPayload = {
    * its local receipt clock when older gateways omit it. */
   timestamp?: number
   text?: string
+  already_streamed?: boolean
   rendered?: string
   status?: string
   message?: string

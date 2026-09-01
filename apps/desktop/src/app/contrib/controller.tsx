@@ -11,6 +11,7 @@ import { IdleMount } from '@/components/idle-mount'
 import { $layoutEditMode, toggleLayoutEditMode } from '@/components/pane-shell/edit-mode'
 import { allPaneIds, group, groupLeafIds, split } from '@/components/pane-shell/tree/model'
 import { LayoutTreeRoot } from '@/components/pane-shell/tree/renderer'
+import { localizedPaneTitle } from '@/components/pane-shell/tree/renderer/localized-pane-title'
 import {
   $layoutTree,
   bindPaneVisibility,
@@ -40,7 +41,7 @@ import { Slot } from '@/contrib/react/slot'
 import { useContributions } from '@/contrib/react/use-contributions'
 import { registry } from '@/contrib/registry'
 import { discoverRuntimePlugins } from '@/contrib/runtime-loader'
-import { translateNow } from '@/i18n'
+import { translateNow, translatePlugin } from '@/i18n'
 import { NEW_SESSION_TITLE, sessionTitle as storedSessionTitle } from '@/lib/chat-runtime'
 import { Download, FileText, LayoutDashboard, PanelBottom, PanelTop, Terminal, Upload, Zap } from '@/lib/icons'
 import { type KeybindContribution, KEYBINDS_AREA } from '@/lib/keybinds/actions'
@@ -189,28 +190,32 @@ registry.registerMany([
     },
     render: renderWorkspacePane
   },
-  {
-    id: 'terminal',
-    area: 'panes',
-    title: 'terminal',
-    // revealOnPreset: choosing a layout that places the terminal (e.g.
-    // "Terminal deck") turns takeover on so the zone actually shows, instead of
-    // staying collapsed behind the ⌃` toggle. height sizes the fixed track (a
-    // single-pane zone declaring a height is a fixed track — the preset weight
-    // is moot): a short deck, not a third of the window.
-    //
-    // NO minHeight: a tool panel drags all the way down to its collapsed
-    // header (the sash floors it at COLLAPSED_ZONE_PX and folds the zone to
-    // its rail there). A real floor left a sliver of unusable terminal.
-    data: {
-      placement: 'bottom',
-      height: '20vh',
-      maxHeight: '80vh',
-      revealOnPreset: true,
-      lifecycleKeepAlive: true
-    },
-    render: () => <WiredPane part="terminal" />
-  },
+  ...(TERMINAL_AVAILABLE
+    ? [
+        {
+          id: 'terminal',
+          area: 'panes',
+          title: 'terminal',
+          // revealOnPreset: choosing a layout that places the terminal (e.g.
+          // "Terminal deck") turns takeover on so the zone actually shows, instead of
+          // staying collapsed behind the ⌃` toggle. height sizes the fixed track (a
+          // single-pane zone declaring a height is a fixed track — the preset weight
+          // is moot): a short deck, not a third of the window.
+          //
+          // NO minHeight: a tool panel drags all the way down to its collapsed
+          // header (the sash floors it at COLLAPSED_ZONE_PX and folds the zone to
+          // its rail there). A real floor left a sliver of unusable terminal.
+          data: {
+            placement: 'bottom',
+            height: '20vh',
+            maxHeight: '80vh',
+            revealOnPreset: true,
+            lifecycleKeepAlive: true
+          },
+          render: () => <WiredPane part="terminal" />
+        }
+      ]
+    : []),
   {
     id: 'files',
     area: 'panes',
@@ -389,31 +394,36 @@ registry.registerMany([
 // each one directly beside the file tree wherever that currently lives — so a
 // file double-click still slides a preview open as its own pane next to the
 // tree, never as a tab stacked into the files sidebar.
+const DEFAULT_RAIL_TREE = split(
+  'row',
+  [group(['review'], { id: 'grp-review' }), group(['files'], { id: 'grp-files' })],
+  [1, 1.2],
+  'spl-rail'
+)
+
 const DEFAULT_TREE = split(
   'row',
   [
     group(['sessions'], { id: 'grp-sessions' }),
     group(['workspace'], { id: 'grp-main' }),
-    split(
-      'column',
-      [
-        split(
-          'row',
-          [group(['review'], { id: 'grp-review' }), group(['files'], { id: 'grp-files' })],
-          [1, 1.2],
-          'spl-rail'
-        ),
-        group(['terminal'], { id: 'grp-terminal' })
-      ],
-      [1.6, 1],
-      'spl-right'
-    )
+    TERMINAL_AVAILABLE
+      ? split(
+          'column',
+          [DEFAULT_RAIL_TREE, group(['terminal'], { id: 'grp-terminal' })],
+          [1.6, 1],
+          'spl-right'
+        )
+      : DEFAULT_RAIL_TREE
   ],
   [1, 3.4, 1.25],
   'spl-root'
 )
 
-const FOCUS_TREE = split('row', [group(['sessions']), group(['workspace', 'files', 'review', 'terminal'])], [1, 4.6])
+const FOCUS_TREE = split(
+  'row',
+  [group(['sessions']), group(['workspace', 'files', 'review', ...(TERMINAL_AVAILABLE ? ['terminal'] : [])])],
+  [1, 4.6]
+)
 
 const TERMINAL_TREE = split(
   'column',
@@ -445,6 +455,12 @@ registry.registerMany([
 ])
 
 declareDefaultTree(DEFAULT_TREE)
+
+const restoredTree = $layoutTree.get()
+
+if (!TERMINAL_AVAILABLE && restoredTree && allPaneIds(restoredTree).includes('terminal')) {
+  removeTreePane('terminal')
+}
 
 // Bundled plugins load AFTER core, so a same-id contribution from a plugin
 // deliberately overrides the core default (last writer wins). Third-party
@@ -750,6 +766,12 @@ if (isEmployeeFeatureAvailable('logs.raw')) {
           paletteToggle({
             id: `strip-tab.${pane.id}`,
             label: translateNow('zones.toggleStripTab', title),
+            resolveLabel: (locale, t) =>
+              t.zones.toggleStripTab(
+                localizedPaneTitle(pane.id, title, t, (key, ...args) =>
+                  translatePlugin('hermes-bots', locale, key, args)
+                )
+              ),
             icon: LayoutDashboard,
             keywords: [title.toLowerCase(), 'tab', 'pane', 'sidebar', 'show', 'hide'],
             // On-screen truth, same contract as the logs toggle above.

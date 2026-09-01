@@ -20,7 +20,7 @@ function loadTracker(toastsEnabled) {
   assert.ok(helperStart >= 0 && helperEnd > helperStart, 'botActivitySession must remain extractable')
   const notifications = []
   const context = {
-    pluginCtx: null,
+    pluginCtx: { i18n: { t: (key, label) => `${key}:${label || ''}` } },
     atom: initial => {
       let value = initial
       return { get: () => value, set: next => { value = next } }
@@ -64,7 +64,7 @@ test('opt-in: enabling the pref restores per-activity toasts', () => {
   t.trackInboundActivity(rosterAt(100))
   t.trackInboundActivity(rosterAt(200))
   assert.equal(t.notifications.length, 1)
-  assert.match(t.notifications[0].title, /New message for researcher/)
+  assert.equal(t.notifications[0].title, 'notify.newMessage:researcher')
 })
 
 test('pref defaults OFF and persists via ctx.storage under activity-toasts', () => {

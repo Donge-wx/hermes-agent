@@ -19,7 +19,11 @@ import { findBarClaimsCombo } from '@/lib/find-in-page'
 import { contributedKeybindHandler, PROFILE_SLOT_COUNT, SESSION_SLOT_COUNT } from '@/lib/keybinds/actions'
 import { actionAllowedInInput, comboFromEvent, isEditableTarget } from '@/lib/keybinds/combo'
 import { composerFocusKeysAllowed, isComposerFocusSoftCombo, typeToFocusChar } from '@/lib/keybinds/composer-focus-keys'
-import { isEmployeeFeatureAvailable, isEmployeeRouteAvailable } from '@/lib/managed-employee-policy'
+import {
+  isEmployeeAppearanceSettingAvailable,
+  isEmployeeFeatureAvailable,
+  isEmployeeRouteAvailable
+} from '@/lib/managed-employee-policy'
 import { openWorktreeDialog } from '@/store/coding-status'
 import { $commandPaletteOpen, openCommandPalettePage, toggleCommandPalette } from '@/store/command-palette'
 import {
@@ -257,20 +261,37 @@ export function useKeybinds(deps: KeybindRuntimeDeps): void {
     // ⌘J toggles the right sidebar — but a layout with no right side (e.g.
     // terminal-on-bottom) would leave it a dead key, so it falls back to the
     // terminal there. The single "secondary panel" toggle.
-    'view.toggleRightSidebar': () =>
-      layoutHasRootSide('right') ? toggleFileBrowserOpen() : togglePaneVisible('terminal'),
+    'view.toggleRightSidebar': () => {
+      if (layoutHasRootSide('right')) {
+        toggleFileBrowserOpen()
+      } else if (isEmployeeFeatureAvailable('terminal')) {
+        togglePaneVisible('terminal')
+      }
+    },
     'view.toggleReview': toggleReview,
     'view.toggleStatusbar': toggleStatusbarVisible,
-    'view.toggleTabStrip': () => void toggleTargetZoneTabStrip(),
+    'view.toggleTabStrip': () => {
+      if (!isEmployeeAppearanceSettingAvailable('appearance.tab-strip')) {
+        return
+      }
+
+      toggleTargetZoneTabStrip()
+    },
     'view.showFiles': showFiles,
     'view.showBrowser': openBrowserTab,
     'view.toggleHud': () => toggleHud(hudTargetSessionId()),
     'view.showTerminal': () => {
-      if (isEmployeeFeatureAvailable('terminal')) {togglePaneVisible('terminal')}
+      if (isEmployeeFeatureAvailable('terminal')) {
+        togglePaneVisible('terminal')
+      }
     },
     // Create first so the pane's open-effect ensure sees a non-empty set and
     // doesn't also spawn one — net effect is exactly one fresh terminal.
     'view.newTerminal': () => {
+      if (!isEmployeeFeatureAvailable('terminal')) {
+        return
+      }
+
       createTerminal()
       setTerminalTakeover(true)
     },
@@ -304,7 +325,13 @@ export function useKeybinds(deps: KeybindRuntimeDeps): void {
     'view.findNext': findNextMatch,
     'view.findPrevious': findPreviousMatch,
 
-    'appearance.toggleMode': () => setMode(resolvedMode === 'dark' ? 'light' : 'dark'),
+    'appearance.toggleMode': () => {
+      if (!isEmployeeAppearanceSettingAvailable('appearance.theme')) {
+        return
+      }
+
+      setMode(resolvedMode === 'dark' ? 'light' : 'dark')
+    },
 
     'profile.default': () => {
       if (isEmployeeFeatureAvailable('profiles.manage')) {switchToDefaultProfile()}

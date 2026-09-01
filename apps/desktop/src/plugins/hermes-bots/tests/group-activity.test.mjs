@@ -243,11 +243,13 @@ test('activity is runtime-only: never persisted, never hydrated', async () => {
 
 test('labels read like a person wrote them, with settled/cancelled as room-level lines', () => {
   const gc = load()
-  assert.equal(gc.groupActivityLabel({ kind: 'queued', member: 'You' }), 'You sent a message')
-  assert.equal(gc.groupActivityLabel({ kind: 'replied', member: 'research' }), 'research replied')
-  assert.equal(gc.groupActivityLabel({ kind: 'timed-out', member: 'ops' }), 'ops took too long')
-  assert.equal(gc.groupActivityLabel({ kind: 'cancelled', member: null }), 'turn interrupted by a newer message')
-  assert.equal(gc.groupActivityLabel({ kind: 'settled', member: null }), 'turn settled')
+  const copy = { aBot: 'A bot', you: 'You', activityQueued: 'sent a message', activityReplied: 'replied', activityTimedOut: 'took too long', activityCancelled: 'turn interrupted by a newer message', activitySettled: 'turn settled' }
+  const t = key => copy[key.slice('group.'.length)]
+  assert.equal(gc.groupActivityLabel({ kind: 'queued', member: 'You' }, t), 'You sent a message')
+  assert.equal(gc.groupActivityLabel({ kind: 'replied', member: 'research' }, t), 'research replied')
+  assert.equal(gc.groupActivityLabel({ kind: 'timed-out', member: 'ops' }, t), 'ops took too long')
+  assert.equal(gc.groupActivityLabel({ kind: 'cancelled', member: null }, t), 'turn interrupted by a newer message')
+  assert.equal(gc.groupActivityLabel({ kind: 'settled', member: null }, t), 'turn settled')
 })
 
 test('source contract: the workspace mounts a quiet, collapsed-by-default disclosure', () => {
@@ -261,8 +263,8 @@ test('source contract: the workspace mounts a quiet, collapsed-by-default disclo
   assert.doesNotMatch(panel, /autoFocus/)
   assert.doesNotMatch(panel, /autoScroll|scrollIntoView/)
   // Truthful event vocabulary is wired.
-  assert.match(pluginSource, /'timed-out': 'took too long'/)
-  assert.match(pluginSource, /cancelled: 'turn interrupted by a newer message'/)
+  assert.match(pluginSource, /'timed-out': 'activityTimedOut'/)
+  assert.match(pluginSource, /cancelled: 'activityCancelled'/)
   // The panel sits inside the workspace between the header and the log.
   const workspace = pluginSource.slice(pluginSource.indexOf('function GroupChatWorkspace('), pluginSource.indexOf('function GroupChatMainView('))
   assert.match(workspace, /header,\s*\n\s*activityPanel,/s)

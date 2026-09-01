@@ -31,7 +31,6 @@
    The hooks below are inert: message/runtime/session behavior remains owned by
    the existing components and stores. */
 :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='session-row'] {
-  min-height: var(--lg-size-session-row);
   border: var(--lg-stroke-hairline) solid transparent;
   border-radius: var(--lg-radius-control);
   background: transparent;
@@ -147,8 +146,6 @@
   border-color: color-mix(in srgb, var(--lg-blue) 34%, var(--lg-rim-outer));
 }
 
-/* Assistant output is a continuous reading plane, not a content-sized card.
-   The narrow blue edge is the only raised brand cue. */
 :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='aui_assistant-message-content'] {
   position: relative;
   width: 100%;
@@ -157,24 +154,8 @@
   padding: var(--lg-space-lg) var(--lg-space-2xl) var(--lg-space-lg) var(--lg-space-3xl);
   border: 0;
   border-radius: 0;
-  background: linear-gradient(
-    90deg,
-    color-mix(in srgb, var(--lg-white) 34%, transparent),
-    transparent 68%
-  );
+  background: transparent;
   box-shadow: none;
-}
-
-:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='aui_assistant-message-content']::before {
-  position: absolute;
-  inset-block-start: var(--lg-space-lg);
-  inset-inline-start: var(--lg-space-2xs);
-  width: var(--lg-stroke-focus);
-  height: var(--lg-size-control-compact);
-  border-radius: var(--lg-radius-pill);
-  background: linear-gradient(var(--lg-blue-mist), var(--lg-blue), color-mix(in srgb, var(--lg-ice-mist) 22%, transparent));
-  box-shadow: var(--lg-shadow-assistant-edge-glow);
-  content: '';
 }
 
 /* Live loading and quiet-gap rows are lightweight inline status, not another
@@ -301,7 +282,6 @@
 @media (prefers-reduced-transparency: reduce) {
   :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
     :is(
-      [data-slot='aui_assistant-message-content'],
       [data-slot='aui_response-loading'],
       [data-slot='aui_turn-activity'],
       [data-slot='aui_thinking-disclosure'] > div > button

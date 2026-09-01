@@ -8,7 +8,9 @@ import {
   employeeThemeItems,
   employeeThemeName,
   employeeVisibleBrandText,
+  isEmployeeAppearanceSettingAvailable,
   isEmployeeFeatureAvailable,
+  isEmployeeKeybindActionAvailable,
   isEmployeePaletteItemAvailable,
   isEmployeeRouteAvailable,
   isEmployeeSettingsViewAvailable,
@@ -51,6 +53,8 @@ describe('managed employee policy', () => {
     expect(isEmployeePaletteItemAvailable('nav-skills')).toBe(true)
     expect(isEmployeePaletteItemAvailable('nav-messaging')).toBe(true)
     expect(isEmployeePaletteItemAvailable('view.showTerminal')).toBe(false)
+    expect(isEmployeePaletteItemAvailable('view.toggleTabStrip')).toBe(false)
+    expect(isEmployeePaletteItemAvailable('core:view.toggleTabStrip')).toBe(false)
     expect(isEmployeePaletteItemAvailable('core:plugins.reload')).toBe(false)
     expect(isEmployeePaletteItemAvailable('core:profile.export')).toBe(false)
     expect(isEmployeePaletteItemAvailable('core:profile.import')).toBe(false)
@@ -58,8 +62,61 @@ describe('managed employee policy', () => {
     expect(isEmployeePaletteItemAvailable('plugin:hermes-bots:hermes-bots:new-agent')).toBe(false)
     expect(isEmployeePaletteItemAvailable('set-gateway')).toBe(true)
     expect(isEmployeePaletteItemAvailable('theme-install')).toBe(false)
+    expect(isEmployeePaletteItemAvailable('appearance-theme')).toBe(false)
+    expect(isEmployeePaletteItemAvailable('appearance-mode')).toBe(false)
+    expect(isEmployeePaletteItemAvailable('search-theme-liquid-glass')).toBe(false)
+    expect(isEmployeePaletteItemAvailable('search-mode-dark')).toBe(false)
+    expect(isEmployeePaletteItemAvailable('theme-liquid-glass')).toBe(false)
+    expect(isEmployeePaletteItemAvailable('theme-mode-dark')).toBe(false)
+    expect(isEmployeePaletteItemAvailable('mode-dark')).toBe(false)
     expect(isEmployeePaletteItemAvailable('sp-config-memory')).toBe(false)
     expect(isEmployeePaletteItemAvailable('sp-about')).toBe(true)
+    expect(isEmployeePaletteItemAvailable('view.toggleTabStrip', false)).toBe(true)
+  })
+
+  it('removes restricted shortcut actions before managed registries render or dispatch them', () => {
+    for (const actionId of [
+      'profile.default',
+      'profile.switch.1',
+      'nav.profiles',
+      'nav.cron',
+      'nav.agents',
+      'view.showTerminal',
+      'view.terminalCopy',
+      'layout.editMode',
+      'appearance.toggleMode',
+      'view.toggleTabStrip'
+    ]) {
+      expect(isEmployeeKeybindActionAvailable(actionId), actionId).toBe(false)
+      expect(isEmployeeKeybindActionAvailable(actionId, false), `${actionId} outside managed mode`).toBe(true)
+    }
+
+    expect(isEmployeeKeybindActionAvailable('session.new')).toBe(true)
+    expect(isEmployeeKeybindActionAvailable('view.toggleSidebar')).toBe(true)
+  })
+
+  it('hides only the eight administrator-managed appearance controls', () => {
+    const visibility = [
+      ['appearance.theme', false],
+      ['appearance.session-list-density', false],
+      ['appearance.tab-strip', false],
+      ['appearance.translucency', false],
+      ['appearance.backdrop', false],
+      ['appearance.intro-splash', false],
+      ['appearance.composer-popout', false],
+      ['appearance.tool-view', false],
+      ['appearance.language', true],
+      ['appearance.ui-scale', true],
+      ['appearance.reactions', true],
+      ['appearance.reasoning-collapsed', true],
+      ['appearance.embeds', true],
+      ['appearance.pet', true]
+    ] as const
+
+    for (const [setting, expected] of visibility) {
+      expect(isEmployeeAppearanceSettingAvailable(setting), setting).toBe(expected)
+      expect(isEmployeeAppearanceSettingAvailable(setting, false), `${setting} outside managed mode`).toBe(true)
+    }
   })
 
   it('restores every feature when the managed shell is disabled', () => {

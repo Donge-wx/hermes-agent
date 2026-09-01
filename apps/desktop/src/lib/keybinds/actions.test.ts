@@ -1,8 +1,33 @@
 import { describe, expect, it } from 'vitest'
 
 import { en } from '@/i18n/en'
+import { zh } from '@/i18n/zh'
 
-import { defaultBindings, KEYBIND_ACTIONS, keybindAction } from './actions'
+import { allKeybindActions, defaultBindings, KEYBIND_ACTIONS, keybindAction } from './actions'
+
+describe('managed employee keybind registry', () => {
+  it('does not register backend-management, terminal, or managed-appearance actions', () => {
+    const actions = new Set(allKeybindActions().map(action => action.id))
+    const bindings = defaultBindings()
+
+    for (const actionId of [
+      'profile.default',
+      'nav.profiles',
+      'nav.cron',
+      'nav.agents',
+      'view.showTerminal',
+      'view.newTerminal',
+      'appearance.toggleMode',
+      'view.toggleTabStrip'
+    ]) {
+      expect(actions.has(actionId), actionId).toBe(false)
+      expect(bindings).not.toHaveProperty(actionId)
+      expect(keybindAction(actionId)).toBeUndefined()
+    }
+
+    expect(actions.has('session.new')).toBe(true)
+  })
+})
 
 describe('session.archive keybind action', () => {
   it('is registered under the session category', () => {
@@ -29,5 +54,14 @@ describe('session.archive keybind action', () => {
     const matches = KEYBIND_ACTIONS.filter(action => action.id === 'session.archive')
 
     expect(matches).toHaveLength(1)
+  })
+})
+
+describe('layout.editMode contributed action label', () => {
+  it('keeps the stable action id while providing English and Simplified Chinese labels', () => {
+    const actionId = 'layout.editMode'
+
+    expect(en.keybinds.actions[actionId]).toBe('Toggle layout edit mode')
+    expect(zh.keybinds.actions[actionId]).toBe('切换布局编辑模式')
   })
 })

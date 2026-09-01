@@ -2,9 +2,11 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { atom } from 'nanostores'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { $terminalInjection } from '@/app/right-sidebar/store'
 import { ConfirmHost } from '@/components/confirm-host'
 import { I18nProvider } from '@/i18n'
 import { $confirmRequest } from '@/store/confirm'
+import { $notifications, clearNotifications } from '@/store/notifications'
 import type { EnvVarInfo, OAuthProvider } from '@/types/hermes'
 
 const listOAuthProviders = vi.fn()
@@ -71,19 +73,22 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup()
+  $terminalInjection.set(null)
   $confirmRequest.set(null)
+  clearNotifications()
+  Reflect.deleteProperty(window, 'hermesDesktop')
   vi.restoreAllMocks()
   vi.clearAllMocks()
 })
 
 // Removal goes through confirm() from @/store/confirm, so the host has to be
 // mounted for the prompt to render — same as in the real app shell.
-async function renderProvidersSettings() {
+async function renderProvidersSettings(initialLocale: 'en' | 'zh' = 'en') {
   const { ProvidersSettings } = await import('./providers-settings')
   let result: ReturnType<typeof render>
   await act(async () => {
     result = render(
-      <I18nProvider configClient={null} initialLocale="en">
+      <I18nProvider configClient={null} initialLocale={initialLocale}>
         <>
           <ProvidersSettings onClose={vi.fn()} onViewChange={vi.fn()} view="accounts" />
           <ConfirmHost />
@@ -95,11 +100,11 @@ async function renderProvidersSettings() {
   return result!
 }
 
-async function renderProviderKeysSettings() {
+async function renderProviderKeysSettings(initialLocale: 'en' | 'zh' = 'en') {
   const { ProvidersSettings } = await import('./providers-settings')
 
   return render(
-    <I18nProvider configClient={null} initialLocale="en">
+    <I18nProvider configClient={null} initialLocale={initialLocale}>
       <ProvidersSettings onClose={vi.fn()} onViewChange={vi.fn()} view="keys" />
     </I18nProvider>
   )
@@ -163,6 +168,18 @@ describe('ProvidersSettings', () => {
     expect(disconnectOAuthProvider).not.toHaveBeenCalled()
   })
 
+  it('localizes a provider removal failure without exposing the backend error', async () => {
+    disconnectOAuthProvider.mockRejectedValue(new Error('OAuth disconnect failed in backend'))
+    await renderProvidersSettings('zh')
+
+    fireEvent.click(await screen.findByRole('button', { name: '移除 My King Portal' }))
+    fireEvent.click(await screen.findByRole('button', { name: '断开连接' }))
+
+    await waitFor(() => expect(disconnectOAuthProvider).toHaveBeenCalledWith('nous'))
+    expect($notifications.get()[0]?.message).toBe('无法移除 My King Portal')
+    expect($notifications.get()[0]?.detail).toBeUndefined()
+  })
+
   it('keeps provider selection separate from account removal', async () => {
     await renderProvidersSettings()
 
@@ -194,6 +211,27 @@ describe('ProvidersSettings', () => {
     expect(screen.getByText(/managed by its own CLI/)).toBeTruthy()
   })
 
+  it('does not offer or queue a terminal disconnect when managed terminal access is unavailable', async () => {
+    Object.defineProperty(window, 'hermesDesktop', { configurable: true, value: { terminal: {} } })
+    listOAuthProviders.mockResolvedValue({
+      providers: [
+        provider('qwen-oauth', true, {
+          disconnect_command: 'qwen auth logout',
+          disconnectable: false,
+          flow: 'external',
+          name: 'Qwen (via Qwen CLI)'
+        })
+      ]
+    })
+
+    await renderProvidersSettings()
+
+    expect(await screen.findByText('Qwen Code')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Disconnect Qwen Code' })).toBeNull()
+    expect($terminalInjection.get()).toBeNull()
+    expect($notifications.get()).toHaveLength(0)
+  })
+
   it('renders a Keys card for a backend-tagged provider with no PROVIDER_GROUPS prefix', async () => {
     // A provider the backend catalog tags (provider/provider_label) but that has
     // no desktop PROVIDER_GROUPS prefix row must still render its own card —
@@ -213,6 +251,28 @@ describe('ProvidersSettings', () => {
     })
 
     expect(await screen.findByText('WidgetAI')).toBeTruthy()
+  })
+
+  it('localizes static provider descriptions while preserving backend descriptions', async () => {
+    getEnvVars.mockResolvedValue({
+      OPENROUTER_API_KEY: keyVar({ provider: 'openrouter', provider_label: 'OpenRouter' }),
+      WIDGETAI_API_KEY: keyVar({
+        description: 'Backend supplied description',
+        provider: 'widgetai',
+        provider_label: 'WidgetAI'
+      })
+    })
+    listOAuthProviders.mockResolvedValue({ providers: [] })
+
+    await renderProviderKeysSettings('zh')
+
+    const openRouter = await screen.findByText('OpenRouter')
+    fireEvent.click(openRouter)
+    expect(screen.getByText('聚合数百个前沿模型')).toBeTruthy()
+
+    const widgetAi = screen.getByText('WidgetAI')
+    fireEvent.click(widgetAi)
+    expect(screen.getByText('Backend supplied description')).toBeTruthy()
   })
 
   it('orders API-key providers by priority then name, and filters them via search', async () => {

@@ -12,7 +12,7 @@ function runtime() {
     atom,
     jsx,
     jsxs: jsx,
-    useQuery: () => ({}),
+    useQuery: options => options,
     useValue: value => (value?.get ? value.get() : value),
     useState: value => [value, () => undefined],
     document: { getElementById: () => null, createElement: () => ({}), head: { appendChild: () => undefined } },
@@ -32,11 +32,27 @@ function runtime() {
     .replace(/^import .* from 'react\/jsx-runtime'\r?\n/m, '')
     .replace('export default {', 'globalThis.plugin = {')
     .concat(
-      '\nglobalThis.__mergeMultiSourceRoster = mergeMultiSourceRoster;\nglobalThis.__botHandle = botHandle;\nglobalThis.__botRosterKey = botRosterKey;\nglobalThis.__botRosterMeta = botRosterMeta;\nglobalThis.__displayName = displayName;\nglobalThis.__filterBots = filterBots;\nglobalThis.__resolveRosterMentions = resolveRosterMentions;'
+      '\nglobalThis.__useRoster = useRoster;\nglobalThis.__mergeMultiSourceRoster = mergeMultiSourceRoster;\nglobalThis.__botHandle = botHandle;\nglobalThis.__botRosterKey = botRosterKey;\nglobalThis.__botRosterMeta = botRosterMeta;\nglobalThis.__displayName = displayName;\nglobalThis.__filterBots = filterBots;\nglobalThis.__resolveRosterMentions = resolveRosterMentions;'
     )
   vm.runInNewContext(code, context)
   return context
 }
+
+test('useRoster loads the active gateway without constructing a source route', async () => {
+  const context = runtime()
+  const calls = []
+  context.host.request = async (method, params) => {
+    calls.push({ method, params })
+    return { profiles: [{ name: 'default' }, { name: 'researcher' }, { name: 'writer' }] }
+  }
+
+  const result = await context.__useRoster().queryFn()
+
+  assert.equal(calls.length, 1)
+  assert.equal(calls[0].method, 'profiles.list')
+  assert.equal(Object.keys(calls[0].params).length, 0)
+  assert.deepEqual(result.profiles.map(profile => profile.name), ['default', 'researcher', 'writer'])
+})
 
 test('merge: no union → local list untouched', () => {
   const { __mergeMultiSourceRoster: merge } = runtime()

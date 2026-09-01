@@ -5,6 +5,7 @@ import { expect, test } from './test'
 
 const PROMPT = '你好'
 const SHORT_PROMPT = '您好'
+const LONG_MODEL = 'deepseek/deepseek-v4-flash'
 
 const VIEWPORTS = [
   { name: 'desktop-1280', width: 1280, height: 768 },
@@ -44,6 +45,7 @@ async function material(locator: Locator) {
     const style = getComputedStyle(element)
 
     return {
+      backgroundColor: style.backgroundColor,
       backgroundImage: style.backgroundImage,
       borderRadius: Number.parseFloat(style.borderRadius),
       boxShadow: style.boxShadow,
@@ -59,6 +61,7 @@ test('My King Liquid Glass conversation hierarchy stays functional and responsiv
 
   const fixture = await setupMockBackend({
     extraDisplayConfig: '  language: zh',
+    modelId: LONG_MODEL,
     mockServer: { holdFirstStreamForPrompt: PROMPT }
   })
 
@@ -91,10 +94,11 @@ test('My King Liquid Glass conversation hierarchy stays functional and responsiv
     const cognitionPulse = activeCognition.locator('[data-slot="aui_cognition-pulse"]')
     await expect(cognitionPulse).toBeVisible()
 
-    const [cognitionMaterial, pulseMaterial] = await Promise.all([material(activeCognition), material(cognitionPulse)])
-    expect(cognitionMaterial.backgroundImage).toBe('none')
-    expect(cognitionMaterial.borderRadius).toBe(0)
-    expect(cognitionMaterial.boxShadow).toBe('none')
+    await expect(activeCognition).toHaveCSS('background-image', 'none')
+    await expect(activeCognition).toHaveCSS('border-radius', '0px')
+    await expect(activeCognition).toHaveCSS('box-shadow', 'none')
+    const pulseMaterial = await material(cognitionPulse)
+
     expect(pulseMaterial.backgroundImage, JSON.stringify(pulseMaterial)).toContain('conic-gradient')
     expect(pulseMaterial.boxShadow).toBe('none')
     await fixture.page.screenshot({
@@ -169,6 +173,23 @@ test('My King Liquid Glass conversation hierarchy stays functional and responsiv
     const assistantSheet = fixture.page.locator('[data-slot="aui_assistant-message-content"]').last()
     await expect(assistantSheet).toContainText('mock inference server', { timeout: 60_000 })
 
+    const modelLabel = fixture.page.getByTestId('composer-model-label')
+    const modelName = modelLabel.locator(':scope > span').first()
+    const modelStatus = modelLabel.locator(':scope > span').nth(1)
+    const modelButton = modelLabel.locator('xpath=ancestor::button[1]')
+    await expect(modelName).toHaveText('Deepseek V4 Flash')
+    await expect(modelStatus).toContainText('·')
+    await expect(modelButton).toHaveAttribute('aria-label', /Deepseek V4 Flash ·/)
+
+    const modelOverflow = await Promise.all(
+      [modelName, modelStatus].map(part =>
+        part.evaluate(element => ({ clientWidth: element.clientWidth, scrollWidth: element.scrollWidth }))
+      )
+    )
+
+    expect(modelOverflow[0]?.scrollWidth).toBeLessThanOrEqual((modelOverflow[0]?.clientWidth ?? 0) + 1)
+    expect(modelOverflow[1]?.scrollWidth).toBeLessThanOrEqual((modelOverflow[1]?.clientWidth ?? 0) + 1)
+
     const userMaterial = await material(userBubble)
     const assistantMaterial = await material(assistantSheet)
 
@@ -176,9 +197,33 @@ test('My King Liquid Glass conversation hierarchy stays functional and responsiv
     expect(userMaterial.borderRadius).toBeGreaterThanOrEqual(16)
     expect(userMaterial.boxShadow).not.toBe('none')
 
-    expect(assistantMaterial.backgroundImage).not.toBe('none')
+    expect(assistantMaterial.backgroundColor).toMatch(/(?:transparent|rgba?\([^)]*,\s*0\s*\))$/)
+    expect(assistantMaterial.backgroundImage).toBe('none')
     expect(assistantMaterial.borderRadius).toBe(0)
     expect(assistantMaterial.boxShadow).toBe('none')
+
+    const assistantCue = await assistantSheet.evaluate(element => getComputedStyle(element, '::before').content)
+    expect(assistantCue).toBe('none')
+
+    const reducedTransparencyCdp = await fixture.page.context().newCDPSession(fixture.page)
+    await reducedTransparencyCdp.send('Emulation.setEmulatedMedia', {
+      features: [{ name: 'prefers-reduced-transparency', value: 'reduce' }]
+    })
+    expect(
+      await fixture.page.evaluate(() => window.matchMedia('(prefers-reduced-transparency: reduce)').matches)
+    ).toBe(true)
+    const reducedTransparencyAssistantMaterial = await material(assistantSheet)
+    expect(reducedTransparencyAssistantMaterial.backgroundColor).toMatch(
+      /(?:transparent|rgba?\([^)]*,\s*0\s*\))$/
+    )
+    await fixture.page.screenshot({
+      animations: 'disabled',
+      caret: 'hide',
+      path: testInfo.outputPath('my-king-conversation-reduced-transparency.png')
+    })
+    await reducedTransparencyCdp.send('Emulation.setEmulatedMedia', {
+      features: [{ name: 'prefers-reduced-transparency', value: 'no-preference' }]
+    })
 
     const userOuterShadow = await userBubble.evaluate(element => {
       const shadow = getComputedStyle(element).boxShadow.split(',').at(-1)?.trim() ?? ''
@@ -219,13 +264,81 @@ test('My King Liquid Glass conversation hierarchy stays functional and responsiv
     }
 
     await resizeWindow(fixture, 1280, 768)
-    const sessionRow = fixture.page.locator('[data-slot="session-row"]').first()
+
+    const sessionRow = fixture.page
+      .locator('[data-slot="session-row"]:visible')
+      .filter({ hasText: 'Hello from the mock inference server' })
+      .first()
+    const sessionRowLabel = sessionRow.locator('.hover-marquee').first()
+
+    await expect(sessionRowLabel).toBeVisible()
     await expect(sessionRow).toBeVisible()
-    expect((await sessionRow.boundingBox())?.height).toBeGreaterThanOrEqual(44)
+    const sessionRowHeight = (await sessionRow.boundingBox())?.height ?? Number.POSITIVE_INFINITY
+
+    expect(sessionRowHeight).toBeGreaterThanOrEqual(26)
+    expect(sessionRowHeight).toBeLessThanOrEqual(30)
+    expect(await sessionRowLabel.evaluate(element => Number.parseFloat(getComputedStyle(element).fontSize))).toBe(16)
+
+    const sidebarLabelScope = await fixture.page.evaluate(() => {
+      const probe = document.createElement('span')
+      probe.className = 'text-[0.8125rem] leading-none'
+      probe.dataset.slot = 'sidebar-row-label'
+      probe.textContent = 'navigation'
+      document.body.append(probe)
+      const fontSize = Number.parseFloat(getComputedStyle(probe).fontSize)
+      probe.remove()
+
+      return fontSize
+    })
+
+    expect(sidebarLabelScope).toBe(13)
+
+    const sessionListGap = await sessionRow.evaluate(element => {
+      const list = element.closest('[data-slot="sidebar-group-content"]')
+      if (!list) {
+        return Number.NaN
+      }
+
+      const style = getComputedStyle(list)
+      return Number.parseFloat(style.rowGap || style.gap)
+    })
+
+    expect(sessionListGap).toBeLessThanOrEqual(1)
+
+    const sessionRowHeights = await fixture.page.evaluate(() => {
+      const variants = {
+        default: 'min-h-[1.625rem]',
+        comfortable: 'min-h-[2.75rem]',
+        detailed: 'min-h-[3.875rem]',
+        card: 'min-h-[3.375rem]'
+      } as const
+      const host = document.createElement('div')
+      host.style.cssText = 'position:fixed; inset:0 auto auto 0; visibility:hidden; pointer-events:none;'
+      document.body.append(host)
+
+      const heights = Object.fromEntries(
+        Object.entries(variants).map(([name, className]) => {
+          const row = document.createElement('div')
+          row.className = className
+          row.dataset.slot = 'session-row'
+          host.append(row)
+
+          return [name, row.getBoundingClientRect().height]
+        })
+      )
+
+      host.remove()
+      return heights
+    })
+
+    expect(sessionRowHeights).toEqual({ card: 54, comfortable: 44, default: 26, detailed: 62 })
     expect((await sessionRow.getAttribute('data-selected')) ?? '').toBe('true')
+
     const selectedSessionShadow = await sessionRow.evaluate(element => {
       const shadow = getComputedStyle(element).boxShadow
-      if (shadow === 'none') return 0
+      if (shadow === 'none') {
+        return 0
+      }
 
       const layers: string[] = []
       let depth = 0
@@ -234,8 +347,12 @@ test('My King Liquid Glass conversation hierarchy stays functional and responsiv
       for (let index = 0; index < shadow.length; index += 1) {
         const character = shadow[index]
 
-        if (character === '(') depth += 1
-        if (character === ')') depth -= 1
+        if (character === '(') {
+          depth += 1
+        }
+        if (character === ')') {
+          depth -= 1
+        }
         if (character === ',' && depth === 0) {
           layers.push(shadow.slice(start, index))
           start = index + 1

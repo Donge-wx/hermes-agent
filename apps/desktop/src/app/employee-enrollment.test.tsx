@@ -43,10 +43,15 @@ function renderAssistant(
     value: { employeeEnrollment }
   })
 
+  const container = document.createElement('div')
+  container.id = 'root'
+  document.body.append(container)
+
   const view = render(
     <I18nProvider configClient={null} initialLocale="zh">
       <MyKingEmployeeEnrollmentAssistant placement={placement} />
-    </I18nProvider>
+    </I18nProvider>,
+    { container }
   )
 
   return {
@@ -67,6 +72,58 @@ afterEach(() => {
 })
 
 describe('My King employee enrollment assistant', () => {
+  it('keeps keyboard and assistive-technology focus inside the blocking login dialog', async () => {
+    const previousFocus = document.createElement('button')
+    previousFocus.textContent = 'Background action'
+    document.body.append(previousFocus)
+    previousFocus.focus()
+
+    const view = renderAssistant(IDLE_STATUS)
+    const dialog = await screen.findByRole('dialog', { name: '连接 AI Work OS' })
+    const email = screen.getByPlaceholderText('员工账号')
+    const appRoot = document.getElementById('root') as HTMLElement
+
+    await waitFor(() => expect(document.activeElement).toBe(email))
+    expect(dialog.getAttribute('aria-modal')).toBe('true')
+    expect(appRoot.inert).toBe(true)
+    expect(appRoot.getAttribute('aria-hidden')).toBe('true')
+
+    const focusable = Array.from(dialog.querySelectorAll<HTMLElement>('button, input'))
+    const last = focusable.at(-1) as HTMLElement
+
+    last.focus()
+    fireEvent.keyDown(last, { key: 'Tab' })
+    expect(document.activeElement).toBe(email)
+
+    email.focus()
+    fireEvent.keyDown(email, { key: 'Tab', shiftKey: true })
+    expect(document.activeElement).toBe(last)
+
+    act(() =>
+      view.emit({
+        ...IDLE_STATUS,
+        binding: {
+          deviceId: 'device-1',
+          employeeId: 'employee-1',
+          employeeName: '测试员工',
+          enrollmentId: 'enrollment-1',
+          enrolledAt: '2026-08-27T01:00:00.000Z',
+          lastCheckAt: '2026-08-27T01:30:00.000Z',
+          remoteGatewayUrl: 'https://gateway.myking.test',
+          version: 1
+        },
+        connectorReady: true,
+        stage: 'connected'
+      })
+    )
+
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: '连接 AI Work OS' })).toBeNull(), {
+      timeout: 3_000
+    })
+    expect(appRoot.inert).toBe(false)
+    expect(document.activeElement).toBe(previousFocus)
+  })
+
   it('stays absent for ordinary and preassigned managed-gateway builds', async () => {
     const ordinary = renderAssistant({ ...IDLE_STATUS, configured: false })
 
@@ -198,7 +255,7 @@ describe('My King employee enrollment assistant', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '查看诊断信息' }))
 
-    const dialog = await screen.findByRole('dialog')
+    const dialog = await screen.findByRole('dialog', { name: 'My King 连接诊断' })
 
     expect(diagnostics).toHaveBeenCalledTimes(1)
     expect(gate?.contains(dialog)).toBe(true)

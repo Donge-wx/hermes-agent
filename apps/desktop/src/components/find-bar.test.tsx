@@ -4,12 +4,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { type KeybindRuntimeDeps, useKeybinds } from '@/app/hooks/use-keybinds'
 import { FindBar } from '@/components/find-bar'
+import type * as PaneTreeStore from '@/components/pane-shell/tree/store'
 import { I18nProvider } from '@/i18n'
 import { en } from '@/i18n/en'
 import { zh } from '@/i18n/zh'
 import { findBarClaimsCombo, findBarKeyAction, formatMatchLabel } from '@/lib/find-in-page'
 import { KEYBIND_ACTIONS } from '@/lib/keybinds/actions'
 import { actionAllowedInInput } from '@/lib/keybinds/combo'
+import type * as ManagedEmployeePolicy from '@/lib/managed-employee-policy'
 import {
   $findInPage,
   closeFindBar,
@@ -23,12 +25,30 @@ import {
   updateFindResults
 } from '@/store/find-in-page'
 
+const { appearanceSettingAvailable, setThemeMode, toggleTabStrip } = vi.hoisted(() => ({
+  appearanceSettingAvailable: vi.fn(() => false),
+  setThemeMode: vi.fn(),
+  toggleTabStrip: vi.fn()
+}))
+
+vi.mock('@/lib/managed-employee-policy', async importOriginal => {
+  const actual = await importOriginal<typeof ManagedEmployeePolicy>()
+
+  return { ...actual, isEmployeeAppearanceSettingAvailable: appearanceSettingAvailable }
+})
+
 // useKeybinds only needs the theme context for resolvedMode/setMode; the real
 // provider persists themes and subscribes to backend sync, which is unrelated
 // to the find-in-page gate under test.
 vi.mock('@/themes/context', () => ({
-  useTheme: () => ({ resolvedMode: 'dark', setMode: vi.fn() })
+  useTheme: () => ({ resolvedMode: 'dark', setMode: setThemeMode })
 }))
+
+vi.mock('@/components/pane-shell/tree/store', async importOriginal => {
+  const actual = await importOriginal<typeof PaneTreeStore>()
+
+  return { ...actual, toggleTargetZoneTabStrip: toggleTabStrip }
+})
 
 // ── Bridge double ───────────────────────────────────────────────────────────
 // Stands in for the preload `hermesDesktop` surface. The primary window's
@@ -107,6 +127,9 @@ let bridge: ReturnType<typeof installBridge>
 beforeEach(() => {
   bridge = installBridge()
   resetStore()
+  appearanceSettingAvailable.mockClear()
+  setThemeMode.mockClear()
+  toggleTabStrip.mockClear()
 })
 
 afterEach(() => {
@@ -980,6 +1003,62 @@ describe('view.findInPage keybind gate', () => {
     fireEvent.keyDown(window, { key: 'f', metaKey: true })
 
     expect($findInPage.get().active).toBe(true)
+  })
+})
+
+describe('managed appearance keybind gates', () => {
+  function renderKeybinds() {
+    const deps: KeybindRuntimeDeps = {
+      toggleCommandCenter: vi.fn(),
+      startFreshSession: vi.fn(),
+      openNewSessionTab: vi.fn(),
+      toggleSelectedPin: vi.fn(),
+      archiveSelectedSession: vi.fn()
+    }
+
+    render(
+      <MemoryRouter initialEntries={['/session/a']}>
+        <I18nProvider configClient={null} initialLocale="en">
+          <KeybindHarness deps={deps} />
+        </I18nProvider>
+      </MemoryRouter>
+    )
+  }
+
+  it('does not toggle appearance in managed mode', () => {
+    appearanceSettingAvailable.mockReturnValue(false)
+    renderKeybinds()
+
+    fireEvent.keyDown(window, { key: 'x', code: 'KeyX', shiftKey: true })
+
+    expect(setThemeMode).not.toHaveBeenCalled()
+  })
+
+  it('toggles appearance outside managed mode', () => {
+    appearanceSettingAvailable.mockReturnValue(true)
+    renderKeybinds()
+
+    fireEvent.keyDown(window, { key: 'x', code: 'KeyX', shiftKey: true })
+
+    expect(setThemeMode).toHaveBeenCalledWith('light')
+  })
+
+  it('does not toggle the tab strip in managed mode', () => {
+    appearanceSettingAvailable.mockReturnValue(false)
+    renderKeybinds()
+
+    fireEvent.keyDown(window, { key: 't', code: 'KeyT', ctrlKey: true, altKey: true })
+
+    expect(toggleTabStrip).not.toHaveBeenCalled()
+  })
+
+  it('toggles the tab strip outside managed mode', () => {
+    appearanceSettingAvailable.mockReturnValue(true)
+    renderKeybinds()
+
+    fireEvent.keyDown(window, { key: 't', code: 'KeyT', ctrlKey: true, altKey: true })
+
+    expect(toggleTabStrip).toHaveBeenCalledOnce()
   })
 })
 

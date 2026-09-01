@@ -83,6 +83,859 @@ const blobatarSvg = typeof sdk === 'undefined' ? undefined : sdk.blobatarSvg
 const createBudgetedLoop = typeof sdk === 'undefined' ? undefined : sdk.createBudgetedLoop
 
 const ID = 'hermes-bots'
+const HERMES_BOTS_LOCALES = {
+  en: {
+    actions: {
+      back: 'Back',
+      cancel: 'Cancel',
+      close: 'Close',
+      create: 'Create',
+      delete: 'Delete',
+      deleting: 'Deleting…',
+      deleted: 'Deleted',
+      edit: 'Edit',
+      retry: 'Retry now',
+      save: 'Save',
+      saving: 'Saving…'
+    },
+    pane: {
+      bots: 'Bots',
+      cronjobs: 'Cronjobs',
+      activityOn: 'Activity toasts on — click to silence',
+      activityOff: 'Activity toasts off — click to enable',
+      hideHidden: 'Hide hidden bots again',
+      showHidden: count => `Show ${count} hidden bot${count === 1 ? '' : 's'}`,
+      hideHiddenAria: 'Hide hidden bots',
+      showHiddenAria: 'Show hidden bots',
+      hiddenUnread: 'A hidden bot has unread activity',
+      newMenu: 'New…',
+      newMenuAria: 'New agent or group chat',
+      searchAria: 'Search bots',
+      searchPlaceholder: 'Search bots…',
+      stale: 'Roster refresh failed — showing the last good list.',
+      reconnecting: ' Waiting for the gateway to reconnect…',
+      unavailable: 'Roster unavailable. If your gateway predates profiles.list, update My King and restart the gateway.',
+      waiting: 'Waiting for the gateway connection… (remote gateways can take a few seconds; retries automatically)',
+      emptyTitle: 'No agents yet',
+      emptyDescription: 'Create your first teammate.',
+      noMatch: query => `No bots match “${query}”`,
+      allHidden: 'All bots are hidden — use the eye button above to show them.'
+    },
+    agent: {
+      new: 'New Agent',
+      edit: 'Edit Profile',
+      create: 'Create Agent',
+      creating: 'Creating…',
+      save: 'Save Profile',
+      name: 'Name',
+      namePlaceholder: 'e.g. researcher',
+      nameHint: 'Lowercase letters, numbers, hyphens and underscores.',
+      displayName: 'Display name',
+      title: 'Title',
+      description: 'Description',
+      avatar: 'Avatar',
+      advanced: 'Advanced',
+      basic: 'Basic',
+      deleteTitle: 'Delete bot and profile?',
+      deletePrefix: 'This will permanently delete the bot ',
+      deletePath: ' and its associated My King profile at ',
+      deleteSuffix: '. This cannot be undone.'
+    },
+    row: {
+      noConversations: 'No conversations yet — say hi',
+      pinned: 'Pinned',
+      hidden: 'Hidden from the roster',
+      livesOn: source => `Lives on ${source}`,
+      unread: 'Unread',
+      working: 'Working on a task right now',
+      active: 'Active in the last 90s',
+      unpin: 'Unpin',
+      pin: 'Pin to top',
+      unhide: 'Unhide Bot',
+      hide: 'Hide Bot',
+      manageGroups: 'Manage groups…',
+      groups: groups => `Groups: ${groups}…`,
+      duplicate: 'Duplicate',
+      newChat: 'New chat with this agent',
+      fromBot: bot => `Last message came from @${bot} (bot-to-bot)`,
+      pinnedNotice: name => `${name} pinned to top`,
+      unpinnedNotice: name => `${name} unpinned`,
+      hiddenNotice: name => `${name} hidden — use the eye button in the Bots header to see hidden bots`,
+      unhiddenNotice: name => `${name} is back in the roster`,
+      duplicating: name => `Duplicating ${name}…`,
+      duplicated: (copy, original) => `Created ${copy} — full copy of ${original}`,
+      sourceUnavailable: source => source ? `Could not reach ${source}` : 'Could not reach the remote source',
+      chatUnavailable: name => `Could not open ${name}’s chat — try again`,
+      metadataUnavailable: 'Could not load bot metadata',
+      botUnavailable: 'Could not load bot',
+      groupsUnavailable: 'Could not load bot groups',
+      duplicateFailed: 'Duplicate failed'
+    },
+    avatar: {
+      bot: 'Bot',
+      generate: 'Generate',
+      upload: 'Upload',
+      pet: 'Pet',
+      prompt: 'Describe the avatar you want…',
+      generateAction: 'Generate avatar',
+      generating: 'Generating…',
+      uploadAction: 'Choose an image',
+      petSearch: 'Search pets…',
+      petEmpty: 'No pets found.',
+      petLoading: 'Loading pets…',
+      removeImage: 'Remove image — use shape',
+      autoTitle: 'Auto — the name decides',
+      auto: 'Auto',
+      randomize: 'Randomize',
+      unlockTitle: 'Unlock — the face follows the agent’s name again',
+      lockTitle: 'Keep this exact face even if the name changes',
+      unlock: 'Unlock',
+      lockFace: 'Lock face',
+      faceLocked: 'Face locked — renaming won’t change it.',
+      faceFollowsName: 'Face follows the name.',
+      classicShapes: 'Classic shapes',
+      blobTitle: 'Blob face — drawn from the agent’s name',
+      blankGenerateHint: 'Leave blank to generate from the agent’s name and description.',
+      noImageModel: 'No image model available. If you just enabled one (or updated My King), restart the gateway: Ctrl+K → "Restart gateway".',
+      checkingBackend: 'Checking image backend…',
+      petIntro: 'Pick a pet as this agent’s profile picture.',
+      petRemove: 'Remove — back to shape avatar',
+      petLoadFailed: 'Could not load that pet — try another.',
+      scrollMore: (shown, total) => `Scroll for more (${shown} of ${total})`,
+      imageTooLarge: 'Image too large (max 15MB).',
+      generateFailed: 'Avatar generation failed'
+    },
+    model: {
+      provider: 'Provider',
+      model: 'Model',
+      providerCustom: 'Provider (Custom)',
+      modelCustom: 'Model (Custom)',
+      backToDropdowns: '← Back to dropdowns',
+      inherit: 'Inherit (launch profile)',
+      enterManually: '✏️ Enter manually…',
+      gatewayDefault: 'gateway default',
+      providerPlaceholder: 'e.g. omnirouter, inferx, 9router',
+      modelPlaceholder: 'e.g. antigravity/gemini-3.6-flash-high'
+    },
+    advanced: {
+      heading: 'Advanced profile configuration',
+      capabilities: 'Capabilities',
+      capabilitiesImmediate: 'Capabilities (applies immediately — skills, tools, MCP)',
+      model: 'Model',
+      skills: 'Skills',
+      toolsets: 'Toolsets',
+      mcp: 'MCP servers',
+      soul: 'Agent instructions (SOUL)',
+      noSkills: 'No skills installed.',
+      noToolsets: 'No toolsets available.',
+      noMcp: 'No MCP servers configured or in the catalog.',
+      configureMcp: 'Configure MCP',
+      refresh: 'Refresh',
+      unsupported: 'Full configuration needs a newer gateway (restart it after updating My King).',
+      remoteUnsupported: 'Remote capabilities require a newer desktop. Model and SOUL changes remain staged until you save.',
+      filterSkills: 'Filter skills…',
+      catalogInstalled: 'catalog · installed',
+      catalog: 'catalog'
+    },
+    mcp: {
+      addFailed: 'Could not add server',
+      noTarget: 'No target profile',
+      setKeyFailed: key => `Failed to set ${key}`,
+      testFailed: 'Server test failed after setup',
+      configured: name => `${name} configured`,
+      oauthStartFailed: 'Could not start OAuth',
+      signInBrowser: 'Complete sign-in in your browser…',
+      authenticated: name => `${name} authenticated`,
+      oauthFailed: 'OAuth failed',
+      needsSetup: keys => `needs setup (${keys}) — restart the gateway to enable in-app setup`,
+      setupDone: 'set up ✓',
+      saveTest: 'Save & test',
+      authorizing: 'Authorizing…',
+      working: 'Working…',
+      setupFailed: 'Setup failed',
+      retry: 'retry',
+      signIn: 'Sign in…',
+      setup: 'Set up…'
+    },
+    skillsHub: {
+      title: 'Skills Hub',
+      hideBrowser: 'hide the hub browser',
+      browseFull: 'browse the full hub ▾',
+      frameTitle: 'My King Skills Hub',
+      installing: name => `Installing "${name}"…`,
+      browseHint: 'Hit "+ Add to this Agent" on any skill — it installs and appears in the list above. Drag the corner to resize.',
+      searchPlaceholder: 'Search the hub (community + well-known sources)…',
+      searching: 'Searching…',
+      search: 'Search',
+      searchingHint: 'Searching community + well-known sources — can take ~10s…',
+      empty: 'No hub skills matched.',
+      added: '✓ added',
+      installTitle: name => `Install "${name}" and add it to the list above`,
+      installed: name => `Skill "${name}" installed`,
+      installFailed: name => `Installing "${name}" failed`
+    },
+    routines: {
+      new: 'New Routine',
+      create: 'Create Routine',
+      creating: 'Creating…',
+      title: 'Routines',
+      noAgent: 'Open an agent chat to manage its routines.',
+      loadError: 'Could not load cronjobs.',
+      stale: 'Showing the last loaded cronjobs.',
+      empty: 'No routines for this agent yet.',
+      name: 'Name',
+      prompt: 'Instructions',
+      schedule: 'Schedule',
+      frequency: 'Frequency',
+      time: 'Time',
+      weekdays: 'Days',
+      enabled: 'Enabled',
+      paused: 'Paused',
+      pause: 'Pause',
+      resume: 'Resume',
+      deleteTitle: 'Delete routine?',
+      deleteDescription: name => `Delete “${name}”? This cannot be undone.`,
+      filteredHint: 'Cronjobs exist in this profile but none are tagged for this bot. Name a job "[bot:<name>] …" to show it here, or see them in Cron below.',
+      invalidName: 'Cronjob name cannot contain NUL (U+0000).',
+      invalidInstruction: 'Cronjob instruction cannot contain NUL (U+0000).',
+      next: value => `next ${value}`,
+      legacyUnsafe: 'Paused for security: delete and recreate this legacy cronjob before running it again.',
+      onceIn: value => `Once (${value})`,
+      daily: 'Daily',
+      everyDays: value => `Every ${value} days`,
+      hourly: 'Hourly',
+      everyHours: value => `Every ${value}h`,
+      everyMinutes: value => `Every ${value}m`,
+      once: 'Once, in…',
+      everyHour: 'Every hour',
+      everyDay: 'Every day',
+      weekdaysOnly: 'Weekdays',
+      everyWeek: 'Every week',
+      everyMonth: 'Every month',
+      interval: 'Interval',
+      advanced: 'Advanced…',
+      monday: 'Monday',
+      tuesday: 'Tuesday',
+      wednesday: 'Wednesday',
+      thursday: 'Thursday',
+      friday: 'Friday',
+      saturday: 'Saturday',
+      sunday: 'Sunday',
+      clockTime: (hour, minute) => `${hour % 12 === 0 ? 12 : hour % 12}:${String(minute).padStart(2, '0')} ${hour < 12 ? 'AM' : 'PM'}`,
+      minutesFromNow: 'minutes from now',
+      hoursFromNow: 'hours from now',
+      daysFromNow: 'days from now',
+      dayOfMonth: 'Day of month',
+      minutes: 'minutes',
+      hours: 'hours',
+      days: 'days',
+      rawPlaceholder: 'every 1d · every 2h · 0 9 * * * (cron)',
+      stopAfter: 'Stop after',
+      runsForever: 'runs (blank = forever)',
+      unitMinutes: 'minute(s)',
+      unitHours: 'hour(s)',
+      unitDays: 'day(s)',
+      repeatTotal: count => `, ${count} time(s) total`,
+      summaryOnce: (count, unit) => `Runs once, ${count} ${unit} from now`,
+      summaryHourly: 'Runs at the top of every hour',
+      summaryDaily: time => `Runs every day at ${time}`,
+      summaryWeekdays: time => `Runs Monday–Friday at ${time}`,
+      summaryWeekly: (day, time) => `Runs every ${day} at ${time}`,
+      summaryMonthly: (day, time) => `Runs on day ${day} of each month at ${time}`,
+      summaryInterval: (count, unit) => `Runs every ${count} ${unit}`,
+      summaryRaw: 'Raw schedule — every Nm/Nh/Nd or 5-field cron',
+      scheduled: title => `Cronjob "${title}" scheduled`,
+      createDescription: name => `A recurring task ${name} runs on a schedule. Runs land in its own chat history.`,
+      namePlaceholder: 'Name this cronjob',
+      instructionPlaceholder: 'What should this cronjob do each time it runs?',
+      sendResults: 'Send results to',
+      runHistory: 'Run history only',
+      botChat: name => `${name}’s chat (bot responds)`,
+      continuity: 'Continuity: each run sees the previous run’s output (dedupe, continue where it left off)',
+      updateFailed: 'Could not update the cronjob.',
+      createFailed: 'Could not create the cronjob.'
+    },
+    group: {
+      new: 'New Group Chat',
+      create: 'Create Group Chat',
+      creating: 'Creating…',
+      open: 'Open Group Chat',
+      delete: 'Delete Group',
+      deleteTitle: 'Delete group chat?',
+      deleteDescription: name => `This removes “${name}” from its bots and clears the shared room log. The bots and their individual chats are kept.`,
+      name: 'Group name',
+      namePlaceholder: 'e.g. Product team',
+      members: 'Members',
+      memberCount: count => `${count} bots`,
+      noMessages: 'No messages yet — say hi to the room',
+      needsYou: 'needs you',
+      needsYouTip: 'A bot in this room needs your input',
+      settings: 'Group settings',
+      image: 'Group image',
+      changeImage: 'Change image',
+      removeImage: 'Remove image',
+      addMembers: 'Add members',
+      activity: 'Activity',
+      reply: 'Reply',
+      replyInThread: 'Reply in thread',
+      newThread: 'New Thread',
+      emptyRoom: 'Say something — every bot in this group hears the room.',
+      save: 'Save Group',
+      disband: 'Disband',
+      disbanding: 'Disbanding…',
+      disbanded: 'Disbanded',
+      disbandTitle: 'Disband group chat?',
+      activeNow: 'Active now',
+      openChat: name => `Open ${name}’s chat`,
+      memberAdded: (bot, group) => `${bot} added to “${group}”`,
+      memberRemoved: (bot, group) => `${bot} removed from “${group}”`,
+      membershipDescription: 'A bot can join multiple group chats. Memberships sync to every machine.',
+      removeAll: 'Remove from all groups',
+      settingsDescription: 'Rename the group or set a room picture. Members and history are kept.',
+      created: (name, count) => `“${name}” created with ${count} bots`,
+      createDescription: count => `Pick 2–${count} bots. Local memberships sync through each Bot profile; cross-machine members stay scoped to this room.`,
+      removeSelection: 'Remove from selection',
+      inGroups: groups => `in ${groups}`,
+      pickAtLeastTwo: 'Pick at least 2 bots',
+      nameExists: name => `A group named “${name}” already exists.`,
+      attachment: 'attachment',
+      pastedImage: 'pasted image',
+      attachmentTooLarge: name => `${name}: too large (max 15MB).`,
+      pictureGenerationFailed: 'Group picture generation failed',
+      answerFailed: bot => `Could not send the answer to @${bot}.`,
+      wantsCommand: bot => `@${bot} wants to run a command:`,
+      asks: bot => `@${bot} asks:`,
+      answerAria: bot => `Answer @${bot}`,
+      ownAnswerPlaceholder: 'Or type your own answer…',
+      answerPlaceholder: 'Type your answer…',
+      sending: 'Sending…',
+      respond: 'Respond',
+      answer: 'Answer',
+      roomTitle: name => `${name} — group chat`,
+      settingsTitle: name => `Group settings — rename ${name} or set a room picture`,
+      disbandTitleFor: name => `Disband the ${name} group chat`,
+      hideActivity: 'Hide room activity',
+      showActivity: 'Show room activity',
+      noActivity: 'No activity in this turn yet.',
+      imageName: 'image',
+      removeAttachment: 'Remove attachment',
+      attachFiles: 'Attach files — every responding bot sees them',
+      hideHandle: 'Hide full handle',
+      showHandle: 'Show full handle',
+      attachedFile: 'attached file',
+      attachedImage: 'attached image',
+      openThread: 'Open this thread',
+      thread: 'Thread',
+      replies: count => `${count} ${count === 1 ? 'reply' : 'replies'}`,
+      collapseThreadTitle: 'Collapse this thread',
+      collapseThread: 'Collapse thread',
+      dropThread: 'Drop to attach to this thread reply',
+      dropRoom: 'Drop to attach — every responding bot sees it',
+      waitingAnswer: 'Waiting for your answer…',
+      thinking: name => `${name} is thinking…`,
+      roomWorking: 'The room is working…',
+      messageAria: name => `Message ${name}`,
+      newThreadPlaceholder: name => `New thread in ${name}… (@name to direct, @everyone for all)`,
+      disbandDescription: (count, name) => `This removes the ${name} grouping from its ${count} bots and clears the shared room log. The bots themselves and their per-group sessions are kept.`,
+      disbandedNotice: name => `Disbanded “${name}”`,
+      you: 'You',
+      aBot: 'A bot',
+      activityQueued: 'sent a message',
+      activityWorking: 'is working…',
+      activityReplied: 'replied',
+      activityPassed: 'passed',
+      activityTimedOut: 'took too long',
+      activityFailed: 'hit an error',
+      activityCancelled: 'turn interrupted by a newer message',
+      activitySettled: 'turn settled',
+      activityDelivered: 'delivered a late reply'
+    },
+    agentSetup: {
+      editDescription: (name, id) => `Appearance and role for ${name} (${id}).`,
+      helpPlaceholder: 'What should this agent help with?',
+      createDescription: 'A named teammate with its own memory, skills, and chat. It can message your other agents.',
+      duplicateRemote: (name, target) => `An agent named "${name}" already exists on ${target}.`,
+      duplicate: name => `An agent named "${name}" already exists.`,
+      createOn: 'Create on',
+      current: name => `${name} (current)`,
+      remoteDescription: target => `The agent is created on ${target} and appears in the roster as a Connections bot. Chat routes to that machine.`,
+      titlePlaceholder: 'Inbox Triage',
+      cloneFromRemote: target => `Clone from profile (on ${target})`,
+      cloneFrom: 'Clone from profile',
+      freshProfile: 'Fresh profile (bundled skills)',
+      inheritedModel: 'inherited from launch profile',
+      soulLabel: 'SOUL.md (optional — replaces the generated persona)',
+      soulPlaceholder: 'Leave blank to auto-generate from name/title/description + agent-messaging roster.',
+      shareAuth: 'Share keys & accounts with the main profile',
+      shareAuthHint: 'Subscriptions, OAuth logins, and API keys stay shared (not copied), so token refreshes never invalidate each other. Uncheck for an isolated snapshot copy.',
+      createEmpty: 'Create empty (skip bundled skills)',
+      takenCapabilities: 'That name is taken — pick another before configuring capabilities.',
+      nameCapabilities: 'Name the agent first — a draft profile is created when you open this tab (discarded if you cancel).',
+      catalogUnsupported: 'Capability catalog needs a newer gateway (restart it after updating My King).',
+      emptySkills: '“Create empty” is checked — no bundled skills will be installed.',
+      catalogSource: source => `Catalog from ${source} — unchecked skills are disabled after creation.`,
+      toolsetDefault: 'Leaving all (or none) checked keeps the default toolset behavior.',
+      mcpHint: 'Configured servers copy from the main profile; catalog entries are the bundled MCP menu. Entries needing API keys route through setup first (credentials follow the shared keys setting).',
+      lookPersistFailed: 'Saved look locally; remote persistence failed',
+      descriptionUpdateFailed: 'Saved look locally; description update failed',
+      sectionsFailed: names => `Some sections failed: ${names}`,
+      advancedFailed: 'Advanced configuration failed',
+      updated: name => `${name} updated`,
+      draftDiscarded: name => `Draft agent "${name}" discarded`,
+      draftCleanupFailed: name => `Could not clean up draft profile "${name}"`,
+      createFailed: 'Could not create the agent.',
+      createdRemote: (name, target) => `Agent "${name}" created on ${target}`,
+      created: name => `Agent "${name}" created`,
+      createProfileFailed: 'Could not create the profile yet'
+    },
+    palette: {
+      newAgent: 'New Agent…',
+      openBots: 'Open the Bots pane and hit “New Agent”.'
+    },
+    notices: {
+      continuousTitle: 'This chat never resets',
+      continuousMessage: 'Bot chats are one continuous conversation — compacting instead. For a throwaway session with this agent, use Sessions mode.'
+    },
+    notify: {
+      newMessage: label => `🤖 New message for ${label}`,
+      newActivity: label => `${label} has new activity`,
+      openChat: 'Open the chat to see it.',
+      deletedProfile: name => `Deleted profile ${name}`,
+      deletedGroup: name => `Deleted group “${name}”`
+    }
+  },
+  zh: {
+    actions: {
+      back: '返回',
+      cancel: '取消',
+      close: '关闭',
+      create: '创建',
+      delete: '删除',
+      deleting: '正在删除…',
+      deleted: '已删除',
+      edit: '编辑',
+      retry: '立即重试',
+      save: '保存',
+      saving: '正在保存…'
+    },
+    pane: {
+      bots: '智能体',
+      cronjobs: '定时任务',
+      activityOn: '活动通知已开启，点击静音',
+      activityOff: '活动通知已关闭，点击开启',
+      hideHidden: '再次隐藏已隐藏的智能体',
+      showHidden: count => `显示 ${count} 个已隐藏的智能体`,
+      hideHiddenAria: '隐藏已隐藏的智能体',
+      showHiddenAria: '显示已隐藏的智能体',
+      hiddenUnread: '已隐藏的智能体有未读活动',
+      newMenu: '新建…',
+      newMenuAria: '新建智能体或群聊',
+      searchAria: '搜索智能体',
+      searchPlaceholder: '搜索智能体…',
+      stale: '智能体列表刷新失败，正在显示上次成功加载的列表。',
+      reconnecting: ' 正在等待网关重新连接…',
+      unavailable: '无法加载智能体列表。如果网关版本不支持 profiles.list，请更新 My King 并重启网关。',
+      waiting: '正在等待网关连接…（远程网关可能需要几秒钟，系统会自动重试）',
+      emptyTitle: '还没有智能体',
+      emptyDescription: '创建你的第一位智能体伙伴。',
+      noMatch: query => `没有与“${query}”匹配的智能体`,
+      allHidden: '所有智能体都已隐藏，请使用上方的眼睛按钮显示它们。'
+    },
+    agent: {
+      new: '新建智能体',
+      edit: '编辑智能体',
+      create: '创建智能体',
+      creating: '正在创建…',
+      save: '保存智能体',
+      name: '名称',
+      namePlaceholder: '例如 researcher',
+      nameHint: '仅可使用小写字母、数字、连字符和下划线。',
+      displayName: '显示名称',
+      title: '角色标题',
+      description: '说明',
+      avatar: '头像',
+      advanced: '高级设置',
+      basic: '基础信息',
+      deleteTitle: '删除智能体及其配置？',
+      deletePrefix: '这将永久删除智能体 ',
+      deletePath: ' 以及位于以下路径的 My King 配置：',
+      deleteSuffix: '。此操作无法撤销。'
+    },
+    row: {
+      noConversations: '还没有对话，去打个招呼吧',
+      pinned: '已置顶',
+      hidden: '已从列表隐藏',
+      livesOn: source => `位于 ${source}`,
+      unread: '未读',
+      working: '正在处理任务',
+      active: '最近 90 秒内活跃',
+      unpin: '取消置顶',
+      pin: '置顶',
+      unhide: '取消隐藏',
+      hide: '隐藏智能体',
+      manageGroups: '管理群组…',
+      groups: groups => `群组：${groups}…`,
+      duplicate: '复制智能体',
+      newChat: '与该智能体新建对话',
+      fromBot: bot => `上一条消息来自 @${bot}（智能体之间）`,
+      pinnedNotice: name => `${name} 已置顶`,
+      unpinnedNotice: name => `${name} 已取消置顶`,
+      hiddenNotice: name => `${name} 已隐藏，可使用智能体标题栏中的眼睛按钮查看隐藏项`,
+      unhiddenNotice: name => `${name} 已重新显示在列表中`,
+      duplicating: name => `正在复制 ${name}…`,
+      duplicated: (copy, original) => `已创建 ${copy}，完整复制自 ${original}`,
+      sourceUnavailable: source => source ? `无法连接 ${source}` : '无法连接远程来源',
+      chatUnavailable: name => `无法打开 ${name} 的对话，请重试`,
+      metadataUnavailable: '无法加载智能体元数据',
+      botUnavailable: '无法加载智能体',
+      groupsUnavailable: '无法加载智能体群组',
+      duplicateFailed: '复制失败'
+    },
+    avatar: {
+      bot: '智能体',
+      generate: '生成',
+      upload: '上传',
+      pet: '宠物',
+      prompt: '描述你想要的头像…',
+      generateAction: '生成头像',
+      generating: '正在生成…',
+      uploadAction: '选择图片',
+      petSearch: '搜索宠物…',
+      petEmpty: '没有找到宠物。',
+      petLoading: '正在加载宠物…',
+      removeImage: '移除图片，改用形状头像',
+      autoTitle: '自动（由名称决定）',
+      auto: '自动',
+      randomize: '随机生成',
+      unlockTitle: '解锁后，脸部会再次跟随智能体名称',
+      lockTitle: '即使名称改变，也保持当前脸部',
+      unlock: '解锁',
+      lockFace: '锁定脸部',
+      faceLocked: '脸部已锁定，重命名不会改变它。',
+      faceFollowsName: '脸部会跟随名称变化。',
+      classicShapes: '经典形状',
+      blobTitle: '根据智能体名称绘制的团状脸部',
+      blankGenerateHint: '留空将根据智能体名称和说明生成。',
+      noImageModel: '没有可用的图像模型。如果刚启用模型或更新 My King，请重启网关：Ctrl+K →“重启网关”。',
+      checkingBackend: '正在检查图像后端…',
+      petIntro: '选择一只宠物作为该智能体的头像。',
+      petRemove: '移除宠物，恢复形状头像',
+      petLoadFailed: '无法加载该宠物，请换一个。',
+      scrollMore: (shown, total) => `向下滚动加载更多（${shown}/${total}）`,
+      imageTooLarge: '图片过大（最大 15MB）。',
+      generateFailed: '头像生成失败'
+    },
+    model: {
+      provider: '服务商',
+      model: '模型',
+      providerCustom: '服务商（自定义）',
+      modelCustom: '模型（自定义）',
+      backToDropdowns: '← 返回下拉列表',
+      inherit: '继承启动配置',
+      enterManually: '✏️ 手动输入…',
+      gatewayDefault: '网关默认值',
+      providerPlaceholder: '例如 omnirouter、inferx、9router',
+      modelPlaceholder: '例如 antigravity/gemini-3.6-flash-high'
+    },
+    advanced: {
+      heading: '高级智能体配置',
+      capabilities: '能力',
+      capabilitiesImmediate: '能力（立即应用：技能、工具和 MCP）',
+      model: '模型',
+      skills: '技能',
+      toolsets: '工具集',
+      mcp: 'MCP 服务器',
+      soul: '智能体指令（SOUL）',
+      noSkills: '尚未安装技能。',
+      noToolsets: '没有可用的工具集。',
+      noMcp: '尚未配置 MCP 服务器，目录中也没有可用项。',
+      configureMcp: '配置 MCP',
+      refresh: '刷新',
+      unsupported: '完整配置需要新版网关（更新 My King 后请重启网关）。',
+      remoteUnsupported: '远程能力配置需要新版桌面端。模型和 SOUL 更改会在保存时应用。',
+      filterSkills: '筛选技能…',
+      catalogInstalled: '目录 · 已安装',
+      catalog: '目录'
+    },
+    mcp: {
+      addFailed: '无法添加服务器',
+      noTarget: '没有目标配置',
+      setKeyFailed: key => `设置 ${key} 失败`,
+      testFailed: '配置后的服务器测试失败',
+      configured: name => `${name} 已配置`,
+      oauthStartFailed: '无法启动 OAuth',
+      signInBrowser: '请在浏览器中完成登录…',
+      authenticated: name => `${name} 已认证`,
+      oauthFailed: 'OAuth 认证失败',
+      needsSetup: keys => `需要配置（${keys}），请重启网关以启用应用内配置`,
+      setupDone: '已配置 ✓',
+      saveTest: '保存并测试',
+      authorizing: '正在授权…',
+      working: '正在处理…',
+      setupFailed: '配置失败',
+      retry: '重试',
+      signIn: '登录…',
+      setup: '配置…'
+    },
+    skillsHub: {
+      title: '技能中心',
+      hideBrowser: '收起技能中心',
+      browseFull: '浏览完整技能中心 ▾',
+      frameTitle: 'My King 技能中心',
+      installing: name => `正在安装“${name}”…`,
+      browseHint: '在任一技能上点击“+添加到此智能体”，它将被安装并显示在上方列表中。拖动角落可调整大小。',
+      searchPlaceholder: '搜索技能中心（社区和常用来源）…',
+      searching: '正在搜索…',
+      search: '搜索',
+      searchingHint: '正在搜索社区和常用来源，可能需要约 10 秒…',
+      empty: '没有匹配的技能。',
+      added: '✓ 已添加',
+      installTitle: name => `安装“${name}”并添加到上方列表`,
+      installed: name => `技能“${name}”已安装`,
+      installFailed: name => `安装“${name}”失败`
+    },
+    routines: {
+      new: '新建定时任务',
+      create: '创建定时任务',
+      creating: '正在创建…',
+      title: '定时任务',
+      noAgent: '请先打开一个智能体对话，再管理其定时任务。',
+      loadError: '无法加载定时任务。',
+      stale: '正在显示上次加载的定时任务。',
+      empty: '该智能体还没有定时任务。',
+      name: '名称',
+      prompt: '任务指令',
+      schedule: '执行计划',
+      frequency: '频率',
+      time: '时间',
+      weekdays: '日期',
+      enabled: '已启用',
+      paused: '已暂停',
+      pause: '暂停',
+      resume: '恢复',
+      deleteTitle: '删除定时任务？',
+      deleteDescription: name => `删除“${name}”？此操作无法撤销。`,
+      filteredHint: '此配置中存在定时任务，但没有标记给当前智能体。将任务命名为“[bot:<name>] …”即可在此显示，也可在下方 Cron 中查看。',
+      invalidName: '定时任务名称不能包含 NUL（U+0000）。',
+      invalidInstruction: '定时任务指令不能包含 NUL（U+0000）。',
+      next: value => `下次 ${value}`,
+      legacyUnsafe: '已因安全原因暂停：请删除并重新创建此旧版定时任务后再运行。',
+      onceIn: value => `一次（${value}）`,
+      daily: '每天',
+      everyDays: value => `每 ${value} 天`,
+      hourly: '每小时',
+      everyHours: value => `每 ${value} 小时`,
+      everyMinutes: value => `每 ${value} 分钟`,
+      once: '一次，延后…',
+      everyHour: '每小时',
+      everyDay: '每天',
+      weekdaysOnly: '工作日',
+      everyWeek: '每周',
+      everyMonth: '每月',
+      interval: '固定间隔',
+      advanced: '高级…',
+      monday: '星期一',
+      tuesday: '星期二',
+      wednesday: '星期三',
+      thursday: '星期四',
+      friday: '星期五',
+      saturday: '星期六',
+      sunday: '星期日',
+      clockTime: (hour, minute) => `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`,
+      minutesFromNow: '分钟后',
+      hoursFromNow: '小时后',
+      daysFromNow: '天后',
+      dayOfMonth: '每月第几天',
+      minutes: '分钟',
+      hours: '小时',
+      days: '天',
+      rawPlaceholder: 'every 1d · every 2h · 0 9 * * *（cron）',
+      stopAfter: '运行次数',
+      runsForever: '次（留空表示一直运行）',
+      unitMinutes: '分钟',
+      unitHours: '小时',
+      unitDays: '天',
+      repeatTotal: count => `，共 ${count} 次`,
+      summaryOnce: (count, unit) => `运行一次，${count} ${unit}后执行`,
+      summaryHourly: '每小时整点运行',
+      summaryDaily: time => `每天 ${time} 运行`,
+      summaryWeekdays: time => `周一至周五 ${time} 运行`,
+      summaryWeekly: (day, time) => `每周${day} ${time} 运行`,
+      summaryMonthly: (day, time) => `每月 ${day} 日 ${time} 运行`,
+      summaryInterval: (count, unit) => `每 ${count} ${unit}运行`,
+      summaryRaw: '原始计划：every Nm/Nh/Nd 或 5 段 cron',
+      scheduled: title => `定时任务“${title}”已设定`,
+      createDescription: name => `${name} 会按计划重复执行任务，每次运行都会记录在独立的对话历史中。`,
+      namePlaceholder: '为定时任务命名',
+      instructionPlaceholder: '每次运行时要执行什么？',
+      sendResults: '将结果发送到',
+      runHistory: '仅运行历史',
+      botChat: name => `${name}的对话（智能体会回复）`,
+      continuity: '连续执行：每次运行都能看到上次输出（去重并继续上次进度）',
+      updateFailed: '无法更新定时任务。',
+      createFailed: '无法创建定时任务。'
+    },
+    group: {
+      new: '新建群聊',
+      create: '创建群聊',
+      creating: '正在创建…',
+      open: '打开群聊',
+      delete: '删除群聊',
+      deleteTitle: '删除群聊？',
+      deleteDescription: name => `这会从关联智能体中移除“${name}”，并清空共享聊天记录。智能体及其各自的对话会保留。`,
+      name: '群聊名称',
+      namePlaceholder: '例如 产品团队',
+      members: '成员',
+      memberCount: count => `${count} 个智能体`,
+      noMessages: '还没有消息，向群聊里的智能体打个招呼吧',
+      needsYou: '需要你',
+      needsYouTip: '该群聊中的智能体需要你的输入',
+      settings: '群聊设置',
+      image: '群聊头像',
+      changeImage: '更换图片',
+      removeImage: '移除图片',
+      addMembers: '添加成员',
+      activity: '活动',
+      reply: '回复',
+      replyInThread: '在线程中回复',
+      newThread: '新建话题',
+      emptyRoom: '说点什么吧，群聊中的每个智能体都能看到。',
+      save: '保存群聊',
+      disband: '解散',
+      disbanding: '正在解散…',
+      disbanded: '已解散',
+      disbandTitle: '解散群聊？',
+      activeNow: '正在活跃',
+      openChat: name => `打开 ${name} 的对话`,
+      memberAdded: (bot, group) => `${bot} 已加入“${group}”`,
+      memberRemoved: (bot, group) => `${bot} 已从“${group}”移除`,
+      membershipDescription: '一个智能体可加入多个群聊，成员关系会同步到每台电脑。',
+      removeAll: '从所有群聊中移除',
+      settingsDescription: '重命名群聊或设置群头像，成员和历史记录会保留。',
+      created: (name, count) => `已使用 ${count} 个智能体创建“${name}”`,
+      createDescription: count => `请选择 2–${count} 个智能体。本机成员关系会通过各智能体配置同步；跨机器成员仅属于当前群聊。`,
+      removeSelection: '从选择中移除',
+      inGroups: groups => `所在群聊 ${groups}`,
+      pickAtLeastTwo: '至少选择 2 个智能体',
+      nameExists: name => `已存在名为“${name}”的群聊。`,
+      attachment: '附件',
+      pastedImage: '粘贴的图片',
+      attachmentTooLarge: name => `${name} 过大（最大 15MB）。`,
+      pictureGenerationFailed: '群聊头像生成失败',
+      answerFailed: bot => `无法向 @${bot} 发送答复。`,
+      wantsCommand: bot => `@${bot} 希望运行命令：`,
+      asks: bot => `@${bot} 询问：`,
+      answerAria: bot => `回答 @${bot}`,
+      ownAnswerPlaceholder: '或输入你自己的答案…',
+      answerPlaceholder: '输入答案…',
+      sending: '正在发送…',
+      respond: '响应',
+      answer: '回答',
+      roomTitle: name => `${name} — 群聊`,
+      settingsTitle: name => `群聊设置：重命名 ${name} 或设置群头像`,
+      disbandTitleFor: name => `解散 ${name} 群聊`,
+      hideActivity: '隐藏群聊活动',
+      showActivity: '显示群聊活动',
+      noActivity: '本轮还没有活动。',
+      imageName: '图片',
+      removeAttachment: '移除附件',
+      attachFiles: '添加文件，所有响应的智能体都可以看到',
+      hideHandle: '隐藏完整标识',
+      showHandle: '显示完整标识',
+      attachedFile: '附件',
+      attachedImage: '附加图片',
+      openThread: '打开该话题',
+      thread: '话题',
+      replies: count => `${count} 条回复`,
+      collapseThreadTitle: '收起该话题',
+      collapseThread: '收起话题',
+      dropThread: '拖放以添加到当前话题回复',
+      dropRoom: '拖放以添加，所有响应的智能体都可以看到',
+      waitingAnswer: '正在等待你的回答…',
+      thinking: name => `${name} 正在思考…`,
+      roomWorking: '群聊正在处理…',
+      messageAria: name => `向 ${name} 发送消息`,
+      newThreadPlaceholder: name => `在 ${name} 中新建话题…（@name 定向，@everyone 全员）`,
+      disbandDescription: (count, name) => `这会从 ${count} 个智能体中移除 ${name} 群组，并清空共享聊天记录。智能体本身及其群组会话会保留。`,
+      disbandedNotice: name => `已解散“${name}”`,
+      you: '你',
+      aBot: '某个智能体',
+      activityQueued: '发送了消息',
+      activityWorking: '正在处理…',
+      activityReplied: '已回复',
+      activityPassed: '已跳过',
+      activityTimedOut: '处理超时',
+      activityFailed: '遇到错误',
+      activityCancelled: '本轮已被新消息中断',
+      activitySettled: '本轮已结束',
+      activityDelivered: '已送达延迟回复'
+    },
+    agentSetup: {
+      editDescription: (name, id) => `${name}（${id}）的外观和角色。`,
+      helpPlaceholder: '该智能体应该帮你做什么？',
+      createDescription: '一位拥有独立记忆、技能和对话的具名智能体伙伴，并可与你的其他智能体通信。',
+      duplicateRemote: (name, target) => `${target} 上已存在名为“${name}”的智能体。`,
+      duplicate: name => `已存在名为“${name}”的智能体。`,
+      createOn: '创建位置',
+      current: name => `${name}（当前）`,
+      remoteDescription: target => `智能体将创建在 ${target}，并作为连接智能体显示在列表中，对话会路由到该机器。`,
+      titlePlaceholder: '收件箱整理',
+      cloneFromRemote: target => `从配置克隆（位于 ${target}）`,
+      cloneFrom: '从配置克隆',
+      freshProfile: '全新配置（内置技能）',
+      inheritedModel: '继承启动配置',
+      soulLabel: 'SOUL.md（可选，替换自动生成的人设）',
+      soulPlaceholder: '留空将根据名称、角色标题、说明和智能体通信列表自动生成。',
+      shareAuth: '与主配置共享密钥和账户',
+      shareAuthHint: '订阅、OAuth 登录和 API 密钥会保持共享（而非复制），因此令牌刷新不会使彼此失效。取消勾选则创建隔离的快照副本。',
+      createEmpty: '创建空配置（跳过内置技能）',
+      takenCapabilities: '该名称已被使用，请换一个名称后再配置能力。',
+      nameCapabilities: '请先为智能体命名。打开此标签时会创建草稿配置，取消则丢弃。',
+      catalogUnsupported: '能力目录需要新版网关（更新 My King 后请重启网关）。',
+      emptySkills: '已勾选“创建空配置”，不会安装内置技能。',
+      catalogSource: source => `目录来自 ${source}，创建后未勾选的技能将被禁用。`,
+      toolsetDefault: '全选或全不选都会保留默认工具集行为。',
+      mcpHint: '已配置的服务器会从主配置复制；目录项是内置 MCP 菜单。需要 API 密钥的项会先进入配置流程（凭据遵循共享密钥设置）。',
+      lookPersistFailed: '外观已保存到本机，但远程持久化失败',
+      descriptionUpdateFailed: '外观已保存到本机，但说明更新失败',
+      sectionsFailed: names => `以下部分保存失败：${names}`,
+      advancedFailed: '高级配置失败',
+      updated: name => `${name} 已更新`,
+      draftDiscarded: name => `智能体草稿“${name}”已丢弃`,
+      draftCleanupFailed: name => `无法清理草稿配置“${name}”`,
+      createFailed: '无法创建智能体。',
+      createdRemote: (name, target) => `智能体“${name}”已在 ${target} 上创建`,
+      created: name => `智能体“${name}”已创建`,
+      createProfileFailed: '尚无法创建配置'
+    },
+    palette: {
+      newAgent: '新建智能体…',
+      openBots: '请打开“智能体”面板，然后点击“新建智能体”。'
+    },
+    notices: {
+      continuousTitle: '此对话不会重置',
+      continuousMessage: '智能体对话是一段连续对话，将转为压缩上下文。如果要与该智能体开启临时会话，请使用会话模式。'
+    },
+    notify: {
+      newMessage: label => `🤖 ${label} 收到新消息`,
+      newActivity: label => `${label} 有新活动`,
+      openChat: '打开对话查看详情。',
+      deletedProfile: name => `已删除配置 ${name}`,
+      deletedGroup: name => `已删除群聊“${name}”`
+    }
+  }
+}
+
+function useBotsI18n() {
+  if (typeof sdk !== 'undefined' && typeof sdk.usePluginI18n === 'function') {
+    return sdk.usePluginI18n(ID)
+  }
+
+  return (key, ...args) => {
+    const value = key.split('.').reduce((messages, part) => messages?.[part], HERMES_BOTS_LOCALES.en)
+    return typeof value === 'function' ? value(...args) : value || key
+  }
+}
 const ROSTER_KEY = [ID, 'roster']
 const ROUTINES_KEY = [ID, 'routines']
 const NAME_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/
@@ -166,11 +1019,14 @@ function trackInboundActivity(roster) {
       const label = displayName(bot, meta)
       const preview = (activity?.preview || '').trim()
       const inbound = /^Message from/i.test(preview)
+      const t = pluginCtx?.i18n?.t
 
       host.notify({
         kind: 'info',
-        title: inbound ? `\uD83E\uDD16 New message for ${label}` : `${label} has new activity`,
-        message: preview.slice(0, 140) || 'Open the chat to see it.'
+        title: inbound
+          ? t?.('notify.newMessage', label) || HERMES_BOTS_LOCALES.en.notify.newMessage(label)
+          : t?.('notify.newActivity', label) || HERMES_BOTS_LOCALES.en.notify.newActivity(label),
+        message: preview.slice(0, 140) || t?.('notify.openChat') || HERMES_BOTS_LOCALES.en.notify.openChat
       })
     }
   }
@@ -311,29 +1167,29 @@ function currentGroupActivity(group) {
 
 /** Human label for one activity event, used by the collapsed summary and
  *  the expanded rows. */
-function groupActivityLabel(event) {
+function groupActivityLabel(event, t) {
   const kind = event?.kind
-  const base = GROUP_ACTIVITY_LABELS[kind] || kind || 'did something'
+  const base = GROUP_ACTIVITY_KEYS[kind] ? t(`group.${GROUP_ACTIVITY_KEYS[kind]}`) : kind || t('group.activityReplied')
 
   if (kind === 'cancelled' || kind === 'settled') {
     return base
   }
 
-  const who = event?.member === 'You' ? 'You' : groupSpeakerLabel(event?.member || 'A bot')
+  const who = event?.member === 'You' ? t('group.you') : groupSpeakerLabel(event?.member || t('group.aBot'))
 
   return `${who} ${base}`
 }
 
-const GROUP_ACTIVITY_LABELS = {
-  queued: 'sent a message',
-  working: 'is working…',
-  replied: 'replied',
-  passed: 'passed',
-  'timed-out': 'took too long',
-  failed: 'hit an error',
-  cancelled: 'turn interrupted by a newer message',
-  settled: 'turn settled',
-  delivered: 'delivered a late reply'
+const GROUP_ACTIVITY_KEYS = {
+  queued: 'activityQueued',
+  working: 'activityWorking',
+  replied: 'activityReplied',
+  passed: 'activityPassed',
+  'timed-out': 'activityTimedOut',
+  failed: 'activityFailed',
+  cancelled: 'activityCancelled',
+  settled: 'activitySettled',
+  delivered: 'activityDelivered'
 }
 
 const GROUP_ACTIVITY_GLYPHS = {
@@ -1633,12 +2489,7 @@ async function sweepBotProfileSessions() {
     // back to the active gateway's own profile list (local bots; remote
     // sources get covered by the next sweep once the roster cache exists).
     try {
-      const route = await activeBotRoute()
-      const res = await requestForBot(
-        route ? { name: route.profile, sourceScoped: true, route } : { name: 'default' },
-        'profiles.list',
-        {}
-      )
+      const res = await host.request('profiles.list', {})
       roster = Array.isArray(res?.profiles) ? res.profiles : []
     } catch {
       return
@@ -2929,6 +3780,7 @@ async function mcpSetupSupported() {
 }
 
 function McpSetupButton({ profile, entry, onDone, ensureProfile }) {
+  const t = typeof useBotsI18n === 'function' ? useBotsI18n() : key => key
   // entry: { name, requires:[env keys], auth?, fromCatalog, installed }
   // profile may be null at first (New Agent: the profile isn't created yet).
   // ensureProfile() lazily creates it on the first setup action and returns the
@@ -2991,7 +3843,7 @@ function McpSetupButton({ profile, entry, onDone, ensureProfile }) {
       const add = await mcpRpc('mcp.servers.add', { profile, name: entry.name, preset: entry.name })
       if (!add.ok) {
         setPhase('error')
-        setMessage(add.error || 'Could not add server')
+        setMessage(t('mcp.addFailed'))
         return
       }
     }
@@ -3003,7 +3855,7 @@ function McpSetupButton({ profile, entry, onDone, ensureProfile }) {
     const profile = profileRef.current
     if (!profile) {
       setPhase('error')
-      setMessage('No target profile')
+      setMessage(t('mcp.noTarget'))
       return
     }
     for (const k of requires) {
@@ -3014,19 +3866,19 @@ function McpSetupButton({ profile, entry, onDone, ensureProfile }) {
       const r = await mcpRpc('mcp.servers.set_api_key', { profile, name: entry.name, env_var: k, value: val })
       if (!r.ok) {
         setPhase('error')
-        setMessage(r.error || ('Failed to set ' + k))
+        setMessage(t('mcp.setKeyFailed', k))
         return
       }
     }
     // Verify via test.
-    const t = await mcpRpc('mcp.servers.test', { profile, name: entry.name })
-    if (t.ok && t.result && (t.result.ok || (t.result.result && t.result.result.ok))) {
+    const testResult = await mcpRpc('mcp.servers.test', { profile, name: entry.name })
+    if (testResult.ok && testResult.result && (testResult.result.ok || (testResult.result.result && testResult.result.result.ok))) {
       setPhase('done')
-      host.notify({ kind: 'success', message: entry.name + ' configured' })
+      host.notify({ kind: 'success', message: t('mcp.configured', entry.name) })
       onDone && onDone()
     } else {
       setPhase('error')
-      setMessage((t.result && (t.result.error || (t.result.result && t.result.result.error))) || 'Server test failed after setup')
+      setMessage(t('mcp.testFailed'))
     }
   }
 
@@ -3049,7 +3901,7 @@ function McpSetupButton({ profile, entry, onDone, ensureProfile }) {
       const add = await mcpRpc('mcp.servers.add', { profile, name: entry.name, preset: entry.name })
       if (!add.ok) {
         setPhase('error')
-        setMessage(add.error || 'Could not add server')
+        setMessage(t('mcp.addFailed'))
         return
       }
     }
@@ -3059,7 +3911,7 @@ function McpSetupButton({ profile, entry, onDone, ensureProfile }) {
     const sessionId = payload && payload.session_id
     if (!start.ok || !authUrl || !sessionId) {
       setPhase('error')
-      setMessage((start.error) || 'Could not start OAuth')
+      setMessage(t('mcp.oauthStartFailed'))
       return
     }
     // Open the auth URL in the native browser, same as provider OAuth.
@@ -3075,7 +3927,7 @@ function McpSetupButton({ profile, entry, onDone, ensureProfile }) {
       /* fall through to poll; user can open the URL from the toast */
     }
     setPhase('oauth')
-    setMessage('Complete sign-in in your browser...')
+    setMessage(t('mcp.signInBrowser'))
     pollRef.current = setInterval(async () => {
       const poll = await mcpRpc('mcp.servers.oauth.poll', { profile, name: entry.name, session_id: sessionId })
       const pd = poll.result && (poll.result.result || poll.result)
@@ -3084,13 +3936,13 @@ function McpSetupButton({ profile, entry, onDone, ensureProfile }) {
         clearInterval(pollRef.current)
         pollRef.current = null
         setPhase('done')
-        host.notify({ kind: 'success', message: entry.name + ' authenticated' })
+        host.notify({ kind: 'success', message: t('mcp.authenticated', entry.name) })
         onDone && onDone()
       } else if (status === 'error') {
         clearInterval(pollRef.current)
         pollRef.current = null
         setPhase('error')
-        setMessage((pd && pd.error_message) || 'OAuth failed')
+        setMessage(t('mcp.oauthFailed'))
       }
     }, 2000)
   }
@@ -3098,11 +3950,11 @@ function McpSetupButton({ profile, entry, onDone, ensureProfile }) {
   if (supported === false) {
     return jsx('span', {
       className: 'ml-1.5 text-[0.65rem] text-(--ui-text-quaternary)',
-      children: 'needs setup (' + requires.join(', ') + ') \u2014 restart the gateway to enable in-app setup'
+      children: t('mcp.needsSetup', requires.join(', '))
     })
   }
   if (phase === 'done') {
-    return jsx('span', { className: 'ml-1.5 text-[0.65rem] text-(--ui-success,#22c55e)', children: 'set up \u2713' })
+    return jsx('span', { className: 'ml-1.5 text-[0.65rem] text-(--ui-success,#22c55e)', children: t('mcp.setupDone') })
   }
   if (phase === 'keys') {
     return jsxs('div', {
@@ -3121,30 +3973,30 @@ function McpSetupButton({ profile, entry, onDone, ensureProfile }) {
         jsxs('div', {
           className: 'flex gap-1',
           children: [
-            jsx(Button, { size: 'xs', variant: 'secondary', onClick: () => void submitKeys(), children: 'Save & test' }),
-            jsx(Button, { size: 'xs', variant: 'ghost', onClick: () => setPhase('idle'), children: 'Cancel' })
+            jsx(Button, { size: 'xs', variant: 'secondary', onClick: () => void submitKeys(), children: t('mcp.saveTest') }),
+            jsx(Button, { size: 'xs', variant: 'ghost', onClick: () => setPhase('idle'), children: t('actions.cancel') })
           ]
         })
       ]
     })
   }
   if (phase === 'oauth') {
-    return jsx('span', { className: 'ml-1.5 text-[0.65rem] text-(--ui-text-quaternary)', children: message || 'Authorizing\u2026' })
+    return jsx('span', { className: 'ml-1.5 text-[0.65rem] text-(--ui-text-quaternary)', children: message || t('mcp.authorizing') })
   }
   if (phase === 'busy') {
-    return jsx('span', { className: 'ml-1.5 text-[0.65rem] text-(--ui-text-quaternary)', children: 'Working\u2026' })
+    return jsx('span', { className: 'ml-1.5 text-[0.65rem] text-(--ui-text-quaternary)', children: t('mcp.working') })
   }
   if (phase === 'error') {
     return jsxs('span', {
       className: 'ml-1.5 text-[0.65rem] text-(--ui-danger,#ef4444)',
-      children: [(message || 'Setup failed') + ' ', jsx('button', { className: 'underline', onClick: () => setPhase('idle'), children: 'retry' })]
+      children: [(message || t('mcp.setupFailed')) + ' ', jsx('button', { className: 'underline', onClick: () => setPhase('idle'), children: t('mcp.retry') })]
     })
   }
   // idle
   return jsx('button', {
     className: 'ml-1.5 text-[0.65rem] text-(--ui-accent,#4f9cf9) underline',
     onClick: () => void (isOAuth ? beginOAuth() : beginKeys()),
-    children: isOAuth ? 'Sign in\u2026' : 'Set up\u2026'
+    children: isOAuth ? t('mcp.signIn') : t('mcp.setup')
   })
 }
 
@@ -3204,7 +4056,10 @@ function pickImageFromDevice() {
       }
 
       if (file.size > 15_000_000) {
-        host.notify({ kind: 'error', message: 'Image too large (max 15MB).' })
+        host.notify({
+          kind: 'error',
+          message: pluginCtx?.i18n?.t?.('avatar.imageTooLarge') || HERMES_BOTS_LOCALES.en.avatar.imageTooLarge
+        })
         return resolve(null)
       }
 
@@ -3245,7 +4100,11 @@ async function filesToGroupAttachments(files) {
     }
 
     if (file.size > 15_000_000) {
-      host.notify({ kind: 'error', message: `${file.name || 'attachment'}: too large (max 15MB).` })
+      const name = file.name || pluginCtx?.i18n?.t?.('group.attachment') || HERMES_BOTS_LOCALES.en.group.attachment
+      host.notify({
+        kind: 'error',
+        message: pluginCtx?.i18n?.t?.('group.attachmentTooLarge', name) || HERMES_BOTS_LOCALES.en.group.attachmentTooLarge(name)
+      })
       continue
     }
 
@@ -3262,7 +4121,9 @@ async function filesToGroupAttachments(files) {
 
     const kind = groupAttachmentKind(file)
     picked.push({
-      name: file.name || (kind === 'image' ? 'pasted image' : 'attachment'),
+      name: file.name || (kind === 'image'
+        ? pluginCtx?.i18n?.t?.('group.pastedImage') || HERMES_BOTS_LOCALES.en.group.pastedImage
+        : pluginCtx?.i18n?.t?.('group.attachment') || HERMES_BOTS_LOCALES.en.group.attachment),
       data: kind === 'image' ? await normalizeGroupAttachment(data) : data,
       kind
     })
@@ -3359,6 +4220,7 @@ async function generateAvatarImage(bot, title, description) {
  *  `grid-cols-7` are NOT in the app's precompiled CSS, which collapsed
  *  this into a single vertical column. */
 function AvatarPicker({ shape, color, image, onShape, onColor, onImage, generateSeed }) {
+  const t = typeof useBotsI18n === 'function' ? useBotsI18n() : key => key
   const pickerName = generateSeed?.name || 'agent'
   const imagen = useValue($imagenAvailable)
   const [tab, setTab] = useState('bot')
@@ -3415,8 +4277,8 @@ function AvatarPicker({ shape, color, image, onShape, onColor, onImage, generate
       if (img) {
         onImage(await normalizeAvatarImage(img))
       }
-    } catch (err) {
-      host.notifyError(err, 'Avatar generation failed')
+    } catch {
+      host.notify({ kind: 'error', message: t('avatar.generateFailed') })
     } finally {
       setGenBusy(false)
     }
@@ -3445,7 +4307,12 @@ function AvatarPicker({ shape, color, image, onShape, onColor, onImage, generate
       // Tab pills: Bot | Generate | Upload | Pet
       jsxs('div', {
         className: 'flex items-center gap-1',
-        children: [tabButton('bot', 'Bot'), tabButton('generate', 'Generate'), tabButton('upload', 'Upload'), tabButton('pet', 'Pet')]
+        children: [
+          tabButton('bot', t('avatar.bot')),
+          tabButton('generate', t('avatar.generate')),
+          tabButton('upload', t('avatar.upload')),
+          tabButton('pet', t('avatar.pet'))
+        ]
       }),
 
       image && tab !== 'generate'
@@ -3454,7 +4321,7 @@ function AvatarPicker({ shape, color, image, onShape, onColor, onImage, generate
             variant: 'ghost',
             size: 'sm',
             onClick: () => onImage(null),
-            children: 'Remove image — use shape'
+            children: t('avatar.removeImage')
           })
         : null,
 
@@ -3479,7 +4346,7 @@ function AvatarPicker({ shape, color, image, onShape, onColor, onImage, generate
                         'button',
                         {
                           type: 'button',
-                          title: k || 'Auto — the name decides',
+                          title: k || t('avatar.autoTitle'),
                           className: cn(
                             'flex items-center justify-center rounded-md transition-colors hover:bg-(--chrome-action-hover)',
                             k === kind && !image && 'ring-1 ring-(--ui-accent)'
@@ -3491,7 +4358,7 @@ function AvatarPicker({ shape, color, image, onShape, onColor, onImage, generate
                           },
                           children: k
                             ? jsx(BotFace, { shape: blobShapeString(seedPart, k), color, size: 32, name: pickerName })
-                            : jsx('span', { className: 'text-[0.6rem] text-(--ui-text-tertiary)', children: 'Auto' })
+                            : jsx('span', { className: 'text-[0.6rem] text-(--ui-text-tertiary)', children: t('avatar.auto') })
                         },
                         k || 'auto'
                       )
@@ -3508,26 +4375,26 @@ function AvatarPicker({ shape, color, image, onShape, onColor, onImage, generate
                           onImage(null)
                           onShape(blobShapeString(Math.random().toString(36).slice(2, 10), kind))
                         },
-                        children: [jsx(Codicon, { name: 'refresh', className: 'mr-1 text-[0.8rem]' }), 'Randomize']
+                        children: [jsx(Codicon, { name: 'refresh', className: 'mr-1 text-[0.8rem]' }), t('avatar.randomize')]
                       }),
                       jsxs(Button, {
                         type: 'button',
                         variant: 'ghost',
                         size: 'sm',
                         title: locked
-                          ? 'Unlock — the face follows the agent\u2019s name again'
-                          : 'Keep this exact face even if the name changes',
+                          ? t('avatar.unlockTitle')
+                          : t('avatar.lockTitle'),
                         onClick: () => onShape(blobShapeString(locked ? '' : pickerName, kind)),
                         children: [
                           jsx(Codicon, { name: locked ? 'unlock' : 'lock', className: 'mr-1 text-[0.8rem]' }),
-                          locked ? 'Unlock' : 'Lock face'
+                          locked ? t('avatar.unlock') : t('avatar.lockFace')
                         ]
                       })
                     ]
                   }),
                   jsx('div', {
                     className: 'text-center text-[0.65rem] text-(--ui-text-quaternary)',
-                    children: locked ? 'Face locked — renaming won\u2019t change it.' : 'Face follows the name.'
+                    children: locked ? t('avatar.faceLocked') : t('avatar.faceFollowsName')
                   }),
                   jsx(Button, {
                     type: 'button',
@@ -3535,7 +4402,7 @@ function AvatarPicker({ shape, color, image, onShape, onColor, onImage, generate
                     size: 'sm',
                     className: 'text-(--ui-text-tertiary)',
                     onClick: () => onShape(defaultShapeFor(pickerName)),
-                    children: 'Classic shapes'
+                    children: t('avatar.classicShapes')
                   })
                 ]
               })
@@ -3555,7 +4422,7 @@ function AvatarPicker({ shape, color, image, onShape, onColor, onImage, generate
                     'button',
                     {
                       type: 'button',
-                      title: s === 'blobatar' ? 'Blob face — drawn from the agent\u2019s name' : undefined,
+                      title: s === 'blobatar' ? t('avatar.blobTitle') : undefined,
                       className: cn(
                         'flex items-center justify-center rounded-md transition-colors hover:bg-(--chrome-action-hover)',
                         s === shape && !image && 'ring-1 ring-(--ui-accent)'
@@ -3605,7 +4472,7 @@ function AvatarPicker({ shape, color, image, onShape, onColor, onImage, generate
               children: [
                 jsx(Textarea, {
                   className: 'min-h-16 text-xs',
-                  placeholder: 'Describe your avatar…',
+                  placeholder: t('avatar.prompt'),
                   value: describe,
                   onChange: event => setDescribe(event.target.value)
                 }),
@@ -3619,14 +4486,14 @@ function AvatarPicker({ shape, color, image, onShape, onColor, onImage, generate
                     genBusy
                       ? jsx(GlyphSpinner, { spinner: 'breathe', className: 'mr-1 text-[0.8rem]' })
                       : jsx(Codicon, { name: 'sparkle', className: 'mr-1 text-[0.8rem]' }),
-                    genBusy ? 'Generating…' : 'Generate'
+                    genBusy ? t('avatar.generating') : t('avatar.generate')
                   ]
                 }),
                 describe.trim()
                   ? null
                   : jsx('div', {
                       className: 'text-center text-[0.65rem] text-(--ui-text-quaternary)',
-                      children: 'Leave blank to generate from the agent\u2019s name and description.'
+                      children: t('avatar.blankGenerateHint')
                     })
               ]
             })
@@ -3634,8 +4501,8 @@ function AvatarPicker({ shape, color, image, onShape, onColor, onImage, generate
               className: 'px-2 py-3 text-center text-xs leading-5 text-(--ui-text-tertiary)',
               children:
                 imagen === false
-                  ? 'No image model available. If you just enabled one (or updated My King), restart the gateway: Ctrl+K → "Restart gateway".'
-                  : 'Checking image backend…'
+                  ? t('avatar.noImageModel')
+                  : t('avatar.checkingBackend')
             })
         : null,
 
@@ -3645,7 +4512,7 @@ function AvatarPicker({ shape, color, image, onShape, onColor, onImage, generate
             variant: 'secondary',
             className: 'w-full justify-center',
             onClick: upload,
-            children: [jsx(Codicon, { name: 'device-camera', className: 'mr-1 text-[0.8rem]' }), 'Choose an image…']
+            children: [jsx(Codicon, { name: 'device-camera', className: 'mr-1 text-[0.8rem]' }), t('avatar.uploadAction')]
           })
         : null,
 
@@ -3742,6 +4609,7 @@ function PetThumb({ spriteUrl, size = 40 }) {
 }
 
 function PetTab({ image, onImage }) {
+  const t = typeof useBotsI18n === 'function' ? useBotsI18n() : key => key
   // Selection is dialog-local: committed by the dialog's Save like any
   // uploaded/generated image (a direct meta write here gets clobbered by
   // Save's own image state).
@@ -3767,7 +4635,7 @@ function PetTab({ image, onImage }) {
   if (!pets.length) {
     return jsx('div', {
       className: 'px-2 py-3 text-center text-xs text-(--ui-text-tertiary)',
-      children: 'No pets in the petdex gallery. Use the backend CLI pets command to explore.'
+      children: t('avatar.petEmpty')
     })
   }
 
@@ -3795,11 +4663,11 @@ function PetTab({ image, onImage }) {
     children: [
       jsx('div', {
         className: 'text-center text-[0.65rem] text-(--ui-text-quaternary)',
-        children: 'Pick a pet as this agent’s profile picture.'
+        children: t('avatar.petIntro')
       }),
       jsx(Input, {
         className: 'h-7 text-xs',
-        placeholder: `Search ${pets.length} pets…`,
+        placeholder: t('avatar.petSearch'),
         value: query,
         onChange: event => {
           setQuery(event.target.value)
@@ -3816,13 +4684,13 @@ function PetTab({ image, onImage }) {
               setSelectedSlug(null)
               onImage(null)
             },
-            children: 'Remove — back to shape avatar'
+            children: t('avatar.petRemove')
           })
         : null,
       filtered.length === 0
         ? jsx('div', {
             className: 'py-3 text-center text-xs text-(--ui-text-quaternary)',
-            children: 'No pets match.'
+            children: t('avatar.petEmpty')
           })
         : jsxs('div', {
             onScroll,
@@ -3853,7 +4721,7 @@ function PetTab({ image, onImage }) {
                             onImage(icon)
                           } else {
                             setSelectedSlug(null)
-                            host.notify({ kind: 'error', message: 'Could not load that pet — try another.' })
+                            host.notify({ kind: 'error', message: t('avatar.petLoadFailed') })
                           }
                         })
                       },
@@ -3872,7 +4740,7 @@ function PetTab({ image, onImage }) {
               limit < ranked.length
                 ? jsx('div', {
                     className: 'py-2 text-center text-[0.65rem] text-(--ui-text-quaternary)',
-                    children: `Scroll for more (${limit} of ${ranked.length})`
+                    children: t('avatar.scrollMore', limit, ranked.length)
                   })
                 : null
             ]
@@ -3903,10 +4771,7 @@ function useRoster() {
       // come from the ACTIVE gateway's profiles.list — the canonical Bot
       // Chat is resolved server-side by NAME (the "Bot Chat" registry row),
       // so the roster never sends session pointers.
-      const route = await activeBotRoute()
-      const activeBot = route
-        ? { name: route.profile, sourceScoped: true, route }
-        : { name: String(host.state.profile?.get?.() || 'default').trim() || 'default' }
+      const activeBot = { name: String(host.state.profile?.get?.() || 'default').trim() || 'default' }
       const local = await requestForBot(activeBot, 'profiles.list', {})
       // Newer backends inject the teammate-messaging protocol into every
       // session's system prompt (agent.bot_mode_protocol) — SOUL.md must not
@@ -5423,7 +6288,10 @@ async function renameGroupChat(oldName, newName, members) {
   taken.delete(oldName)
 
   if (taken.has(next)) {
-    host.notify({ kind: 'error', message: `A group named “${next}” already exists.` })
+    host.notify({
+      kind: 'error',
+      message: pluginCtx?.i18n?.t?.('group.nameExists', next) || HERMES_BOTS_LOCALES.en.group.nameExists(next)
+    })
     return null
   }
 
@@ -6512,6 +7380,7 @@ function activeBots(roster, activeProfile, gatewayState, now = Date.now()) {
 // ── bot row ──────────────────────────────────────────────────────────────────
 
 function BotRow({ bot, onDelete, onEdit, onGroup }) {
+  const t = typeof useBotsI18n === 'function' ? useBotsI18n() : key => key
   const activeProfile = useValue(host.state.profile)
   const focusedOwner = focusedRosterOwner(useValue($focusedBotOwner))
   const activeGroup = useValue($groupChatWorkspace)
@@ -6568,7 +7437,7 @@ function BotRow({ bot, onDelete, onEdit, onGroup }) {
   const displayPreview = stripPreviewMarkdown(
     fromBot
       ? (previewSession?.preview || '').replace(A2A_PREFIX_RE, '').trim() || '…'
-      : previewSession?.preview || bot.description || 'No conversations yet — say hi'
+      : previewSession?.preview || bot.description || t('row.noConversations')
   )
 
   const warm = () => {
@@ -6610,8 +7479,8 @@ function BotRow({ bot, onDelete, onEdit, onGroup }) {
     // presentation state and is never routing authority for this open.
     try {
       await prepareBotSource(bot)
-    } catch (error) {
-      host.notifyError?.(error, `Could not reach ${bot.connectionLabel || 'the remote source'}`)
+    } catch {
+      host.notify({ kind: 'error', message: t('row.sourceUnavailable', bot.connectionLabel) })
 
       return
     }
@@ -6630,9 +7499,9 @@ function BotRow({ bot, onDelete, onEdit, onGroup }) {
       if (generation === botOpenGeneration && id) {
         return
       }
-    } catch (error) {
+    } catch {
       if (generation === botOpenGeneration) {
-        host.notifyError?.(error, `Could not open ${displayName(bot, meta)}'s chat — try again`)
+        host.notify({ kind: 'error', message: t('row.chatUnavailable', displayName(bot, meta)) })
       }
 
       return
@@ -6679,7 +7548,7 @@ function BotRow({ bot, onDelete, onEdit, onGroup }) {
                   meta?.pinned
                     ? jsx('span', {
                         className: 'shrink-0 text-[0.6875rem] text-(--ui-text-quaternary)',
-                        title: 'Pinned',
+                        title: t('row.pinned'),
                         children: '📌'
                       })
                     : null,
@@ -6687,7 +7556,7 @@ function BotRow({ bot, onDelete, onEdit, onGroup }) {
                     ? jsx(Codicon, {
                         name: 'eye-closed',
                         className: 'shrink-0 text-[0.6875rem] text-(--ui-text-quaternary)',
-                        title: 'Hidden from the roster'
+                        title: t('row.hidden')
                       })
                     : null,
                   jsx('span', {
@@ -6707,7 +7576,7 @@ function BotRow({ bot, onDelete, onEdit, onGroup }) {
                     ? jsx('span', {
                         className:
                           'max-w-[28%] shrink-0 truncate rounded bg-(--chrome-action-hover) px-1 font-mono text-[0.625rem] text-(--ui-text-tertiary)',
-                        title: `Lives on ${bot.connectionLabel}`,
+                        title: t('row.livesOn', bot.connectionLabel),
                         children: bot.connectionLabel
                       })
                     : null
@@ -6716,13 +7585,13 @@ function BotRow({ bot, onDelete, onEdit, onGroup }) {
               unread
                 ? jsx('span', {
                     className: 'size-2 shrink-0 rounded-full bg-(--ui-accent,#4f9cf9)',
-                    'aria-label': 'unread'
+                    'aria-label': t('row.unread')
                   })
                 : null,
               activeNow
                 ? jsx('span', {
                     className: 'hermes-bots-pulse size-1.5 shrink-0 rounded-full bg-(--ui-accent,#4f9cf9)',
-                    title: workerActive ? 'Working on a task right now' : 'Active in the last 90s'
+                    title: workerActive ? t('row.working') : t('row.active')
                   })
                 : null,
               rowAgeTs
@@ -6746,7 +7615,7 @@ function BotRow({ bot, onDelete, onEdit, onGroup }) {
                 ? jsxs('span', {
                     className:
                       'flex shrink-0 items-center gap-1 rounded-full bg-(--chrome-action-hover) px-1.5 py-px text-[0.625rem] font-medium text-(--ui-accent,#4f9cf9)',
-                    title: `Last message came from @${fromBot} (bot-to-bot)`,
+                    title: t('row.fromBot', fromBot),
                     children: ['🤖', `@${fromBot}`]
                   })
                 : null
@@ -6769,11 +7638,11 @@ function BotRow({ bot, onDelete, onEdit, onGroup }) {
                 void saveBotMeta(bot, { pinned: !pinned })
                 host.notify({
                   kind: 'info',
-                  message: `${displayName(bot, current)} ${pinned ? 'unpinned' : 'pinned to top'}`
+                  message: t(pinned ? 'row.unpinnedNotice' : 'row.pinnedNotice', displayName(bot, current))
                 })
-              }).catch(error => host.notifyError?.(error, 'Could not load bot metadata'))
+              }).catch(() => host.notify({ kind: 'error', message: t('row.metadataUnavailable') }))
             },
-            children: meta?.pinned ? 'Unpin' : 'Pin to top'
+            children: meta?.pinned ? t('row.unpin') : t('row.pin')
           }),
           jsx(ContextMenuItem, {
             onSelect: () => {
@@ -6788,33 +7657,33 @@ function BotRow({ bot, onDelete, onEdit, onGroup }) {
                 host.notify({
                   kind: 'info',
                   message: hidden
-                    ? `${displayName(bot, current)} is back in the roster`
-                    : `${displayName(bot, current)} hidden — use the eye button in the Bots header to see hidden bots`
+                    ? t('row.unhiddenNotice', displayName(bot, current))
+                    : t('row.hiddenNotice', displayName(bot, current))
                 })
-              }).catch(error => host.notifyError?.(error, 'Could not load bot metadata'))
+              }).catch(() => host.notify({ kind: 'error', message: t('row.metadataUnavailable') }))
             },
-            children: meta?.hidden ? 'Unhide Bot' : 'Hide Bot'
+            children: meta?.hidden ? t('row.unhide') : t('row.hide')
           }),
           jsx(ContextMenuSeparator, {}),
           jsx(ContextMenuItem, {
-            onSelect: () => void ensureBotMetadata(bot).then(() => onEdit(bot)).catch(error => host.notifyError?.(error, 'Could not load bot')),
-            children: 'Edit Profile'
+            onSelect: () => void ensureBotMetadata(bot).then(() => onEdit(bot)).catch(() => host.notify({ kind: 'error', message: t('row.botUnavailable') })),
+            children: t('agent.edit')
           }),
           jsx(ContextMenuItem, {
-            onSelect: () => void ensureBotMetadata(bot).then(() => onGroup(bot)).catch(error => host.notifyError?.(error, 'Could not load bot groups')),
-            children: groups.length ? `Groups: ${groups.join(', ')}…` : 'Manage groups…'
+            onSelect: () => void ensureBotMetadata(bot).then(() => onGroup(bot)).catch(() => host.notify({ kind: 'error', message: t('row.groupsUnavailable') })),
+            children: groups.length ? t('row.groups', groups.join(', ')) : t('row.manageGroups')
           }),
           jsx(ContextMenuItem, {
             onSelect: () => {
-              host.notify({ kind: 'info', message: `Duplicating ${displayName(bot, meta)}…` })
+              host.notify({ kind: 'info', message: t('row.duplicating', displayName(bot, meta)) })
               duplicateBot(bot, $lastRoster.get())
                 .then(name => {
                   queryClient.invalidateQueries({ queryKey: ROSTER_KEY })
-                  host.notify({ kind: 'success', message: `Created ${name} — full copy of ${bot.name}` })
+                  host.notify({ kind: 'success', message: t('row.duplicated', name, bot.name) })
                 })
-                .catch(err => host.notifyError(err, 'Duplicate failed'))
+                .catch(() => host.notify({ kind: 'error', message: t('row.duplicateFailed') }))
             },
-            children: 'Duplicate'
+            children: t('row.duplicate')
           }),
           jsx(ContextMenuSeparator, {}),
           jsx(ContextMenuItem, {
@@ -6825,7 +7694,7 @@ function BotRow({ bot, onDelete, onEdit, onGroup }) {
                 newBotChat(bot)
               }
             },
-            children: 'New chat with this agent'
+            children: t('row.newChat')
           }),
           isDefaultBot(bot) ? null : jsx(ContextMenuSeparator, {}),
           isDefaultBot(bot)
@@ -6833,7 +7702,7 @@ function BotRow({ bot, onDelete, onEdit, onGroup }) {
             : jsx(ContextMenuItem, {
                 onSelect: () => onDelete(bot),
                 variant: 'destructive',
-                children: 'Delete'
+                children: t('actions.delete')
               })
         ]
       })
@@ -6863,7 +7732,8 @@ function useModelOptions(bot = null) {
  * same data the core model picker shows. `value = {provider, model}`;
  * onChange receives the merged patch.
  */
-function ModelPicker({ bot = null, value, onChange, placeholderModel = 'gateway default' }) {
+function ModelPicker({ bot = null, value, onChange, placeholderModel = '' }) {
+  const t = typeof useBotsI18n === 'function' ? useBotsI18n() : key => key
   const { data, isLoading, error } = useModelOptions(bot)
 
   // Hooks are ALWAYS declared up front, before any conditional return.
@@ -6888,17 +7758,17 @@ function ModelPicker({ bot = null, value, onChange, placeholderModel = 'gateway 
       style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' },
       children: [
         labeled(
-          'Provider',
+          t('model.provider'),
           jsx(Input, {
-            placeholder: 'omnirouter / 9router / nous \u2026',
+                placeholder: 'omnirouter / 9router / nous \u2026',
             value: value.provider,
             onChange: event => onChange({ provider: event.target.value })
           })
         ),
         labeled(
-          'Model',
+          t('model.model'),
           jsx(Input, {
-            placeholder: 'antigravity/gemini-3.6-flash-high',
+                placeholder: 'antigravity/gemini-3.6-flash-high',
             value: value.model,
             onChange: event => onChange({ model: event.target.value })
           })
@@ -6915,17 +7785,17 @@ function ModelPicker({ bot = null, value, onChange, placeholderModel = 'gateway 
           style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' },
           children: [
             labeled(
-              'Provider (Custom)',
+              t('model.providerCustom'),
               jsx(Input, {
-                placeholder: 'e.g. omnirouter, inferx, 9router',
+                placeholder: t('model.providerPlaceholder'),
                 value: value.provider,
                 onChange: event => onChange({ provider: event.target.value })
               })
             ),
             labeled(
-              'Model (Custom)',
+              t('model.modelCustom'),
               jsx(Input, {
-                placeholder: 'e.g. antigravity/gemini-3.6-flash-high',
+                placeholder: t('model.modelPlaceholder'),
                 value: value.model,
                 onChange: event => onChange({ model: event.target.value })
               })
@@ -6937,7 +7807,7 @@ function ModelPicker({ bot = null, value, onChange, placeholderModel = 'gateway 
           size: 'sm',
           className: 'h-6 self-start text-xs text-(--ui-text-tertiary)',
           onClick: () => setUseFreeText(false),
-          children: '← Back to dropdowns'
+          children: t('model.backToDropdowns')
         })
       ]
     })
@@ -6952,7 +7822,7 @@ function ModelPicker({ bot = null, value, onChange, placeholderModel = 'gateway 
     style: { display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: '10px' },
     children: [
       labeled(
-        'Provider',
+        t('model.provider'),
         jsxs(Select, {
           value: value.provider || NONE,
           onValueChange: v => {
@@ -6976,7 +7846,7 @@ function ModelPicker({ bot = null, value, onChange, placeholderModel = 'gateway 
             jsx(SelectTrigger, { className: 'h-8 rounded-md', children: jsx(SelectValue, {}) }),
             jsxs(SelectContent, {
               children: [
-                jsx(SelectItem, { value: NONE, children: 'Inherit (launch profile)' }),
+                jsx(SelectItem, { value: NONE, children: t('model.inherit') }),
                 ...providers.map(p =>
                   jsx(
                     SelectItem,
@@ -6984,14 +7854,14 @@ function ModelPicker({ bot = null, value, onChange, placeholderModel = 'gateway 
                     p.slug
                   )
                 ),
-                jsx(SelectItem, { value: CUSTOM, children: '✏️ Enter manually…' })
+                jsx(SelectItem, { value: CUSTOM, children: t('model.enterManually') })
               ]
             })
           ]
         })
       ),
       labeled(
-        'Model',
+        t('model.model'),
         activeProvider && models.length > 0
           ? jsxs(Select, {
               value: value.model || (models[0] ?? ''),
@@ -7004,7 +7874,7 @@ function ModelPicker({ bot = null, value, onChange, placeholderModel = 'gateway 
               ]
             })
           : jsx(Input, {
-              placeholder: placeholderModel || 'e.g. model name',
+              placeholder: placeholderModel || t('model.gatewayDefault'),
               value: value.model,
               onChange: event => onChange({ model: event.target.value })
             })
@@ -7053,6 +7923,7 @@ function CheckList({ items, onToggle, columns = 2 }) {
 }
 
 function AdvancedProfileConfig({ bot, state, setState }) {
+  const t = typeof useBotsI18n === 'function' ? useBotsI18n() : key => key
   const [loaded, setLoaded] = useState(false)
   const [unsupported, setUnsupported] = useState(false)
   const [skillFilter, setSkillFilter] = useState('')
@@ -7098,7 +7969,7 @@ function AdvancedProfileConfig({ bot, state, setState }) {
   if (unsupported) {
     return jsx('div', {
       className: 'px-2 py-3 text-center text-xs text-(--ui-text-tertiary)',
-      children: 'Full configuration needs a newer gateway (restart it after updating My King).'
+      children: t('advanced.unsupported')
     })
   }
 
@@ -7156,7 +8027,7 @@ function AdvancedProfileConfig({ bot, state, setState }) {
           onChange: patch => setState(prev => ({ ...prev, dirtyModel: true, ...patch }))
         }),
         labeled(
-          'Capabilities (applies immediately — skills, tools, MCP)',
+          t('advanced.capabilitiesImmediate'),
           jsx('div', {
             className: 'overflow-hidden rounded-md border border-(--ui-stroke-secondary)',
             style: { height: 460, minHeight: 300, resize: 'vertical', overflow: 'auto' },
@@ -7168,7 +8039,7 @@ function AdvancedProfileConfig({ bot, state, setState }) {
           })
         ),
         labeled(
-          'SOUL.md (persona + agent-messaging protocol)',
+          t('advanced.soul'),
           jsx(Textarea, {
             className: 'min-h-28 font-mono text-xs leading-5',
             value: state.soul,
@@ -7190,10 +8061,10 @@ function AdvancedProfileConfig({ bot, state, setState }) {
         }),
         jsx('div', {
           className: 'rounded-md border border-(--ui-stroke-secondary) px-3 py-2 text-xs text-(--ui-text-tertiary)',
-          children: 'Remote capabilities require a newer desktop. Model and SOUL changes remain staged until you save.'
+          children: t('advanced.remoteUnsupported')
         }),
         labeled(
-          'SOUL.md (persona + agent-messaging protocol)',
+          t('advanced.soul'),
           jsx(Textarea, {
             className: 'min-h-28 font-mono text-xs leading-5',
             value: state.soul,
@@ -7213,13 +8084,13 @@ function AdvancedProfileConfig({ bot, state, setState }) {
         onChange: patch => setState(prev => ({ ...prev, dirtyModel: true, ...patch }))
       }),
       labeled(
-        `Skills (${enabledSkills}/${state.skills.length} enabled)`,
+        `${t('advanced.skills')} (${enabledSkills}/${state.skills.length})`,
         jsxs('div', {
           className: 'grid gap-1.5 rounded-md border border-(--ui-stroke-secondary) p-2',
           children: [
             jsx(Input, {
               className: 'h-7 text-xs',
-              placeholder: 'Filter skills…',
+              placeholder: t('advanced.filterSkills'),
               value: skillFilter,
               onChange: event => setSkillFilter(event.target.value)
             }),
@@ -7241,7 +8112,7 @@ function AdvancedProfileConfig({ bot, state, setState }) {
         })
       ),
       labeled(
-        `Toolsets (${enabledToolsets}/${state.toolsets.length} enabled — unchecking all restores the default)`,
+        `${t('advanced.toolsets')} (${enabledToolsets}/${state.toolsets.length})`,
         jsx('div', {
           className: 'rounded-md border border-(--ui-stroke-secondary) p-2',
           children: jsx(ScrollArea, {
@@ -7284,7 +8155,7 @@ function AdvancedProfileConfig({ bot, state, setState }) {
         })
       ),
       labeled(
-        'MCP servers',
+        t('advanced.mcp'),
         jsx('div', {
           className: 'overflow-hidden rounded-md border border-(--ui-stroke-secondary)',
           // The REAL MCP tab core Settings renders — per-server enable + OAuth
@@ -7299,7 +8170,7 @@ function AdvancedProfileConfig({ bot, state, setState }) {
             : mcpList.length === 0
               ? jsx('div', {
                   className: 'px-1 py-2 text-center text-xs text-(--ui-text-tertiary)',
-                  children: 'No MCP servers configured or in the catalog.'
+                  children: t('advanced.noMcp')
                 })
               : jsx(ScrollArea, {
                   className: 'hermes-scroll-cap',
@@ -7325,7 +8196,7 @@ function AdvancedProfileConfig({ bot, state, setState }) {
                                 m.fromCatalog && !needsSetup
                                   ? jsx('span', {
                                       className: 'ml-1.5 text-[0.65rem] text-(--ui-text-quaternary)',
-                                      children: m.installed ? 'catalog · installed' : 'catalog'
+                                      children: m.installed ? t('advanced.catalogInstalled') : t('advanced.catalog')
                                     })
                                   : null,
                                 needsSetup
@@ -7353,7 +8224,7 @@ function AdvancedProfileConfig({ bot, state, setState }) {
         })
       ),
       labeled(
-        'SOUL.md (persona + agent-messaging protocol)',
+        t('advanced.soul'),
         jsx(Textarea, {
           className: 'min-h-28 font-mono text-xs leading-5',
           value: state.soul,
@@ -7375,6 +8246,7 @@ const HUB_ORIGIN = 'https://hermes-agent.nousresearch.com'
 const HUB_PICKER_URL = HUB_ORIGIN + '/docs/skills?embed=picker'
 
 function HubSkillsSection({ forProfile, onInstalled }) {
+  const t = typeof useBotsI18n === 'function' ? useBotsI18n() : key => key
   const [query, setQuery] = useState('')
   const [results, setResults] = useState(null)
   const [searching, setSearching] = useState(false)
@@ -7465,13 +8337,13 @@ function HubSkillsSection({ forProfile, onInstalled }) {
         ...(forProfile ? { profile: forProfile } : {})
       })
       setInstalled(prev => ({ ...prev, [label]: true }))
-      host.notify({ kind: 'success', message: `Skill "${label}" installed` })
+      host.notify({ kind: 'success', message: t('skillsHub.installed', label) })
 
       if (typeof onInstalled === 'function') {
         onInstalled(label)
       }
-    } catch (err) {
-      host.notifyError(err, `Installing "${label}" failed`)
+    } catch {
+      host.notify({ kind: 'error', message: t('skillsHub.installFailed', label) })
     } finally {
       setInstalling(null)
     }
@@ -7487,13 +8359,13 @@ function HubSkillsSection({ forProfile, onInstalled }) {
         children: [
           jsx('div', {
             className: 'text-[0.7rem] font-medium text-(--ui-text-secondary)',
-            children: 'Skills Hub'
+            children: t('skillsHub.title')
           }),
           jsx('button', {
             type: 'button',
             className: 'text-[0.65rem] text-(--ui-text-quaternary) hover:text-(--ui-text-secondary)',
             onClick: () => setBrowseHub(v => !v),
-            children: browseHub ? 'hide the hub browser' : 'browse the full hub ▾'
+            children: browseHub ? t('skillsHub.hideBrowser') : t('skillsHub.browseFull')
           })
         ]
       }),
@@ -7521,7 +8393,7 @@ function HubSkillsSection({ forProfile, onInstalled }) {
                 },
                 children: jsx('iframe', {
                   src: HUB_PICKER_URL,
-                  title: 'My King Skills Hub',
+                  title: t('skillsHub.frameTitle'),
                   ref: frameRef,
                   style: {
                     width: '133.34%',
@@ -7538,8 +8410,8 @@ function HubSkillsSection({ forProfile, onInstalled }) {
                 className: 'px-1 text-[0.65rem] leading-4 text-(--ui-text-quaternary)',
                 children:
                   installing
-                    ? `Installing "${installing}"…`
-                    : 'Hit "+ Add to this Agent" on any skill — it installs and appears in the list above. Drag the corner to resize.'
+                    ? t('skillsHub.installing', installing)
+                    : t('skillsHub.browseHint')
               })
             ]
           })
@@ -7549,7 +8421,7 @@ function HubSkillsSection({ forProfile, onInstalled }) {
         children: [
           jsx(Input, {
             className: 'h-7 flex-1 text-xs',
-            placeholder: 'Search the hub (community + well-known sources)…',
+            placeholder: t('skillsHub.searchPlaceholder'),
             value: query,
             onChange: event => setQuery(event.target.value),
             onKeyDown: event => {
@@ -7564,14 +8436,14 @@ function HubSkillsSection({ forProfile, onInstalled }) {
             variant: 'secondary',
             disabled: searching || !query.trim(),
             onClick: () => void search(),
-            children: searching ? 'Searching…' : 'Search'
+            children: searching ? t('skillsHub.searching') : t('skillsHub.search')
           })
         ]
       }),
       searching
         ? jsx('div', {
             className: 'px-1 text-[0.65rem] text-(--ui-text-quaternary)',
-            children: 'Searching community + well-known sources — can take ~10s…'
+            children: t('skillsHub.searchingHint')
           })
         : null,
       results === null
@@ -7579,7 +8451,7 @@ function HubSkillsSection({ forProfile, onInstalled }) {
         : results.length === 0
           ? jsx('div', {
               className: 'px-1 py-1.5 text-[0.7rem] text-(--ui-text-quaternary)',
-              children: 'No hub skills matched.'
+              children: t('skillsHub.empty')
             })
           : jsx(ScrollArea, {
               className: 'hermes-scroll-cap',
@@ -7607,14 +8479,14 @@ function HubSkillsSection({ forProfile, onInstalled }) {
                         installed[r.name]
                           ? jsx('span', {
                               className: 'shrink-0 text-[0.65rem] text-(--ui-text-tertiary)',
-                              children: '✓ added'
+                              children: t('skillsHub.added')
                             })
                           : jsx(Button, {
                               size: 'sm',
                               variant: 'ghost',
                               className: 'shrink-0 px-2 font-semibold',
                               disabled: installing !== null,
-                              title: `Install "${r.name}" and add it to the list above`,
+                              title: t('skillsHub.installTitle', r.name),
                               onClick: () => void install(r.name),
                               children: installing === r.name ? '…' : '+'
                             })
@@ -7717,6 +8589,7 @@ function labeled(label, control) {
 }
 
 function EditProfileDialog({ bot, open, onClose }) {
+  const t = typeof useBotsI18n === 'function' ? useBotsI18n() : key => key
   const metaAll = useValue($botMeta)
   const meta = bot ? botRosterMeta(bot, metaAll) : null
   const appearance = bot ? botAppearance(bot.name, meta) : { shape: 'circle', color: AVATAR_COLORS[3] }
@@ -7771,7 +8644,7 @@ function EditProfileDialog({ bot, open, onClose }) {
     const lookFailed = persistence.serverOutcome === 'failed'
 
     if (lookFailed) {
-      host.notify({ kind: 'error', message: 'Saved look locally; remote persistence failed' })
+      host.notify({ kind: 'error', message: t('agentSetup.lookPersistFailed') })
     }
     if (persistence.serverOutcome === 'persisted') {
       queryClient.invalidateQueries({ queryKey: ROSTER_KEY })
@@ -7784,8 +8657,8 @@ function EditProfileDialog({ bot, open, onClose }) {
           argv: ['profile', 'describe', bot.name, '--text', desc]
         })
         queryClient.invalidateQueries({ queryKey: ROSTER_KEY })
-      } catch (err) {
-        host.notifyError(err, 'Saved look locally; description update failed')
+      } catch {
+        host.notify({ kind: 'error', message: t('agentSetup.descriptionUpdateFailed') })
       }
     }
 
@@ -7796,16 +8669,16 @@ function EditProfileDialog({ bot, open, onClose }) {
 
         if (failed.length) {
           advancedFailed = true
-          host.notify({ kind: 'error', message: `Some sections failed: ${failed.map(([k]) => k).join(', ')}` })
+          host.notify({ kind: 'error', message: t('agentSetup.sectionsFailed', failed.map(([k]) => k).join(', ')) })
         }
-      } catch (err) {
+      } catch {
         advancedFailed = true
-        host.notifyError(err, 'Advanced configuration failed')
+        host.notify({ kind: 'error', message: t('agentSetup.advancedFailed') })
       }
     }
 
     if (!advancedFailed && !lookFailed) {
-      host.notify({ kind: 'success', message: `${displayName(bot, { title })} updated` })
+      host.notify({ kind: 'success', message: t('agentSetup.updated', displayName(bot, { title })) })
     }
     setBusy(false)
     onClose()
@@ -7823,8 +8696,8 @@ function EditProfileDialog({ bot, open, onClose }) {
       children: [
         jsxs(DialogHeader, {
           children: [
-            jsx(DialogTitle, { children: 'Edit Profile' }),
-            jsx(DialogDescription, { children: `Appearance and role for ${displayName(bot, null)} (${bot.name}).` })
+            jsx(DialogTitle, { children: t('agent.edit') }),
+            jsx(DialogDescription, { children: t('agentSetup.editDescription', displayName(bot, null), bot.name) })
           ]
         }),
         jsxs('div', {
@@ -7844,7 +8717,7 @@ function EditProfileDialog({ bot, open, onClose }) {
               generateSeed: { name: bot.name, title, description }
             }),
             labeled(
-              'Title',
+              t('agent.title'),
               jsx(Input, {
                 placeholder: displayName(bot, null),
                 value: title,
@@ -7852,10 +8725,10 @@ function EditProfileDialog({ bot, open, onClose }) {
               })
             ),
             labeled(
-              'Description',
+              t('agent.description'),
               jsx(Textarea, {
                 className: 'min-h-16',
-                placeholder: 'What should this agent help with?',
+                placeholder: t('agentSetup.helpPlaceholder'),
                 value: description,
                 onChange: event => setDescription(event.target.value)
               })
@@ -7867,7 +8740,7 @@ function EditProfileDialog({ bot, open, onClose }) {
               onClick: () => setAdvanced(v => !v),
               children: [
                 jsx(Codicon, { name: advanced ? 'chevron-down' : 'chevron-right', className: 'text-[0.8rem]' }),
-                'Advanced — model, skills, toolsets, SOUL.md'
+                t('advanced.heading')
               ]
             }),
             advanced
@@ -7880,8 +8753,8 @@ function EditProfileDialog({ bot, open, onClose }) {
         }),
         jsxs(DialogFooter, {
           children: [
-            jsx(Button, { variant: 'ghost', disabled: busy, onClick: onClose, children: 'Cancel' }),
-            jsx(Button, { disabled: busy, onClick: submit, children: busy ? 'Saving…' : 'Save' })
+            jsx(Button, { variant: 'ghost', disabled: busy, onClick: onClose, children: t('actions.cancel') }),
+            jsx(Button, { disabled: busy, onClick: submit, children: busy ? t('actions.saving') : t('agent.save') })
           ]
         })
       ]
@@ -7892,6 +8765,7 @@ function EditProfileDialog({ bot, open, onClose }) {
 // ── create dialog ────────────────────────────────────────────────────────────
 
 function CreateAgentDialog({ open, onClose, roster }) {
+  const t = typeof useBotsI18n === 'function' ? useBotsI18n() : key => key
   const [name, setName] = useState('')
   // Create mode: the profile is created LAZILY. Capability toggles are staged in
   // component state; the profile is materialized either on Create (submit) or on
@@ -7998,8 +8872,8 @@ function CreateAgentDialog({ open, onClose, roster }) {
       ? requestForTarget('cli.exec', { argv: ['profile', 'delete', draft, '--yes'] })
       : deleteBot({ name: draft })
     void Promise.resolve(discard)
-      .then(() => host.notify({ kind: 'success', message: `Draft agent "${draft}" discarded` }))
-      .catch(err => host.notifyError(err, `Could not clean up draft profile "${draft}"`))
+      .then(() => host.notify({ kind: 'success', message: t('agentSetup.draftDiscarded', draft) }))
+      .catch(() => host.notify({ kind: 'error', message: t('agentSetup.draftCleanupFailed', draft) }))
   }
 
   const reset = () => {
@@ -8194,15 +9068,15 @@ function CreateAgentDialog({ open, onClose, roster }) {
       const slugCreated = await ensureAgentCreated()
       if (!slugCreated) {
         setBusy(false)
-        setError('Could not create the agent.')
+        setError(t('agentSetup.createFailed'))
         return
       }
 
       host.notify({
         kind: 'success',
         message: remoteTarget
-          ? `Agent "${displayName({ name: slug, title })}" created on ${targetLabel}`
-          : `Agent "${displayName({ name: slug, title })}" created`
+          ? t('agentSetup.createdRemote', displayName({ name: slug, title }), targetLabel)
+          : t('agentSetup.created', displayName({ name: slug, title }))
       })
       const wasRemote = remoteTarget
       reset()
@@ -8232,9 +9106,9 @@ function CreateAgentDialog({ open, onClose, roster }) {
           host.newChat(slug)
         }
       }
-    } catch (err) {
+    } catch {
       setBusy(false)
-      setError(err instanceof Error ? err.message : String(err))
+      setError(t('agentSetup.createFailed'))
     }
   }
 
@@ -8260,9 +9134,9 @@ function CreateAgentDialog({ open, onClose, roster }) {
       children: [
         jsxs(DialogHeader, {
           children: [
-            jsx(DialogTitle, { children: 'New Agent' }),
+            jsx(DialogTitle, { children: t('agent.new') }),
             jsx(DialogDescription, {
-              children: 'A named teammate with its own memory, skills, and chat. It can message your other agents.'
+              children: t('agentSetup.createDescription')
             })
           ]
         }),
@@ -8283,10 +9157,10 @@ function CreateAgentDialog({ open, onClose, roster }) {
               generateSeed: { name: slug || 'agent', title, description }
             }),
             labeled(
-              'Name',
+              t('agent.name'),
               jsx(Input, {
                 autoFocus: true,
-                placeholder: 'inbox-triage',
+                placeholder: t('agent.namePlaceholder'),
                 value: name,
                 onChange: event => setName(event.target.value)
               })
@@ -8295,8 +9169,8 @@ function CreateAgentDialog({ open, onClose, roster }) {
               ? jsx('div', {
                   className: 'text-xs text-(--ui-accent)',
                   children: remoteTarget
-                    ? `An agent named "${slug}" already exists on ${targetLabel}.`
-                    : `An agent named "${slug}" already exists.`
+                    ? t('agentSetup.duplicateRemote', slug, targetLabel)
+                    : t('agentSetup.duplicate', slug)
                 })
               : null,
             // Multi-connection desktops choose WHERE the agent lives. Hidden
@@ -8304,7 +9178,7 @@ function CreateAgentDialog({ open, onClose, roster }) {
             // possible home, exactly the old behavior.
             Array.isArray(connections) && connections.length > 1
               ? labeled(
-                  'Create on',
+                  t('agentSetup.createOn'),
                   jsxs(Select, {
                     value: targetConnection || activeConnectionId || 'local',
                     onValueChange: value => {
@@ -8330,7 +9204,7 @@ function CreateAgentDialog({ open, onClose, roster }) {
                               value: connection.id,
                               children:
                                 connection.id === (activeConnectionId || 'local')
-                                  ? `${connection.label || connection.id} (current)`
+                                  ? t('agentSetup.current', connection.label || connection.id)
                                   : connection.label || connection.id
                             },
                             connection.id
@@ -8344,22 +9218,22 @@ function CreateAgentDialog({ open, onClose, roster }) {
             remoteTarget
               ? jsx('div', {
                   className: 'text-[0.7rem] leading-5 text-(--ui-text-tertiary)',
-                  children: `The agent is created on ${targetLabel} and appears in the roster as a Connections bot. Chat routes to that machine.`
+                  children: t('agentSetup.remoteDescription', targetLabel)
                 })
               : null,
             labeled(
-              'Title',
+              t('agent.title'),
               jsx(Input, {
-                placeholder: 'Inbox Triage',
+                placeholder: t('agentSetup.titlePlaceholder'),
                 value: title,
                 onChange: event => setTitle(event.target.value)
               })
             ),
             labeled(
-              'Description',
+              t('agent.description'),
               jsx(Textarea, {
                 className: 'min-h-16',
-                placeholder: 'What should this Bot help with?',
+                placeholder: t('agentSetup.helpPlaceholder'),
                 value: description,
                 onChange: event => setDescription(event.target.value)
               })
@@ -8378,7 +9252,7 @@ function CreateAgentDialog({ open, onClose, roster }) {
               },
               children: [
                 jsx(Codicon, { name: advanced ? 'chevron-down' : 'chevron-right', className: 'text-[0.8rem]' }),
-                'Advanced'
+                t('agent.advanced')
               ]
             }),
             advanced
@@ -8398,14 +9272,14 @@ function CreateAgentDialog({ open, onClose, roster }) {
                       // reads already route to the target).
                       children: (SkillsView && (!remoteTarget || skillsViewRoutesConnections)
                         ? [
-                            ['general', 'General'],
-                            ['capabilities', 'Capabilities']
+                            ['general', t('agent.basic')],
+                            ['capabilities', t('advanced.capabilities')]
                           ]
                         : [
-                            ['general', 'General'],
-                            ['skills', 'Skills'],
-                            ['toolsets', 'Tools'],
-                            ['mcp', 'MCP']
+                            ['general', t('agent.basic')],
+                            ['skills', t('advanced.skills')],
+                            ['toolsets', t('advanced.toolsets')],
+                            ['mcp', t('advanced.mcp')]
                           ]
                       ).map(([id, label]) =>
                         jsx(
@@ -8427,7 +9301,7 @@ function CreateAgentDialog({ open, onClose, roster }) {
                                 // the MCP setup buttons use).
                                 void ensureAgentCreated()
                                   .then(created => created && setCreatedForCaps(created))
-                                  .catch(err => host.notifyError(err, 'Could not create the profile yet'))
+                                  .catch(() => host.notify({ kind: 'error', message: t('agentSetup.createProfileFailed') }))
                               } else if (id !== 'general') {
                                 ensureCaps()
                               }
@@ -8443,7 +9317,7 @@ function CreateAgentDialog({ open, onClose, roster }) {
                           className: 'grid gap-3.5',
                           children: [
                             labeled(
-                              remoteTarget ? `Clone from profile (on ${targetLabel})` : 'Clone from profile',
+                              remoteTarget ? t('agentSetup.cloneFromRemote', targetLabel) : t('agentSetup.cloneFrom'),
                               jsxs(Select, {
                                 disabled: remoteTarget,
                                 value: remoteTarget ? 'default' : cloneFrom,
@@ -8461,7 +9335,7 @@ function CreateAgentDialog({ open, onClose, roster }) {
                                     children: [
                                       jsx(SelectItem, {
                                         value: '__none__',
-                                        children: 'Fresh profile (bundled skills)'
+                                        children: t('agentSetup.freshProfile')
                                       }),
                                       ...roster.map(b => jsx(SelectItem, { value: b.name, children: b.name }, b.name))
                                     ]
@@ -8479,14 +9353,13 @@ function CreateAgentDialog({ open, onClose, roster }) {
                                   setModel(patch.model)
                                 }
                               },
-                              placeholderModel: 'inherited from launch profile'
+                              placeholderModel: t('agentSetup.inheritedModel')
                             }),
                             labeled(
-                              'SOUL.md (optional — replaces the generated persona)',
+                              t('agentSetup.soulLabel'),
                               jsx(Textarea, {
                                 className: 'min-h-24 font-mono text-xs leading-5',
-                                placeholder:
-                                  'Leave blank to auto-generate from name/title/description + agent-messaging roster.',
+                                placeholder: t('agentSetup.soulPlaceholder'),
                                 value: soul,
                                 onChange: event => setSoul(event.target.value)
                               })
@@ -8498,13 +9371,12 @@ function CreateAgentDialog({ open, onClose, roster }) {
                                   checked: shareAuth,
                                   onCheckedChange: value => setShareAuth(Boolean(value))
                                 }),
-                                'Share keys & accounts with the main profile'
+                                t('agentSetup.shareAuth')
                               ]
                             }),
                             jsx('div', {
                               className: 'pl-6 pt-0.5 text-[0.7rem] leading-5 text-(--ui-text-tertiary)',
-                              children:
-                                'Subscriptions, OAuth logins, and API keys stay shared (not copied), so token refreshes never invalidate each other. Uncheck for an isolated snapshot copy.'
+                              children: t('agentSetup.shareAuthHint')
                             }),
                             jsxs('label', {
                               className: 'flex items-center gap-2 text-xs text-(--ui-text-secondary)',
@@ -8513,7 +9385,7 @@ function CreateAgentDialog({ open, onClose, roster }) {
                                   checked: noSkills,
                                   onCheckedChange: value => setNoSkills(Boolean(value))
                                 }),
-                                'Create empty (skip bundled skills)'
+                                t('agentSetup.createEmpty')
                               ]
                             })
                           ]
@@ -8523,8 +9395,8 @@ function CreateAgentDialog({ open, onClose, roster }) {
                           ? jsx('div', {
                               className: 'px-2 py-3 text-center text-xs text-(--ui-text-tertiary)',
                               children: taken
-                                ? 'That name is taken — pick another before configuring capabilities.'
-                                : 'Name the agent first — a draft profile is created when you open this tab (discarded if you cancel).'
+                                ? t('agentSetup.takenCapabilities')
+                                : t('agentSetup.nameCapabilities')
                             })
                           : !createdForCaps
                             ? jsx('div', {
@@ -8552,8 +9424,7 @@ function CreateAgentDialog({ open, onClose, roster }) {
                       : capsFailed
                         ? jsx('div', {
                             className: 'px-2 py-3 text-center text-xs text-(--ui-text-tertiary)',
-                            children:
-                              'Capability catalog needs a newer gateway (restart it after updating My King).'
+                            children: t('agentSetup.catalogUnsupported')
                           })
                         : !caps
                           ? jsx('div', {
@@ -8567,14 +9438,14 @@ function CreateAgentDialog({ open, onClose, roster }) {
                             ? noSkills
                               ? jsx('div', {
                                   className: 'px-2 py-3 text-center text-xs text-(--ui-text-tertiary)',
-                                  children: '“Create empty” is checked — no bundled skills will be installed.'
+                                  children: t('agentSetup.emptySkills')
                                 })
                               : jsxs('div', {
                                   className: 'grid gap-1.5',
                                   children: [
                                     jsx(Input, {
                                       className: 'h-7 text-xs',
-                                      placeholder: 'Filter skills…',
+                                      placeholder: t('advanced.filterSkills'),
                                       value: capFilter,
                                       onChange: event => setCapFilter(event.target.value)
                                     }),
@@ -8593,7 +9464,7 @@ function CreateAgentDialog({ open, onClose, roster }) {
                                     }),
                                     jsx('div', {
                                       className: 'text-[0.65rem] leading-4 text-(--ui-text-quaternary)',
-                                      children: `Catalog from ${caps.source} — unchecked skills are disabled after creation.`
+                                      children: t('agentSetup.catalogSource', caps.source)
                                     }),
                                     jsx(HubSkillsSection, {
                                       forProfile: null,
@@ -8621,14 +9492,14 @@ function CreateAgentDialog({ open, onClose, roster }) {
                                     }),
                                     jsx('div', {
                                       className: 'text-[0.65rem] leading-4 text-(--ui-text-quaternary)',
-                                      children: 'Leaving all (or none) checked keeps the default toolset behavior.'
+                                      children: t('agentSetup.toolsetDefault')
                                     })
                                   ]
                                 })
                               : caps.mcp.length === 0
                                 ? jsx('div', {
                                     className: 'px-2 py-3 text-center text-xs text-(--ui-text-tertiary)',
-                                    children: 'No MCP servers configured or in the catalog.'
+                                    children: t('advanced.noMcp')
                                   })
                                 : jsxs('div', {
                                     className: 'grid gap-1.5',
@@ -8660,8 +9531,8 @@ function CreateAgentDialog({ open, onClose, roster }) {
                                                         ? jsx('span', {
                                                             className: 'ml-1.5 text-[0.65rem] text-(--ui-text-quaternary)',
                                                             children: m.installed
-                                                              ? 'catalog · installed'
-                                                              : 'catalog'
+                                                              ? t('advanced.catalogInstalled')
+                                                              : t('advanced.catalog')
                                                           })
                                                         : null,
                                                       needsSetup
@@ -8706,8 +9577,7 @@ function CreateAgentDialog({ open, onClose, roster }) {
                                       }),
                                       jsx('div', {
                                         className: 'text-[0.65rem] leading-4 text-(--ui-text-quaternary)',
-                                        children:
-                                          'Configured servers copy from the main profile; catalog entries are the bundled MCP menu. Entries needing API keys route through setup first (credentials follow the shared keys setting).'
+                                        children: t('agentSetup.mcpHint')
                                       })
                                     ]
                                   })
@@ -8732,12 +9602,12 @@ function CreateAgentDialog({ open, onClose, roster }) {
                 reset()
                 onClose()
               },
-              children: 'Cancel'
+              children: t('actions.cancel')
             }),
             jsx(Button, {
               disabled: busy || !valid || taken,
               onClick: submit,
-              children: busy ? 'Creating…' : 'Create Agent'
+              children: busy ? t('agent.creating') : t('agent.create')
             })
           ]
         })
@@ -8859,12 +9729,11 @@ function selectRoutineJobs(data, error, lastJobs, bot) {
  * Return a short explanation string in that case, or null when the store is
  * genuinely empty (or the active bot's jobs are already shown).
  */
-function routineFilterHint(all, jobs) {
+function routineFilterHint(all, jobs, t) {
   if (jobs.length !== 0 || !Array.isArray(all) || all.length === 0) {
     return null
   }
-  return 'Cronjobs exist in this profile but none are tagged for this bot. ' +
-    'Name a job "[bot:<name>] …" to show it here, or see them in Cron below.'
+  return t('routines.filteredHint')
 }
 
 function normalizedProfileName(profile) {
@@ -8875,13 +9744,13 @@ function shellQuote(value) {
   return `'${String(value).replaceAll("'", "'\"'\"'")}'`
 }
 
-function routineInputError(title, instruction) {
+function routineInputError(title, instruction, t) {
   if (String(title).includes('\0')) {
-    return 'Cronjob name cannot contain NUL (U+0000).'
+    return t('routines.invalidName')
   }
 
   if (String(instruction).includes('\0')) {
-    return 'Cronjob instruction cannot contain NUL (U+0000).'
+    return t('routines.invalidInstruction')
   }
 
   return null
@@ -8899,17 +9768,17 @@ function routinePrompt(bot, title, instruction, activeProfile) {
     `If the command fails, report the error instead.`
   )
 }
-function scheduleLabel(schedule) {
+function scheduleLabel(schedule, t) {
   const once = /^once in (.+)$/.exec(schedule || '')
 
   if (once) {
-    return `Once (${once[1]})`
+    return t('routines.onceIn', once[1])
   }
 
   const bare = /^(\d+)([mhd])$/.exec(schedule || '')
 
   if (bare) {
-    return `Once (${bare[1]}${bare[2]})`
+    return t('routines.onceIn', `${bare[1]}${bare[2]}`)
   }
 
   const match = /^every (\d+)m$/.exec(schedule || '')
@@ -8919,21 +9788,22 @@ function scheduleLabel(schedule) {
 
     if (minutes % 1440 === 0) {
       const d = minutes / 1440
-      return d === 1 ? 'Daily' : `Every ${d} days`
+      return d === 1 ? t('routines.daily') : t('routines.everyDays', d)
     }
 
     if (minutes % 60 === 0) {
       const h = minutes / 60
-      return h === 1 ? 'Hourly' : `Every ${h}h`
+      return h === 1 ? t('routines.hourly') : t('routines.everyHours', h)
     }
 
-    return `Every ${minutes}m`
+    return t('routines.everyMinutes', minutes)
   }
 
   return schedule || ''
 }
 
 function RoutineRow({ job, owner }) {
+  const t = typeof useBotsI18n === 'function' ? useBotsI18n() : key => key
   const profile = typeof owner === 'string' ? owner : owner?.name
   const [busy, setBusy] = useState(false)
   // Optimistic overlay: null = trust server state. Set immediately on
@@ -8961,9 +9831,9 @@ function RoutineRow({ job, owner }) {
     try {
       await requestForBot(owner, 'cron.manage', { action, name: job.job_id, ...(profile ? { profile } : {}) })
       await invalidateRoutineOwner(owner)
-    } catch (err) {
+    } catch {
       setPendingActive(null)
-      host.notifyError(err, 'Cronjob update failed')
+      host.notify({ kind: 'error', message: t('routines.updateFailed') })
     } finally {
       setBusy(false)
     }
@@ -8992,7 +9862,7 @@ function RoutineRow({ job, owner }) {
             onCheckedChange: value => act(value ? 'resume' : 'pause')
           }),
           jsx(Tip, {
-            label: 'Delete cronjob',
+            label: t('actions.delete'),
             children: jsx('button', {
               type: 'button',
               disabled: busy,
@@ -9010,11 +9880,11 @@ function RoutineRow({ job, owner }) {
           jsxs('span', {
             className:
               'inline-flex items-center gap-1 rounded-full border border-(--ui-stroke-secondary) px-1.5 py-0.5 text-[0.65rem] text-(--ui-text-tertiary)',
-            children: [jsx(Codicon, { name: 'calendar', className: 'text-[0.7rem]' }), scheduleLabel(job.schedule)]
+            children: [jsx(Codicon, { name: 'calendar', className: 'text-[0.7rem]' }), scheduleLabel(job.schedule, t)]
           }),
           jsx('span', {
             className: 'truncate text-[0.65rem] text-(--ui-text-quaternary)',
-            children: active && job.next_run_at ? `next ${relativeTime(new Date(job.next_run_at).getTime())}` : 'paused'
+            children: active && job.next_run_at ? t('routines.next', relativeTime(new Date(job.next_run_at).getTime())) : t('routines.paused')
           })
         ]
       }),
@@ -9022,7 +9892,7 @@ function RoutineRow({ job, owner }) {
         ? jsx('div', {
             className:
               'rounded-md border border-(--ui-stroke-secondary) px-2 py-1.5 text-[0.65rem] leading-4 text-(--ui-accent)',
-            children: 'Paused for security: delete and recreate this legacy cronjob before running it again.'
+            children: t('routines.legacyUnsafe')
           })
         : null
     ]
@@ -9032,34 +9902,15 @@ function RoutineRow({ job, owner }) {
 // Structured schedule picker: frequency first, then only the detail that
 // frequency needs (time of day, weekday, day of month, interval). Emits a
 // My King-native schedule string; Advanced exposes it raw.
-const FREQUENCIES = [
-  { id: 'once', label: 'Once, in\u2026' },
-  { id: 'hourly', label: 'Every hour' },
-  { id: 'daily', label: 'Every day' },
-  { id: 'weekdays', label: 'Weekdays' },
-  { id: 'weekly', label: 'Every week' },
-  { id: 'monthly', label: 'Every month' },
-  { id: 'interval', label: 'Interval' },
-  { id: 'advanced', label: 'Advanced\u2026' }
-]
-
-const WEEKDAYS = [
-  { id: '1', label: 'Monday' },
-  { id: '2', label: 'Tuesday' },
-  { id: '3', label: 'Wednesday' },
-  { id: '4', label: 'Thursday' },
-  { id: '5', label: 'Friday' },
-  { id: '6', label: 'Saturday' },
-  { id: '0', label: 'Sunday' }
-]
+const FREQUENCY_KEYS = ['once', 'everyHour', 'everyDay', 'weekdaysOnly', 'everyWeek', 'everyMonth', 'interval', 'advanced']
+const WEEKDAY_KEYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+const WEEKDAY_IDS = ['1', '2', '3', '4', '5', '6', '0']
 
 const TIMES = (() => {
   const out = []
   for (let h = 0; h < 24; h++) {
     for (const m of [0, 30]) {
-      const ampm = h < 12 ? 'AM' : 'PM'
-      const h12 = h % 12 === 0 ? 12 : h % 12
-      out.push({ id: `${h}:${m}`, label: `${h12}:${String(m).padStart(2, '0')} ${ampm}`, h, m })
+      out.push({ id: `${h}:${m}`, h, m })
     }
   }
   return out
@@ -9093,33 +9944,33 @@ function composeSchedule(state) {
   }
 }
 
-function scheduleSummary(state) {
-  const t = TIMES.find(x => x.id === state.time)
-  const tl = t ? t.label : '9:00 AM'
+function scheduleSummary(state, t, weekdays) {
+  const timeOption = TIMES.find(x => x.id === state.time)
+  const tl = timeOption ? t('routines.clockTime', timeOption.h, timeOption.m) : t('routines.clockTime', 9, 0)
 
-  const unitWord = u => (u === 'm' ? 'minute(s)' : u === 'd' ? 'day(s)' : 'hour(s)')
+  const unitWord = u => (u === 'm' ? t('routines.unitMinutes') : u === 'd' ? t('routines.unitDays') : t('routines.unitHours'))
   const cap =
     state.freq !== 'once' && String(state.repeatN || '').trim()
-      ? `, ${Math.max(1, parseInt(state.repeatN, 10) || 1)} time(s) total`
+      ? t('routines.repeatTotal', Math.max(1, parseInt(state.repeatN, 10) || 1))
       : ''
 
   switch (state.freq) {
     case 'once':
-      return `Runs once, ${Math.max(1, parseInt(state.onceN, 10) || 1)} ${unitWord(state.onceUnit)} from now`
+      return t('routines.summaryOnce', Math.max(1, parseInt(state.onceN, 10) || 1), unitWord(state.onceUnit))
     case 'hourly':
-      return 'Runs at the top of every hour' + cap
+      return t('routines.summaryHourly') + cap
     case 'daily':
-      return `Runs every day at ${tl}` + cap
+      return t('routines.summaryDaily', tl) + cap
     case 'weekdays':
-      return `Runs Monday\u2013Friday at ${tl}` + cap
+      return t('routines.summaryWeekdays', tl) + cap
     case 'weekly':
-      return `Runs every ${(WEEKDAYS.find(w => w.id === state.weekday) || WEEKDAYS[0]).label} at ${tl}` + cap
+      return t('routines.summaryWeekly', (weekdays.find(w => w.id === state.weekday) || weekdays[0]).label, tl) + cap
     case 'monthly':
-      return `Runs on day ${state.monthday || '1'} of each month at ${tl}` + cap
+      return t('routines.summaryMonthly', state.monthday || '1', tl) + cap
     case 'interval':
-      return `Runs every ${Math.max(1, parseInt(state.intervalN, 10) || 1)} ${unitWord(state.intervalUnit)}` + cap
+      return t('routines.summaryInterval', Math.max(1, parseInt(state.intervalN, 10) || 1), unitWord(state.intervalUnit)) + cap
     default:
-      return 'Raw schedule \u2014 every Nm/Nh/Nd or 5-field cron'
+      return t('routines.summaryRaw')
   }
 }
 
@@ -9137,8 +9988,12 @@ function pickerSelect(value, onChange, options) {
 }
 
 function SchedulePicker({ state, setState }) {
+  const t = typeof useBotsI18n === 'function' ? useBotsI18n() : key => key
   const upd = patch => setState(prev => ({ ...prev, ...patch }))
   const needsTime = ['daily', 'weekdays', 'weekly', 'monthly'].includes(state.freq)
+  const frequencies = ['once', 'hourly', 'daily', 'weekdays', 'weekly', 'monthly', 'interval', 'advanced'].map((id, index) => ({ id, label: t(`routines.${FREQUENCY_KEYS[index]}`) }))
+  const weekdays = WEEKDAY_IDS.map((id, index) => ({ id, label: t(`routines.${WEEKDAY_KEYS[index]}`) }))
+  const times = TIMES.map(time => ({ ...time, label: t('routines.clockTime', time.h, time.m) }))
 
   return jsxs('div', {
     className: 'grid gap-2',
@@ -9146,8 +10001,8 @@ function SchedulePicker({ state, setState }) {
       jsxs('div', {
         style: { display: 'grid', gridTemplateColumns: needsTime ? '1fr 1fr' : '1fr', gap: '8px' },
         children: [
-          pickerSelect(state.freq, v => upd({ freq: v }), FREQUENCIES),
-          needsTime ? pickerSelect(state.time, v => upd({ time: v }), TIMES) : null
+          pickerSelect(state.freq, v => upd({ freq: v }), frequencies),
+          needsTime ? pickerSelect(state.time, v => upd({ time: v }), times) : null
         ]
       }),
       state.freq === 'once'
@@ -9161,19 +10016,19 @@ function SchedulePicker({ state, setState }) {
                 onChange: event => upd({ onceN: event.target.value.replace(/[^0-9]/g, '').slice(0, 4) })
               }),
               pickerSelect(state.onceUnit, v => upd({ onceUnit: v }), [
-                { id: 'm', label: 'minutes from now' },
-                { id: 'h', label: 'hours from now' },
-                { id: 'd', label: 'days from now' }
+                { id: 'm', label: t('routines.minutesFromNow') },
+                { id: 'h', label: t('routines.hoursFromNow') },
+                { id: 'd', label: t('routines.daysFromNow') }
               ])
             ]
           })
         : null,
       state.freq === 'weekly'
-        ? pickerSelect(state.weekday, v => upd({ weekday: v }), WEEKDAYS)
+        ? pickerSelect(state.weekday, v => upd({ weekday: v }), weekdays)
         : null,
       state.freq === 'monthly'
         ? labeled(
-            'Day of month',
+            t('routines.dayOfMonth'),
             jsx(Input, {
               className: 'h-8',
               placeholder: '1',
@@ -9193,9 +10048,9 @@ function SchedulePicker({ state, setState }) {
                 onChange: event => upd({ intervalN: event.target.value.replace(/[^0-9]/g, '').slice(0, 4) })
               }),
               pickerSelect(state.intervalUnit, v => upd({ intervalUnit: v }), [
-                { id: 'm', label: 'minutes' },
-                { id: 'h', label: 'hours' },
-                { id: 'd', label: 'days' }
+                { id: 'm', label: t('routines.minutes') },
+                { id: 'h', label: t('routines.hours') },
+                { id: 'd', label: t('routines.days') }
               ])
             ]
           })
@@ -9203,7 +10058,7 @@ function SchedulePicker({ state, setState }) {
       state.freq === 'advanced'
         ? jsx(Input, {
             className: 'h-8 font-mono text-xs',
-            placeholder: 'every 1d \u00b7 every 2h \u00b7 0 9 * * * (cron)',
+            placeholder: t('routines.rawPlaceholder'),
             value: state.raw,
             onChange: event => upd({ raw: event.target.value })
           })
@@ -9212,20 +10067,20 @@ function SchedulePicker({ state, setState }) {
         ? jsxs('div', {
             className: 'flex items-center gap-2',
             children: [
-              jsx('span', { className: 'text-xs text-(--ui-text-tertiary)', children: 'Stop after' }),
+              jsx('span', { className: 'text-xs text-(--ui-text-tertiary)', children: t('routines.stopAfter') }),
               jsx(Input, {
                 className: 'h-7 w-16 text-xs',
                 placeholder: '\u221e',
                 value: state.repeatN,
                 onChange: event => upd({ repeatN: event.target.value.replace(/[^0-9]/g, '').slice(0, 4) })
               }),
-              jsx('span', { className: 'text-xs text-(--ui-text-tertiary)', children: 'runs (blank = forever)' })
+              jsx('span', { className: 'text-xs text-(--ui-text-tertiary)', children: t('routines.runsForever') })
             ]
           })
         : null,
       jsx('div', {
         className: 'text-[0.65rem] text-(--ui-text-quaternary)',
-        children: `${scheduleSummary(state)} \u00b7 ${composeSchedule(state) || '\u2014'}`
+        children: `${scheduleSummary(state, t, weekdays)} \u00b7 ${composeSchedule(state) || '\u2014'}`
       })
     ]
   })
@@ -9236,6 +10091,7 @@ function defaultScheduleState() {
 }
 
 function CreateRoutineDialog({ bot, open, onClose }) {
+  const t = typeof useBotsI18n === 'function' ? useBotsI18n() : key => key
   const [name, setName] = useState('')
   const [instruction, setInstruction] = useState('')
   const [sched, setSched] = useState(defaultScheduleState())
@@ -9264,7 +10120,7 @@ function CreateRoutineDialog({ bot, open, onClose }) {
   const submit = async () => {
     const title = name.trim()
     const task = instruction.trim()
-    const inputError = routineInputError(title, task)
+    const inputError = routineInputError(title, task, t)
 
     if (inputError) {
       setError(inputError)
@@ -9297,12 +10153,12 @@ function CreateRoutineDialog({ bot, open, onClose }) {
         ...(target === 'bot-chat' ? { deliver: 'bot-chat' } : {})
       })
       await invalidateRoutineOwner(bot)
-      host.notify({ kind: 'success', message: `Cronjob "${title}" scheduled` })
+      host.notify({ kind: 'success', message: t('routines.scheduled', title) })
       reset()
       onClose()
-    } catch (err) {
+    } catch {
       setBusy(false)
-      setError(err instanceof Error ? err.message : String(err))
+      setError(t('routines.createFailed'))
     }
   }
 
@@ -9319,9 +10175,9 @@ function CreateRoutineDialog({ bot, open, onClose }) {
       children: [
         jsxs(DialogHeader, {
           children: [
-            jsx(DialogTitle, { children: 'New Cronjob' }),
+            jsx(DialogTitle, { children: t('routines.new') }),
             jsx(DialogDescription, {
-              children: `A recurring task ${displayName(typeof bot === 'string' ? { name: bot } : bot, botRosterMeta(bot, $botMeta.get()))} runs on a schedule. Runs land in its own chat history.`
+              children: t('routines.createDescription', displayName(typeof bot === 'string' ? { name: bot } : bot, botRosterMeta(bot, $botMeta.get())))
             })
           ]
         }),
@@ -9329,29 +10185,29 @@ function CreateRoutineDialog({ bot, open, onClose }) {
           className: 'grid gap-3.5',
           children: [
             labeled(
-              'Name',
+              t('routines.name'),
               jsx(Input, {
                 autoFocus: true,
-                placeholder: 'Name this cronjob',
+                placeholder: t('routines.namePlaceholder'),
                 value: name,
                 onChange: event => setName(event.target.value)
               })
             ),
             labeled(
-              'Instruction',
+              t('routines.prompt'),
               jsx(Textarea, {
                 className: 'min-h-20',
-                placeholder: 'What should this cronjob do each time it runs?',
+                placeholder: t('routines.instructionPlaceholder'),
                 value: instruction,
                 onChange: event => setInstruction(event.target.value)
               })
             ),
-            labeled('When to run', jsx(SchedulePicker, { state: sched, setState: setSched })),
+            labeled(t('routines.schedule'), jsx(SchedulePicker, { state: sched, setState: setSched })),
             labeled(
-              'Send results to',
+              t('routines.sendResults'),
               pickerSelect(target, setTarget, [
-                { id: 'history', label: 'Run history only' },
-                { id: 'bot-chat', label: `${displayName({ name: bot }, $botMeta.get()[bot])}\u2019s chat (bot responds)` }
+                { id: 'history', label: t('routines.runHistory') },
+                { id: 'bot-chat', label: t('routines.botChat', displayName({ name: bot }, $botMeta.get()[bot])) }
               ])
             ),
             jsxs('label', {
@@ -9363,7 +10219,7 @@ function CreateRoutineDialog({ bot, open, onClose }) {
                   checked: continuity,
                   onChange: event => setContinuity(event.target.checked)
                 }),
-                'Continuity: each run sees the previous run\u2019s output (dedupe, continue where it left off)'
+                t('routines.continuity')
               ]
             }),
             error
@@ -9383,12 +10239,12 @@ function CreateRoutineDialog({ bot, open, onClose }) {
                 reset()
                 onClose()
               },
-              children: 'Cancel'
+              children: t('actions.cancel')
             }),
             jsx(Button, {
               disabled: busy || !name.trim() || !instruction.trim() || !schedule.trim(),
               onClick: submit,
-              children: busy ? 'Scheduling…' : 'Create Cronjob'
+              children: busy ? t('routines.creating') : t('routines.create')
             })
           ]
         })
@@ -9441,6 +10297,7 @@ function resolveRoutineOwner(roster, focusedOwner, selected) {
 }
 
 function RoutinesPane() {
+  const t = typeof useBotsI18n === 'function' ? useBotsI18n() : key => key
   const selected = useValue($selectedBot)
   const focusedOwner = focusedRosterOwner(useValue($focusedBotOwner))
   // A complete focused owner is authoritative. If its exact roster row is
@@ -9468,7 +10325,7 @@ function RoutinesPane() {
   if (!owner) {
     return jsx('div', {
       className: 'flex h-full items-center justify-center px-4 text-center text-xs text-(--ui-text-tertiary)',
-      children: 'Cronjobs are unavailable until this agent appears in the roster.'
+      children: t('routines.noAgent')
     })
   }
 
@@ -9478,9 +10335,9 @@ function RoutinesPane() {
   }
   const jobs = view.jobs
   const staleNotice = error && !view.live && view.all.length
-    ? 'Could not refresh cronjobs. Showing the last list we had.'
+    ? t('routines.stale')
     : null
-  const filterHint = routineFilterHint(view.all, jobs)
+  const filterHint = routineFilterHint(view.all, jobs, t)
 
   return jsxs('div', {
     className: 'flex h-full flex-col',
@@ -9509,12 +10366,12 @@ function RoutinesPane() {
               }),
               jsx('div', {
                 className: 'text-[0.65rem] uppercase tracking-wider text-(--ui-text-quaternary)',
-                children: 'Cronjobs'
+                children: t('routines.title')
               })
             ]
           }),
           jsx(Tip, {
-            label: 'New Cronjob',
+            label: t('routines.new'),
             children: jsx('button', {
               type: 'button',
               className:
@@ -9544,13 +10401,13 @@ function RoutinesPane() {
                 jsx(Codicon, { name: 'warning', className: 'text-[1.6rem] text-(--ui-text-quaternary)' }),
                 jsx('div', {
                   className: 'text-xs leading-5 text-(--ui-text-tertiary)',
-                  children: 'Could not load cronjobs. The list may still be there.'
+                  children: t('routines.loadError')
                 }),
                 jsx(Button, {
                   variant: 'secondary',
                   size: 'sm',
                   onClick: () => void refetch(),
-                  children: 'Retry'
+                  children: t('actions.retry')
                 })
               ]
             })
@@ -9572,7 +10429,7 @@ function RoutinesPane() {
                   variant: 'secondary',
                   size: 'sm',
                   onClick: openCreate,
-                  children: filterHint ? 'Create a cronjob for this bot' : 'Create Cronjob'
+                  children: t('routines.create')
                 })
               ]
             })
@@ -9605,6 +10462,7 @@ function RoutinesPane() {
  *  chip opens that bot's canonical Bot Chat. Omitted entirely when nothing
  *  is active, and never reorders the roster below it. */
 function ActiveNowStrip({ roster, activeProfile, gatewayState, metaByName, onOpen }) {
+  const t = typeof useBotsI18n === 'function' ? useBotsI18n() : key => key
   const active = activeBots(roster, activeProfile, gatewayState)
 
   if (!active.length) {
@@ -9614,12 +10472,12 @@ function ActiveNowStrip({ roster, activeProfile, gatewayState, metaByName, onOpe
   return jsxs('div', {
     role: 'status',
     'aria-live': 'polite',
-    'aria-label': 'Active now',
+    'aria-label': t('group.activeNow'),
     className: 'flex flex-wrap items-center gap-1.5 px-2.5 pb-1.5',
     children: [
       jsx('span', {
         className: 'text-[0.6875rem] font-semibold uppercase tracking-wider text-(--ui-text-quaternary)',
-        children: 'Active now'
+        children: t('group.activeNow')
       }),
       ...active.map(bot => {
         const meta = botRosterMeta(bot, metaByName)
@@ -9629,7 +10487,7 @@ function ActiveNowStrip({ roster, activeProfile, gatewayState, metaByName, onOpe
 
         return jsx('button', {
           type: 'button',
-          title: `Open ${label}'s chat`,
+          title: t('group.openChat', label),
           className: cn(
             'flex items-center gap-1.5 rounded-md bg-(--chrome-action-hover) px-1.5 py-1 text-left transition-colors',
             'hover:bg-(--chrome-action-hover) hover:text-foreground'
@@ -9659,6 +10517,7 @@ function ActiveNowStrip({ roster, activeProfile, gatewayState, metaByName, onOpe
  *  Existing groups are independent toggles; the input creates and joins a new
  *  one. Canonical groups + the legacy scalar projection ride ui_meta. */
 function GroupDialog({ bot, onClose }) {
+  const t = typeof useBotsI18n === 'function' ? useBotsI18n() : key => key
   const meta = useValue($botMeta)
   const [name, setName] = useState('')
   const current = botGroups(botRosterMeta(bot, meta))
@@ -9669,8 +10528,8 @@ function GroupDialog({ bot, onClose }) {
     host.notify({
       kind: 'info',
       message: enabled
-        ? `${displayName(bot, botRosterMeta(bot, meta))} added to “${group}”`
-        : `${displayName(bot, botRosterMeta(bot, meta))} removed from “${group}”`
+        ? t('group.memberAdded', displayName(bot, botRosterMeta(bot, meta)), group)
+        : t('group.memberRemoved', displayName(bot, botRosterMeta(bot, meta)), group)
     })
   }
 
@@ -9686,9 +10545,9 @@ function GroupDialog({ bot, onClose }) {
       children: [
         jsxs(DialogHeader, {
           children: [
-            jsx(DialogTitle, { children: 'Manage groups' }),
+            jsx(DialogTitle, { children: t('row.manageGroups') }),
             jsx(DialogDescription, {
-              children: 'A bot can join multiple group chats. Memberships sync to every machine.'
+              children: t('group.membershipDescription')
             })
           ]
         }),
@@ -9730,11 +10589,11 @@ function GroupDialog({ bot, onClose }) {
           children: [
             jsx(Input, {
               autoFocus: true,
-              placeholder: groups.length ? 'New group…' : 'Group name (e.g. Research)',
+              placeholder: t('group.namePlaceholder'),
               value: name,
               onChange: event => setName(event.target.value)
             }),
-            jsx(Button, { type: 'submit', size: 'sm', disabled: !name.trim(), children: 'Create & join' })
+            jsx(Button, { type: 'submit', size: 'sm', disabled: !name.trim(), children: t('actions.create') })
           ]
         }),
         current.length
@@ -9743,7 +10602,7 @@ function GroupDialog({ bot, onClose }) {
               size: 'sm',
               className: 'justify-self-start',
               onClick: () => void saveBotMeta(bot, { groups: [], group: null }),
-              children: 'Remove from all groups'
+              children: t('group.removeAll')
             })
           : null
       ]
@@ -9756,6 +10615,7 @@ function GroupDialog({ bot, onClose }) {
  *  Remove. Reuses the bot-avatar pipeline (device picker, 256px normalize,
  *  image.generate probe) so room pictures cost the same as bot avatars. */
 function GroupImageControls({ image, onImage, seedName, seedMembers }) {
+  const t = typeof useBotsI18n === 'function' ? useBotsI18n() : key => key
   const imagen = useValue($imagenAvailable)
   const [busy, setBusy] = useState(false)
 
@@ -9798,8 +10658,8 @@ function GroupImageControls({ image, onImage, seedName, seedMembers }) {
       if (img) {
         onImage(await normalizeAvatarImage(img))
       }
-    } catch (err) {
-      host.notifyError(err, 'Group picture generation failed')
+    } catch {
+      host.notify({ kind: 'error', message: t('group.pictureGenerationFailed') })
     } finally {
       setBusy(false)
     }
@@ -9815,7 +10675,7 @@ function GroupImageControls({ image, onImage, seedName, seedMembers }) {
           ? jsx('img', { src: image, alt: '', className: 'size-full object-cover' })
           : jsx(Codicon, { name: 'organization', className: 'text-(--ui-text-tertiary)' })
       }),
-      jsx(Button, { type: 'button', variant: 'secondary', size: 'sm', onClick: upload, children: 'Upload' }),
+      jsx(Button, { type: 'button', variant: 'secondary', size: 'sm', onClick: upload, children: t('avatar.upload') }),
       imagen
         ? jsx(Button, {
             type: 'button',
@@ -9823,11 +10683,11 @@ function GroupImageControls({ image, onImage, seedName, seedMembers }) {
             size: 'sm',
             disabled: busy,
             onClick: generate,
-            children: busy ? 'Generating…' : 'Generate'
+            children: busy ? t('avatar.generating') : t('avatar.generate')
           })
         : null,
       image
-        ? jsx(Button, { type: 'button', variant: 'ghost', size: 'sm', onClick: () => onImage(null), children: 'Remove' })
+        ? jsx(Button, { type: 'button', variant: 'ghost', size: 'sm', onClick: () => onImage(null), children: t('group.removeImage') })
         : null
     ]
   })
@@ -9837,6 +10697,7 @@ function GroupImageControls({ image, onImage, seedName, seedMembers }) {
  *  and every local member's membership (renameGroupChat); the picture rides
  *  the room record. Both apply on Save so a cancelled dialog changes nothing. */
 function GroupChatSettingsDialog({ group, members, open, onClose, onRenamed }) {
+  const t = typeof useBotsI18n === 'function' ? useBotsI18n() : key => key
   const rooms = useValue($groupChats)
   const current = (rooms[group] || {}).image || null
   const [name, setName] = useState(group)
@@ -9880,9 +10741,9 @@ function GroupChatSettingsDialog({ group, members, open, onClose, onRenamed }) {
       children: [
         jsxs(DialogHeader, {
           children: [
-            jsx(DialogTitle, { children: 'Group settings' }),
+            jsx(DialogTitle, { children: t('group.settings') }),
             jsx(DialogDescription, {
-              children: 'Rename the group or set a room picture. Members and history are kept.'
+              children: t('group.settingsDescription')
             })
           ]
         }),
@@ -9898,7 +10759,7 @@ function GroupChatSettingsDialog({ group, members, open, onClose, onRenamed }) {
             void save()
           },
           children: jsx(Input, {
-            'aria-label': 'Group name',
+            'aria-label': t('group.name'),
             autoFocus: true,
             maxLength: 64,
             value: name,
@@ -9907,8 +10768,8 @@ function GroupChatSettingsDialog({ group, members, open, onClose, onRenamed }) {
         }),
         jsxs(DialogFooter, {
           children: [
-            jsx(Button, { variant: 'secondary', onClick: onClose, children: 'Cancel' }),
-            jsx(Button, { disabled: !name.trim(), onClick: () => void save(), children: 'Save' })
+            jsx(Button, { variant: 'secondary', onClick: onClose, children: t('actions.cancel') }),
+            jsx(Button, { disabled: !name.trim(), onClick: () => void save(), children: t('actions.save') })
           ]
         })
       ]
@@ -9921,6 +10782,7 @@ function GroupChatSettingsDialog({ group, members, open, onClose, onRenamed }) {
  *  group membership list, so the room appears in the roster and syncs
  *  cross-machine via ui_meta without replacing its other groups. */
 function CreateGroupChatDialog({ open, roster, onClose, onCreated }) {
+  const t = typeof useBotsI18n === 'function' ? useBotsI18n() : key => key
   const allMeta = useValue($botMeta)
   const [query, setQuery] = useState('')
   const [checked, setChecked] = useState({})
@@ -9942,7 +10804,7 @@ function CreateGroupChatDialog({ open, roster, onClose, onCreated }) {
   const atCap = selected.length >= GROUP_CHAT_MAX_MEMBERS
   const placeholder = selected.length
     ? selected.map(bot => displayName(bot, botRosterMeta(bot, allMeta))).join(', ')
-    : 'Group name'
+    : t('group.name')
   const canCreate = selected.length >= 2 && Boolean(name.trim() || selected.length)
 
   const create = () => {
@@ -9991,7 +10853,7 @@ function CreateGroupChatDialog({ open, roster, onClose, onCreated }) {
       return room
     })
 
-    host.notify({ kind: 'info', message: `“${groupName}” created with ${selected.length} bots` })
+    host.notify({ kind: 'info', message: t('group.created', groupName, selected.length) })
     onClose()
     onCreated?.(groupName)
   }
@@ -10008,18 +10870,18 @@ function CreateGroupChatDialog({ open, roster, onClose, onCreated }) {
       children: [
         jsxs(DialogHeader, {
           children: [
-            jsx(DialogTitle, { children: 'New Group Chat' }),
+            jsx(DialogTitle, { children: t('group.new') }),
             jsx(DialogDescription, {
-              children: `Pick 2–${GROUP_CHAT_MAX_MEMBERS} bots. Local memberships sync through each Bot profile; cross-machine members stay scoped to this room.`
+              children: t('group.createDescription', GROUP_CHAT_MAX_MEMBERS)
             })
           ]
         }),
         jsx(SearchField, {
-          'aria-label': 'Search bots to add',
+          'aria-label': t('pane.searchAria'),
           autoFocus: true,
           containerClassName: 'w-full',
           inputClassName: 'w-full',
-          placeholder: 'Search bots to add…',
+          placeholder: t('pane.searchPlaceholder'),
           value: query,
           onChange: setQuery
         }),
@@ -10031,7 +10893,7 @@ function CreateGroupChatDialog({ open, roster, onClose, onCreated }) {
                   type: 'button',
                   className:
                     'flex items-center gap-1 rounded-full bg-(--chrome-action-hover) py-0.5 pl-2 pr-1.5 text-[0.6875rem] text-(--ui-text-secondary) transition-colors hover:text-foreground',
-                  title: 'Remove from selection',
+                  title: t('group.removeSelection'),
                   onClick: () => setChecked(prev => ({ ...prev, [botRosterKey(bot)]: false })),
                   children: [displayName(bot, botRosterMeta(bot, allMeta)), jsx(Codicon, { name: 'close', className: 'text-[0.6rem]' })]
                 }, botRosterKey(bot))
@@ -10071,7 +10933,7 @@ function CreateGroupChatDialog({ open, roster, onClose, onCreated }) {
                             className: 'truncate text-[0.625rem] text-(--ui-text-quaternary)',
                             children: [
                               currentGroups.length
-                                ? `@${botHandle(bot.name, bot)} · in ${currentGroups.map(group => `“${group}”`).join(', ')}`
+                                ? `@${botHandle(bot.name, bot)} · ${t('group.inGroups', currentGroups.map(group => `“${group}”`).join(', '))}`
                                 : `@${botHandle(bot.name, bot)}`,
                               bot.remoteSource && bot.connectionLabel ? ` · ${bot.connectionLabel}` : ''
                             ].join('')
@@ -10088,7 +10950,7 @@ function CreateGroupChatDialog({ open, roster, onClose, onCreated }) {
                 })
               : jsx('div', {
                   className: 'px-1.5 py-3 text-center text-xs text-(--ui-text-tertiary)',
-                  children: query.trim() ? `No bots match “${query.trim()}”` : 'No bots yet — create agents first.'
+                  children: query.trim() ? t('pane.noMatch', query.trim()) : t('pane.emptyTitle')
                 })
           })
         }),
@@ -10107,7 +10969,7 @@ function CreateGroupChatDialog({ open, roster, onClose, onCreated }) {
                 create()
               },
               children: jsx(Input, {
-                'aria-label': 'Group name',
+                'aria-label': t('group.name'),
                 maxLength: 64,
                 placeholder,
                 value: name,
@@ -10118,12 +10980,12 @@ function CreateGroupChatDialog({ open, roster, onClose, onCreated }) {
         }),
         jsxs(DialogFooter, {
           children: [
-            jsx(Button, { variant: 'secondary', onClick: onClose, children: 'Cancel' }),
+            jsx(Button, { variant: 'secondary', onClick: onClose, children: t('actions.cancel') }),
             jsx(Button, {
               disabled: !canCreate,
-              title: selected.length < 2 ? 'Pick at least 2 bots' : undefined,
+              title: selected.length < 2 ? t('group.pickAtLeastTwo') : undefined,
               onClick: create,
-              children: `Create Group${selected.length ? ` (${selected.length})` : ''}`
+              children: `${t('group.create')}${selected.length ? ` (${selected.length})` : ''}`
             })
           ]
         })
@@ -10367,6 +11229,7 @@ function GroupMentionInput({ members, onChange, onSubmitDraft, value, ...inputPr
  *    (once/session/always/deny) as buttons — no free text; approvals are a
  *    closed choice. Answer sends via the member's own source. */
 function GroupClarifyCard({ entry, members }) {
+  const t = typeof useBotsI18n === 'function' ? useBotsI18n() : key => key
   const { group } = entry
   const isApproval = entry.kind === 'approval'
   const member = members.find(m => groupMemberKey(m) === entry.memberKey) || members.find(m => m.name === entry.member)
@@ -10421,8 +11284,8 @@ function GroupClarifyCard({ entry, members }) {
             .map(q => (questions.length > 1 ? `${q.question}: ${answerFor(q)}` : answerFor(q)))
             .join('\n')
       appendGroupChatEntry(group, { kind: 'user', name: 'You' }, summary, entry.thread || 'legacy')
-    } catch (err) {
-      host.notify({ kind: 'error', message: `Could not send the answer to @${botHandle(entry.member, member)}: ${err?.message || err}` })
+    } catch {
+      host.notify({ kind: 'error', message: t('group.answerFailed', botHandle(entry.member, member)) })
     } finally {
       setSending(false)
     }
@@ -10440,8 +11303,8 @@ function GroupClarifyCard({ entry, members }) {
             className: 'shrink-0 text-(--ui-accent,#4f9cf9)'
           }),
           isApproval
-            ? `@${botHandle(entry.member, member)} wants to run a command:`
-            : `@${botHandle(entry.member, member)} asks:`
+            ? t('group.wantsCommand', botHandle(entry.member, member))
+            : t('group.asks', botHandle(entry.member, member))
         ]
       }),
       isApproval && entry.command
@@ -10495,8 +11358,8 @@ function GroupClarifyCard({ entry, members }) {
             isApproval
               ? null
               : jsx(Input, {
-                  'aria-label': `Answer @${entry.member}`,
-                  placeholder: q.choices.length ? 'Or type your own answer…' : 'Type your answer…',
+                  'aria-label': t('group.answerAria', entry.member),
+                  placeholder: q.choices.length ? t('group.ownAnswerPlaceholder') : t('group.answerPlaceholder'),
                   value: drafts[q.qid] || '',
                   onChange: event => {
                     const value = event.target.value
@@ -10520,7 +11383,7 @@ function GroupClarifyCard({ entry, members }) {
           size: 'sm',
           disabled: sending || !allAnswered || !member,
           onClick: () => void submit(),
-          children: sending ? 'Sending…' : isApproval ? 'Respond' : 'Answer'
+          children: sending ? t('group.sending') : isApproval ? t('group.respond') : t('group.answer')
         })
       })
     ]
@@ -10528,6 +11391,7 @@ function GroupClarifyCard({ entry, members }) {
 }
 
 function GroupChatWorkspace({ group, members, onBack, visible = true }) {
+  const t = typeof useBotsI18n === 'function' ? useBotsI18n() : key => key
   const rooms = useValue($groupChats)
   const allMeta = useValue($botMeta)
   const room = rooms[group] || { log: [], running: false }
@@ -10669,7 +11533,7 @@ function GroupChatWorkspace({ group, members, onBack, visible = true }) {
         variant: 'ghost',
         size: 'sm',
         onClick: () => (onBack ? onBack() : $groupChatWorkspace.set(null)),
-        children: 'Back'
+        children: t('actions.back')
       }),
       // Room picture (set via Group settings) leads the title when present.
       room.image
@@ -10681,7 +11545,7 @@ function GroupChatWorkspace({ group, members, onBack, visible = true }) {
         : null,
       jsx('div', {
         className: 'min-w-0 flex-1 truncate text-sm font-semibold',
-        children: `${group} — group chat`
+        children: t('group.roomTitle', group)
       }),
       // Member faces: the room's roster at a glance, matching each bot's
       // avatar in the sidebar. Falls back to the count for the title tooltip.
@@ -10701,13 +11565,13 @@ function GroupChatWorkspace({ group, members, onBack, visible = true }) {
       }),
       jsx('span', {
         className: 'shrink-0 text-[0.65rem] text-(--ui-text-quaternary)',
-        children: `${members.length} bots`
+        children: t('group.memberCount', members.length)
       }),
       jsx(Button, {
         variant: 'ghost',
         size: 'sm',
         className: 'shrink-0 text-(--ui-text-tertiary) hover:text-foreground',
-        title: `Group settings — rename ${group} or set a room picture`,
+        title: t('group.settingsTitle', group),
         onClick: () => setSettingsOpen(true),
         children: jsx(Codicon, { name: 'gear' })
       }),
@@ -10715,7 +11579,7 @@ function GroupChatWorkspace({ group, members, onBack, visible = true }) {
         variant: 'ghost',
         size: 'sm',
         className: 'shrink-0 text-(--ui-text-tertiary) hover:text-destructive',
-        title: `Disband the ${group} group chat`,
+        title: t('group.disbandTitleFor', group),
         onClick: () => setConfirmDisband(true),
         children: jsx(Codicon, { name: 'trash' })
       })
@@ -10740,7 +11604,7 @@ function GroupChatWorkspace({ group, members, onBack, visible = true }) {
         type: 'button',
         'aria-expanded': activityOpen,
         'aria-controls': `group-activity:${group}`,
-        title: activityOpen ? 'Hide room activity' : 'Show room activity',
+        title: activityOpen ? t('group.hideActivity') : t('group.showActivity'),
         className:
           'flex w-full items-center gap-1.5 px-2.5 py-1 text-left text-[0.7rem] text-(--ui-text-quaternary) transition-colors hover:text-foreground',
         onClick: () => setActivityOpen(prev => !prev),
@@ -10749,11 +11613,11 @@ function GroupChatWorkspace({ group, members, onBack, visible = true }) {
             name: activityOpen ? 'chevron-down' : 'chevron-right',
             className: 'shrink-0 text-[0.65rem]'
           }),
-          jsx('span', { className: 'shrink-0 font-medium', children: 'Activity' }),
+          jsx('span', { className: 'shrink-0 font-medium', children: t('group.activity') }),
           latestActivity
             ? jsx('span', {
                 className: 'min-w-0 flex-1 truncate',
-                children: `${groupActivityLabel(latestActivity)} · ${relativeTime(latestActivity.at)}`
+                children: `${groupActivityLabel(latestActivity, t)} · ${relativeTime(latestActivity.at)}`
               })
             : null
         ]
@@ -10775,7 +11639,7 @@ function GroupChatWorkspace({ group, members, onBack, visible = true }) {
                         }),
                         jsx('span', {
                           className: cn('min-w-0 flex-1 truncate', groupActivityTone(event.kind)),
-                          children: groupActivityLabel(event)
+                          children: groupActivityLabel(event, t)
                         }),
                         jsx('span', {
                           className: 'shrink-0 text-[0.625rem] text-(--ui-text-quaternary)',
@@ -10786,7 +11650,7 @@ function GroupChatWorkspace({ group, members, onBack, visible = true }) {
                   )
               : jsx('div', {
                   className: 'px-0.5 pb-0.5 text-[0.625rem] text-(--ui-text-quaternary)',
-                  children: 'No activity in this turn yet.'
+                  children: t('group.noActivity')
                 })
           })
         : null
@@ -10854,12 +11718,12 @@ function GroupChatWorkspace({ group, members, onBack, visible = true }) {
               : jsx('img', { src: img.data, alt: '', className: 'size-6 rounded object-cover' }),
             jsx('span', {
               className: 'max-w-32 truncate text-[0.65rem] text-(--ui-text-tertiary)',
-              children: img.name || 'image'
+              children: img.name || t('group.imageName')
             }),
             jsx('button', {
               type: 'button',
               className: 'cursor-pointer border-0 bg-transparent p-0 text-(--ui-text-quaternary) hover:text-foreground',
-              title: 'Remove attachment',
+              title: t('group.removeAttachment'),
               onClick: () => removeImage(thread, index),
               children: jsx(Codicon, { name: 'close', className: 'text-[0.65rem]' })
             })
@@ -10875,7 +11739,7 @@ function GroupChatWorkspace({ group, members, onBack, visible = true }) {
       variant: 'ghost',
       size: 'sm',
       className: 'shrink-0 text-(--ui-text-tertiary) hover:text-foreground',
-      title: 'Attach files — every responding bot sees them',
+      title: t('group.attachFiles'),
       onClick: () => void pickGroupAttachments().then(picked => addImages(thread, picked)),
       children: jsx(Codicon, { name: 'attach' })
     })
@@ -10896,13 +11760,13 @@ function GroupChatWorkspace({ group, members, onBack, visible = true }) {
                           ? (b.connectionLabel || b.connectionId) === entry.from.source
                           : !b.remoteSource)
                       ) || null
-                  const display = isUser ? 'You' : displayName(member || { name: entry.from.name }, meta)
+                  const display = isUser ? t('group.you') : displayName(member || { name: entry.from.name }, meta)
                   const entryKey = `${entry.at}:${index}`
                   const revealed = !isUser && revealedSpeaker === entryKey
                   // Clicked: append the gateway name so same-named agents on
                   // two connections are tellable apart on demand.
                   const label = isUser
-                    ? 'You'
+                    ? t('group.you')
                     : revealed
                       ? `${display}${entry.from.source ? `-${entry.from.source}` : ''} (@${botHandle(entry.from.name, member || undefined)})`
                       : display
@@ -10948,7 +11812,7 @@ function GroupChatWorkspace({ group, members, onBack, visible = true }) {
                                     type: 'button',
                                     className:
                                       'cursor-pointer border-0 bg-transparent p-0 text-left text-[0.7rem] font-semibold text-(--ui-accent,#4f9cf9)',
-                                    title: revealed ? 'Hide full handle' : 'Show full handle',
+                                    title: revealed ? t('group.hideHandle') : t('group.showHandle'),
                                     onClick: () => setRevealedSpeaker(revealed ? null : entryKey),
                                     children: label
                                   }),
@@ -10989,16 +11853,16 @@ function GroupChatWorkspace({ group, members, onBack, visible = true }) {
                                     ? jsxs('div', {
                                         className:
                                           'flex items-center gap-1 rounded-md border border-(--ui-stroke-secondary) px-1.5 py-1 text-[0.65rem] text-(--ui-text-tertiary)',
-                                        title: img.name || 'attached file',
+                                        title: img.name || t('group.attachedFile'),
                                         children: [
                                           jsx(Codicon, { name: img.kind === 'pdf' ? 'file-pdf' : 'file', className: 'text-[0.8rem]' }),
-                                          jsx('span', { className: 'max-w-48 truncate', children: img.name || 'attached file' })
+                                          jsx('span', { className: 'max-w-48 truncate', children: img.name || t('group.attachedFile') })
                                         ]
                                       }, `${entryKey}:img:${imgIndex}`)
                                     : jsx('img', {
                                         src: img.data,
-                                        alt: img.name || 'attached image',
-                                        title: img.name || 'attached image',
+                                        alt: img.name || t('group.attachedImage'),
+                                        title: img.name || t('group.attachedImage'),
                                         className:
                                           'max-h-40 max-w-60 rounded-md border border-(--ui-stroke-secondary) object-contain'
                                       }, `${entryKey}:img:${imgIndex}`)
@@ -11053,14 +11917,14 @@ function GroupChatWorkspace({ group, members, onBack, visible = true }) {
           type: 'button',
           className:
             'flex w-full items-center gap-2 rounded-md border border-(--ui-stroke-secondary) px-2 py-1.5 text-left text-xs text-(--ui-text-tertiary) transition-colors hover:bg-(--chrome-action-hover)',
-          title: 'Open this thread',
+          title: t('group.openThread'),
           onClick: () => setOpenThreads(prev => ({ ...prev, [id]: true })),
           children: [
             jsx(Codicon, { name: 'chevron-right', className: 'shrink-0 text-[0.65rem]' }),
-            jsx('span', { className: 'min-w-0 flex-1 truncate', children: headText || 'Thread' }),
+            jsx('span', { className: 'min-w-0 flex-1 truncate', children: headText || t('group.thread') }),
             jsx('span', {
               className: 'shrink-0 text-[0.625rem] text-(--ui-text-quaternary)',
-              children: `${replies} ${replies === 1 ? 'reply' : 'replies'} · ${relativeTime(entries[entries.length - 1].entry.at)}`
+              children: `${t('group.replies', replies)} · ${relativeTime(entries[entries.length - 1].entry.at)}`
             })
           ]
         }, `fold:${id}`)
@@ -11079,9 +11943,9 @@ function GroupChatWorkspace({ group, members, onBack, visible = true }) {
           type: 'button',
           className:
             'flex w-full items-center gap-1.5 px-2 pt-1 text-left text-[0.65rem] text-(--ui-text-quaternary) transition-colors hover:text-foreground',
-          title: 'Collapse this thread',
+          title: t('group.collapseThreadTitle'),
           onClick: () => setOpenThreads(prev => ({ ...prev, [id]: false })),
-          children: [jsx(Codicon, { name: 'chevron-down', className: 'text-[0.6rem]' }), 'Collapse thread']
+          children: [jsx(Codicon, { name: 'chevron-down', className: 'text-[0.6rem]' }), t('group.collapseThread')]
         }, `unfold:${id}`)
       )
     }
@@ -11106,9 +11970,9 @@ function GroupChatWorkspace({ group, members, onBack, visible = true }) {
                 className: 'flex items-center gap-1.5',
                 children: [
                   jsx(GroupMentionInput, {
-                    'aria-label': 'Reply in thread',
+                    'aria-label': t('group.replyInThread'),
                     autoFocus: true,
-                    placeholder: 'Reply in thread…',
+                    placeholder: `${t('group.replyInThread')}…`,
                     members,
                     value: replyDrafts[id] || '',
                     onChange: text => setReplyDrafts(prev => ({ ...prev, [id]: text })),
@@ -11120,7 +11984,7 @@ function GroupChatWorkspace({ group, members, onBack, visible = true }) {
                     type: 'submit',
                     size: 'sm',
                     disabled: !(replyDrafts[id] || '').trim() && !imagesFor(id).length,
-                    children: 'Reply'
+                    children: t('group.reply')
                   })
                 ]
               })
@@ -11131,7 +11995,7 @@ function GroupChatWorkspace({ group, members, onBack, visible = true }) {
             className:
               'w-fit px-2 pb-1 text-left text-[0.65rem] text-(--ui-accent,#4f9cf9) transition-colors hover:underline',
             onClick: () => setReplyThread(id),
-            children: 'Reply in thread'
+            children: t('group.replyInThread')
           }, `replylink:${id}`)
     )
 
@@ -11164,7 +12028,7 @@ function GroupChatWorkspace({ group, members, onBack, visible = true }) {
         ? jsx('div', {
             className:
               'pointer-events-none absolute inset-0 z-40 flex items-center justify-center border-2 border-dashed border-(--ui-accent,#4f9cf9) text-sm font-medium text-(--ui-accent,#4f9cf9)',
-            children: replyThread ? 'Drop to attach to this thread reply' : 'Drop to attach — every responding bot sees it'
+            children: replyThread ? t('group.dropThread') : t('group.dropRoom')
           }, 'dropzone')
         : null,
       header,
@@ -11179,7 +12043,7 @@ function GroupChatWorkspace({ group, members, onBack, visible = true }) {
               : [
                   jsx('div', {
                     className: 'px-2 py-4 text-center text-xs text-(--ui-text-tertiary)',
-                    children: 'Say something — every bot in this group hears the room.'
+                    children: t('group.emptyRoom')
                   }, 'empty')
                 ]),
             ...roomClarifies.map(entry =>
@@ -11189,10 +12053,10 @@ function GroupChatWorkspace({ group, members, onBack, visible = true }) {
               ? jsx('div', {
                   className: 'px-2 py-1 text-[0.7rem] italic text-(--ui-text-quaternary)',
                   children: roomClarifies.length
-                    ? 'Waiting for your answer…'
+                    ? t('group.waitingAnswer')
                     : room.turn
-                      ? `${groupSpeakerLabel(room.turn)} is thinking…`
-                      : 'The room is working…'
+                      ? t('group.thinking', groupSpeakerLabel(room.turn))
+                      : t('group.roomWorking')
                 }, 'working')
               : null,
             // Scroll anchor (#89835): rooms opened at scroll position 0, mid-
@@ -11216,8 +12080,8 @@ function GroupChatWorkspace({ group, members, onBack, visible = true }) {
               className: 'flex items-center gap-1.5',
               children: [
                 jsx(GroupMentionInput, {
-                  'aria-label': `Message ${group}`,
-                  placeholder: `New thread in ${group}… (@name to direct, @everyone for all)`,
+                  'aria-label': t('group.messageAria', group),
+                  placeholder: t('group.newThreadPlaceholder', group),
                   members,
                   value: draft,
                   onChange: setDraft,
@@ -11229,7 +12093,7 @@ function GroupChatWorkspace({ group, members, onBack, visible = true }) {
                   type: 'submit',
                   size: 'sm',
                   disabled: !draft.trim() && !imagesFor(null).length,
-                  children: 'New Thread'
+                  children: t('group.newThread')
                 })
               ]
             })
@@ -11244,26 +12108,16 @@ function GroupChatWorkspace({ group, members, onBack, visible = true }) {
       }),
       jsx(ConfirmDialog, {
         open: confirmDisband,
-        title: 'Disband group chat?',
-        description: jsxs('span', {
-          children: [
-            'This removes the ',
-            jsx('span', { className: 'font-medium text-foreground', children: group }),
-            ' grouping from its ',
-            String(members.length),
-            // New rooms title member sessions by roomId, legacy rooms by name —
-            // so the copy names the concept, not a literal session title.
-            ' bots and clears the shared room log. The bots themselves and their per-group sessions are kept.'
-          ]
-        }),
+        title: t('group.disbandTitle'),
+        description: t('group.disbandDescription', members.length, group),
         destructive: true,
-        confirmLabel: 'Disband',
-        busyLabel: 'Disbanding…',
-        doneLabel: 'Disbanded',
+        confirmLabel: t('group.disband'),
+        busyLabel: t('group.disbanding'),
+        doneLabel: t('group.disbanded'),
         onClose: () => setConfirmDisband(false),
         onConfirm: async () => {
           await disbandGroupChat(group, members)
-          host.notify({ kind: 'success', message: `Disbanded “${group}”` })
+          host.notify({ kind: 'success', message: t('group.disbandedNotice', group) })
         }
       })
     ]
@@ -11395,6 +12249,7 @@ function openGroupChat(group) {
  *  needs-you badge on the row itself. Sorts into the same recency ordering
  *  as bot rows; clicking opens the room in the main chat window. */
 function GroupRow({ active, group, members, needsYou, onOpen, onDisband }) {
+  const t = typeof useBotsI18n === 'function' ? useBotsI18n() : key => key
   const rooms = useValue($groupChats)
   const allMeta = useValue($botMeta)
   const room = rooms[group] || { log: [] }
@@ -11406,8 +12261,8 @@ function GroupRow({ active, group, members, needsYou, onOpen, onDisband }) {
   const lastFrom = last?.from?.name || ''
   const lastHandle = botHandle(lastFrom || 'bot', members.find(member => member?.name === lastFrom))
   const preview = last
-    ? `${last.from?.kind === 'user' ? 'You' : `@${lastHandle}`}: ${stripPreviewMarkdown(last.text) || '…'}`
-    : 'No messages yet — say hi to the room'
+    ? `${last.from?.kind === 'user' ? t('group.you') : `@${lastHandle}`}: ${stripPreviewMarkdown(last.text) || '…'}`
+    : t('group.noMessages')
   const faces = members.slice(0, 3)
 
   const row = jsxs('button', {
@@ -11471,7 +12326,7 @@ function GroupRow({ active, group, members, needsYou, onOpen, onDisband }) {
                   jsx('span', { className: 'truncate text-[0.8125rem] font-medium', children: group }),
                   jsx('span', {
                     className: 'shrink-0 text-[0.6875rem] text-(--ui-text-quaternary)',
-                    children: `${members.length} bots`
+                    children: t('group.memberCount', members.length)
                   })
                 ]
               }),
@@ -11479,8 +12334,8 @@ function GroupRow({ active, group, members, needsYou, onOpen, onDisband }) {
                 ? jsx('span', {
                     className:
                       'shrink-0 rounded-full bg-(--ui-accent,#4f9cf9) px-1.5 text-[0.6rem] font-semibold text-white',
-                    title: 'A bot in this room needs your input',
-                    children: 'needs you'
+                    title: t('group.needsYouTip'),
+                    children: t('group.needsYou')
                   })
                 : null,
               lastAt
@@ -11507,13 +12362,13 @@ function GroupRow({ active, group, members, needsYou, onOpen, onDisband }) {
         children: [
           jsx(ContextMenuItem, {
             onSelect: () => onOpen(group),
-            children: 'Open Group Chat'
+            children: t('group.open')
           }),
           jsx(ContextMenuSeparator, {}),
           jsx(ContextMenuItem, {
             className: 'text-destructive focus:text-destructive',
             onSelect: () => onDisband({ name: group, members }),
-            children: 'Delete Group'
+            children: t('group.delete')
           })
         ]
       })
@@ -11522,6 +12377,7 @@ function GroupRow({ active, group, members, needsYou, onOpen, onDisband }) {
 }
 
 function BotsPane() {
+  const t = typeof useBotsI18n === 'function' ? useBotsI18n() : key => key
   const { data, error, isLoading, refetch } = useRoster()
   const gatewayState = useValue(host.state.gateway)
   const gatewayUp = gatewayState === 'open'
@@ -11628,7 +12484,7 @@ function BotsPane() {
   }
 
   const staleNotice = error && !live && roster.length
-    ? 'Roster refresh failed — showing the last good list.' + (gatewayUp ? '' : ' Waiting for the gateway to reconnect…')
+    ? t('pane.stale') + (gatewayUp ? '' : t('pane.reconnecting'))
     : null
   const groupChatMembers = groupChatName ? groupChatMemberBots(groupChatName, roster, allMeta) : []
 
@@ -11644,13 +12500,13 @@ function BotsPane() {
         children: [
           jsx('span', {
             className: 'text-[0.6875rem] font-semibold uppercase tracking-wider text-(--ui-text-quaternary)',
-            children: 'Bots'
+            children: t('pane.bots')
           }),
           jsxs('div', {
             className: 'flex items-center gap-0.5',
             children: [
               jsx(Tip, {
-                label: activityToasts ? 'Activity toasts on — click to silence' : 'Activity toasts off — click to enable',
+                label: activityToasts ? t('pane.activityOn') : t('pane.activityOff'),
                 children: jsx('button', {
                   type: 'button',
                   className:
@@ -11665,11 +12521,11 @@ function BotsPane() {
               hiddenBots.length
                 ? jsx(Tip, {
                     label: showHidden
-                      ? 'Hide hidden bots again'
-                      : `Show ${hiddenBots.length} hidden bot${hiddenBots.length === 1 ? '' : 's'}`,
+                      ? t('pane.hideHidden')
+                      : t('pane.showHidden', hiddenBots.length),
                     children: jsxs('button', {
                       type: 'button',
-                      'aria-label': showHidden ? 'Hide hidden bots' : 'Show hidden bots',
+                      'aria-label': showHidden ? t('pane.hideHiddenAria') : t('pane.showHiddenAria'),
                       className: cn(
                         'relative flex size-6 items-center justify-center rounded-md transition-colors hover:bg-(--chrome-action-hover) hover:text-foreground',
                         showHidden ? 'text-foreground' : 'text-(--ui-text-tertiary)'
@@ -11681,7 +12537,7 @@ function BotsPane() {
                           ? jsx('span', {
                               className:
                                 'absolute right-0.5 top-0.5 size-1.5 rounded-full bg-(--ui-accent,#4f9cf9)',
-                              'aria-label': 'a hidden bot has unread activity'
+                              'aria-label': t('pane.hiddenUnread')
                             })
                           : null
                       ]
@@ -11691,12 +12547,12 @@ function BotsPane() {
               jsxs(DropdownMenu, {
                 children: [
                   jsx(Tip, {
-                    label: 'New…',
+                    label: t('pane.newMenu'),
                     children: jsx(DropdownMenuTrigger, {
                       asChild: true,
                       children: jsx('button', {
                         type: 'button',
-                        'aria-label': 'New agent or group chat',
+                        'aria-label': t('pane.newMenuAria'),
                         className:
                           'flex size-6 items-center justify-center rounded-md text-(--ui-text-tertiary) transition-colors hover:bg-(--chrome-action-hover) hover:text-foreground',
                         children: jsx(Codicon, { name: 'add' })
@@ -11708,12 +12564,12 @@ function BotsPane() {
                     children: [
                       jsxs(DropdownMenuItem, {
                         onSelect: () => setCreateOpen(true),
-                        children: [jsx(Codicon, { name: 'hubot', className: 'mr-1.5' }), 'New Agent']
+                        children: [jsx(Codicon, { name: 'hubot', className: 'mr-1.5' }), t('agent.new')]
                       }),
                       jsxs(DropdownMenuItem, {
                         disabled: activeSourceRoster.length < 2,
                         onSelect: () => setGroupCreateOpen(true),
-                        children: [jsx(Codicon, { name: 'organization', className: 'mr-1.5' }), 'New Group Chat']
+                        children: [jsx(Codicon, { name: 'organization', className: 'mr-1.5' }), t('group.new')]
                       })
                     ]
                   })
@@ -11742,8 +12598,8 @@ function BotsPane() {
           void (async () => {
             try {
               await prepareBotSource(bot)
-            } catch (error) {
-              host.notifyError?.(error, `Could not reach ${bot.connectionLabel || 'the remote source'}`)
+            } catch {
+              host.notify({ kind: 'error', message: t('row.sourceUnavailable', bot.connectionLabel) })
 
               return
             }
@@ -11758,9 +12614,9 @@ function BotsPane() {
               if (generation === botOpenGeneration && id) {
                 return
               }
-            } catch (error) {
+            } catch {
               if (generation === botOpenGeneration) {
-                host.notifyError?.(error, `Could not open ${displayName(bot)}'s chat — try again`)
+                host.notify({ kind: 'error', message: t('row.chatUnavailable', displayName(bot)) })
               }
 
               return
@@ -11782,10 +12638,10 @@ function BotsPane() {
         ? jsx('div', {
             className: 'px-2.5 pb-1.5',
             children: jsx(SearchField, {
-              'aria-label': 'Search bots',
+              'aria-label': t('pane.searchAria'),
               containerClassName: 'w-full',
               inputClassName: 'w-full',
-              placeholder: 'Search bots…',
+              placeholder: t('pane.searchPlaceholder'),
               value: query,
               onChange: setQuery
             })
@@ -11807,24 +12663,22 @@ function BotsPane() {
               className: 'grid gap-2 px-3 py-4 text-xs text-(--ui-text-tertiary)',
               children: [
                 jsx('div', {
-                  children: gatewayUp
-                    ? `Roster unavailable: ${error instanceof Error ? error.message : 'gateway error'}. If your gateway predates profiles.list, update My King and restart the gateway.`
-                    : 'Waiting for the gateway connection… (remote gateways can take a few seconds; retries automatically)'
+                  children: gatewayUp ? t('pane.unavailable') : t('pane.waiting')
                 }),
                 jsx(Button, {
                   variant: 'secondary',
                   size: 'sm',
                   className: 'justify-self-start',
                   onClick: () => void refetch(),
-                  children: 'Retry now'
+                  children: t('actions.retry')
                 })
               ]
             })
           : roster.length === 0
             ? jsx(EmptyState, {
                 icon: 'hubot',
-                title: 'No agents yet',
-                description: 'Create your first teammate.'
+                title: t('pane.emptyTitle'),
+                description: t('pane.emptyDescription')
               })
             : filteredRoster.length === 0 && rosterRows.length === 0
               ? jsx('div', {
@@ -11833,8 +12687,8 @@ function BotsPane() {
                     'flex flex-1 items-center justify-center px-4 text-center text-xs text-(--ui-text-tertiary)',
                   role: 'status',
                   children: query.trim()
-                    ? `No bots match “${query.trim()}”`
-                    : 'All bots are hidden — use the eye button above to show them.'
+                    ? t('pane.noMatch', query.trim())
+                    : t('pane.allHidden')
                 })
               : jsx(ScrollArea, {
                   className: 'hermes-bots-roster min-h-0 flex-1',
@@ -11870,7 +12724,7 @@ function BotsPane() {
           className: 'w-full justify-center gap-1.5',
           variant: 'secondary',
           onClick: () => setCreateOpen(true),
-          children: [jsx(Codicon, { name: 'add' }), 'New Agent']
+          children: [jsx(Codicon, { name: 'add' }), t('agent.new')]
         })
       }),
       jsx(CreateAgentDialog, {
@@ -11900,22 +12754,22 @@ function BotsPane() {
       grouping ? jsx(GroupDialog, { bot: grouping, onClose: () => setGrouping(null) }) : null,
       jsx(ConfirmDialog, {
         open: Boolean(deleting),
-        title: 'Delete bot and profile?',
+        title: t('agent.deleteTitle'),
         description: deleting
           ? jsxs('span', {
               children: [
-                'This will permanently delete the bot ',
+                t('agent.deletePrefix'),
                 jsx('span', { className: 'font-medium text-foreground', children: deleting.name }),
-                ' and its associated My King profile at ',
+                t('agent.deletePath'),
                 jsx('span', { className: 'font-mono text-xs', children: deleting.path }),
-                '. This cannot be undone.'
+                t('agent.deleteSuffix')
               ]
             })
           : null,
         destructive: true,
-        confirmLabel: 'Delete',
-        busyLabel: 'Deleting…',
-        doneLabel: 'Deleted',
+        confirmLabel: t('actions.delete'),
+        busyLabel: t('actions.deleting'),
+        doneLabel: t('actions.deleted'),
         onClose: () => setDeleting(null),
         onConfirm: async () => {
           if (!deleting) {
@@ -11925,24 +12779,24 @@ function BotsPane() {
           const name = deleting.name
           await deleteBot(deleting)
           await refetch()
-          host.notify({ kind: 'success', message: `Deleted profile ${name}` })
+          host.notify({ kind: 'success', message: pluginCtx?.i18n?.t?.('notify.deletedProfile', name) || t('notify.deletedProfile', name) })
         }
       }),
       jsx(ConfirmDialog, {
         open: Boolean(deletingGroup),
-        title: 'Delete group chat?',
+        title: t('group.deleteTitle'),
         description: deletingGroup
-          ? `This removes “${deletingGroup.name}” from its bots and clears the shared room log. The bots and their individual chats are kept.`
+          ? t('group.deleteDescription', deletingGroup.name)
           : null,
         destructive: true,
-        confirmLabel: 'Delete Group',
-        busyLabel: 'Deleting…',
-        doneLabel: 'Deleted',
+        confirmLabel: t('group.delete'),
+        busyLabel: t('actions.deleting'),
+        doneLabel: t('actions.deleted'),
         onClose: () => setDeletingGroup(null),
         onConfirm: async () => {
           if (!deletingGroup) return
           await disbandGroupChat(deletingGroup.name, deletingGroup.members)
-          host.notify({ kind: 'success', message: `Deleted group “${deletingGroup.name}”` })
+          host.notify({ kind: 'success', message: pluginCtx?.i18n?.t?.('notify.deletedGroup', deletingGroup.name) || t('notify.deletedGroup', deletingGroup.name) })
         }
       })
     ]
@@ -11957,6 +12811,7 @@ export default {
   description: 'Bot Mode — a one-chat-per-agent roster with avatars, routines, group chats, and bot-to-bot messaging. Ships with the app; disable here if unwanted.',
   register(ctx) {
     pluginCtx = ctx
+    ctx.i18n?.register?.(HERMES_BOTS_LOCALES)
     groupChatSyncDisposed = false
     startFaceClock()
     // Disabling the plugin (or a hot reload) must actually stop the clock —
@@ -12143,7 +12998,7 @@ export default {
     ctx.register({
       id: 'pane',
       area: 'panes',
-      title: 'Bots',
+      title: HERMES_BOTS_LOCALES.en.pane.bots,
       // dock: explicit adoption gesture — CENTER-STACK into the sessions zone
       // so the sidebar grows a SESSIONS | BOTS tab strip instead of splitting
       // two cramped panes down the column. Center is safe now: insertAtGroup
@@ -12186,7 +13041,7 @@ export default {
       ctx.register({
         id: 'routines',
         area: 'panes',
-        title: 'Cronjobs',
+        title: HERMES_BOTS_LOCALES.en.pane.cronjobs,
         data: {
           placement: 'main',
           // Repair persisted layouts that stranded Cronjobs in the Bots tab strip.
@@ -12227,10 +13082,11 @@ export default {
       area: PALETTE_AREA,
       data: {
         id: `${ID}.new-agent`,
-        label: 'New Agent…',
+        label: HERMES_BOTS_LOCALES.en.palette.newAgent,
+        i18nLabel: 'palette.newAgent',
         keywords: ['bot', 'agent', 'profile', 'teammate', 'create'],
         run: () => {
-          host.notify({ kind: 'info', message: 'Open the Bots pane and hit “New Agent”.' })
+          host.notify({ kind: 'info', message: ctx.i18n?.t?.('palette.openBots') || HERMES_BOTS_LOCALES.en.palette.openBots })
         }
       }
     })
@@ -12272,10 +13128,8 @@ export default {
             if (activeBot && currentId && canonicalIds.includes(String(currentId))) {
               host.notify({
                 kind: 'info',
-                title: 'This chat never resets',
-                message:
-                  'Bot chats are one continuous conversation — compacting instead. ' +
-                  'For a throwaway session with this agent, use Sessions mode.'
+                title: ctx.i18n?.t?.('notices.continuousTitle') || HERMES_BOTS_LOCALES.en.notices.continuousTitle,
+                message: ctx.i18n?.t?.('notices.continuousMessage') || HERMES_BOTS_LOCALES.en.notices.continuousMessage
               })
 
               return { ...draft, text: '/compact' }

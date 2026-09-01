@@ -6,6 +6,7 @@
 // add a hotkey, add a row here and a handler there — nothing else.
 
 import { registry } from '@/contrib/registry'
+import { isEmployeeKeybindActionAvailable } from '@/lib/managed-employee-policy'
 
 import { IS_MAC } from './combo'
 
@@ -204,13 +205,19 @@ export function contributedKeybinds(): KeybindContribution[] {
   return registry
     .getArea(KEYBINDS_AREA)
     .map(c => c.data as KeybindContribution)
-    .filter(k => Boolean(k?.id && k.label) && typeof k?.run === 'function' && !ACTION_BY_ID.has(k.id))
+    .filter(
+      k =>
+        Boolean(k?.id && k.label) &&
+        typeof k?.run === 'function' &&
+        !ACTION_BY_ID.has(k.id) &&
+        isEmployeeKeybindActionAvailable(k.id)
+    )
 }
 
 /** Built-ins + contributed, one metadata list (panel, bindings, conflicts). */
 export function allKeybindActions(): KeybindActionMeta[] {
   return [
-    ...KEYBIND_ACTIONS,
+    ...KEYBIND_ACTIONS.filter(action => isEmployeeKeybindActionAvailable(action.id)),
     ...contributedKeybinds().map(k => ({
       id: k.id,
       category: k.category ?? ('view' as const),
@@ -221,6 +228,10 @@ export function allKeybindActions(): KeybindActionMeta[] {
 }
 
 export function keybindAction(id: string): KeybindActionMeta | undefined {
+  if (!isEmployeeKeybindActionAvailable(id)) {
+    return undefined
+  }
+
   return ACTION_BY_ID.get(id) ?? allKeybindActions().find(action => action.id === id)
 }
 

@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { $desktopBoot } from '@/store/boot'
 import { $desktopOnboarding } from '@/store/onboarding'
@@ -66,6 +66,29 @@ beforeEach(() => {
 afterEach(cleanup)
 
 describe('BootFailureOverlay', () => {
+  it('does not fetch or render raw-log recovery controls in managed employee mode', async () => {
+    const original = window.hermesDesktop
+    const getRecentLogs = vi.fn().mockResolvedValue({ lines: ['private raw log'] })
+    const revealLogs = vi.fn()
+
+    Object.defineProperty(window, 'hermesDesktop', {
+      configurable: true,
+      value: { getRecentLogs, getConnectionConfig: vi.fn().mockResolvedValue(remoteToken), revealLogs }
+    })
+
+    try {
+      render(<BootFailureOverlay />)
+      await waitFor(() => expect(screen.queryByRole('button', { name: /repair/i })).toBeNull())
+
+      expect(screen.queryByRole('button', { name: /open logs/i })).toBeNull()
+      expect(screen.queryByText(/show recent logs/i)).toBeNull()
+      expect(getRecentLogs).not.toHaveBeenCalled()
+      expect(revealLogs).not.toHaveBeenCalled()
+    } finally {
+      Object.defineProperty(window, 'hermesDesktop', { configurable: true, value: original })
+    }
+  })
+
   it('shows only the My King brand in visible boot errors while retaining the raw store error', () => {
     // Given a raw compatibility error from the backend.
     $desktopBoot.set({

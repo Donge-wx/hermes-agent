@@ -603,7 +603,7 @@ export function ConnectionsRegistrySection() {
               title={
                 <span className="flex items-center gap-2">
                   <Icon className="size-4 shrink-0 text-muted-foreground" />
-                  <span className="truncate">{conn.label}</span>
+                  <span className="truncate">{conn.kind === 'local' ? kindMeta.local.label : conn.label}</span>
                   {isCurrent && <Pill tone="primary">{s.currentPill}</Pill>}
                   {isPrimary && <Pill>{s.primaryPill}</Pill>}
                   {conn.kind === 'local' && <Pill>{s.managedPill}</Pill>}

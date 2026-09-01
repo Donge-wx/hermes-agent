@@ -17,10 +17,11 @@ import { SearchField } from '@/components/ui/search-field'
 import { disconnectOAuthProvider, listOAuthProviders } from '@/hermes'
 import { useI18n } from '@/i18n'
 import { Check, ChevronDown, ChevronRight, KeyRound, Loader2, Terminal, Trash2 } from '@/lib/icons'
+import { isEmployeeFeatureAvailable } from '@/lib/managed-employee-policy'
 import { normalize } from '@/lib/text'
 import { cn } from '@/lib/utils'
 import { confirm } from '@/store/confirm'
-import { notify, notifyError } from '@/store/notifications'
+import { notify } from '@/store/notifications'
 import { $desktopOnboarding, startManualLocalEndpoint, startManualProviderOAuth } from '@/store/onboarding'
 import type { EnvVarInfo, OAuthProvider } from '@/types/hermes'
 
@@ -32,7 +33,8 @@ import { SettingsContent, SettingsSkeleton } from './primitives'
 
 // The embedded terminal (and thus the "run disconnect command" path) only
 // exists in the Electron desktop shell, not the web dashboard.
-const canRunInTerminal = () => typeof window !== 'undefined' && Boolean(window.hermesDesktop?.terminal)
+const canRunInTerminal = () =>
+  isEmployeeFeatureAvailable('terminal') && typeof window !== 'undefined' && Boolean(window.hermesDesktop?.terminal)
 
 // Sub-views surfaced as a sidebar subnav: account sign-in vs raw API keys.
 export const PROVIDER_VIEWS = ['accounts', 'keys', 'custom-endpoints'] as const
@@ -51,7 +53,10 @@ export type ProviderView = (typeof PROVIDER_VIEWS)[number]
 //   2. Desktop prefix match (`providerGroup`) — legacy fallback for provider
 //      env vars that predate the backend tagging.
 // Only entries that resolve to neither (the "Other" bucket) are skipped.
-function buildProviderKeyGroups(vars: Record<string, EnvVarInfo>): ProviderKeyGroup[] {
+function buildProviderKeyGroups(
+  vars: Record<string, EnvVarInfo>,
+  providerDescriptions: Record<string, string>
+): ProviderKeyGroup[] {
   const buckets = new Map<string, [string, EnvVarInfo][]>()
 
   for (const [key, info] of Object.entries(vars)) {
@@ -92,7 +97,9 @@ function buildProviderKeyGroups(vars: Record<string, EnvVarInfo>): ProviderKeyGr
       advanced: entries
         .filter(([k, i]) => k !== primary[0] && (!isKeyVar(k, i) || i.is_set))
         .sort(([a], [b]) => a.localeCompare(b)),
-      description: meta?.description ?? primary[1].description,
+      description:
+        (meta?.descriptionKey ? providerDescriptions[meta.descriptionKey] ?? meta.description : meta?.description) ??
+        primary[1].description,
       docsUrl: meta?.docsUrl ?? primary[1].url ?? undefined,
       hasAnySet: entries.some(([, i]) => i.is_set),
       name,
@@ -381,6 +388,10 @@ export function ProvidersSettings({
   // Instead we run the documented removal command in the embedded terminal so
   // the user sees exactly what executes, then return them to chat to watch it.
   async function handleTerminalDisconnect(provider: OAuthProvider) {
+    if (!isEmployeeFeatureAvailable('terminal')) {
+      return
+    }
+
     const command = provider.disconnect_command
 
     if (!command) {
@@ -433,8 +444,8 @@ export function ProvidersSettings({
         message: t.settings.providers.removedMessage(name)
       })
       await refreshOAuthProviders().catch(() => undefined)
-    } catch (err) {
-      notifyError(err, t.settings.providers.failedRemove(name))
+    } catch {
+      notify({ kind: 'error', message: t.settings.providers.failedRemove(name) })
     } finally {
       setDisconnecting(null)
     }
@@ -449,7 +460,7 @@ export function ProvidersSettings({
   // providers there's nothing for the "Accounts" view to show, so fall to keys.
   const showApiKeys = view === 'keys' || (!hasOauth && view !== 'custom-endpoints')
 
-  const keyGroups = buildProviderKeyGroups(vars)
+  const keyGroups = buildProviderKeyGroups(vars, t.settings.providers.providerDescriptions)
 
   if (showApiKeys) {
     const q = normalize(keyQuery)

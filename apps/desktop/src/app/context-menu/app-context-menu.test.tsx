@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { registerTerminalContextMenu } from '@/app/right-sidebar/terminal/terminal-context-menu'
 import { ContextMenu, ContextMenuTrigger, HERMES_CONTEXT_MENU_TRIGGER_ATTR } from '@/components/ui/context-menu'
 import { formatCombo } from '@/lib/keybinds/combo'
+import type * as ManagedEmployeePolicy from '@/lib/managed-employee-policy'
 import { $previewTabs, closeRightRail } from '@/store/preview'
 import { $connection } from '@/store/session'
 
@@ -17,6 +18,17 @@ import {
   openGuestContextMenu
 } from './store'
 import { resolveDomTarget } from './target'
+
+const { appearanceSettingAvailable } = vi.hoisted(() => ({
+  appearanceSettingAvailable: vi.fn(() => false)
+}))
+
+vi.mock('@/lib/managed-employee-policy', async importOriginal => {
+  return {
+    ...(await importOriginal<typeof ManagedEmployeePolicy>()),
+    isEmployeeAppearanceSettingAvailable: appearanceSettingAvailable
+  }
+})
 
 const desktopWindow = window as unknown as { hermesDesktop?: Window['hermesDesktop'] }
 
@@ -46,6 +58,7 @@ function attach(html: string): HTMLElement {
 }
 
 afterEach(() => {
+  appearanceSettingAvailable.mockReturnValue(false)
   $contextMenu.set(null)
   $connection.set(null)
   closeRightRail()
@@ -328,6 +341,29 @@ describe('AppContextMenu', () => {
     fireEvent.contextMenu(host.querySelector('p')!)
 
     expect(await screen.findByText('Settings')).toBeTruthy()
+  })
+
+  it('hides the tab-strip toggle from managed employee shell menus', async () => {
+    appearanceSettingAvailable.mockReturnValue(false)
+    installBridge()
+    mountMenu()
+    const host = attach('<div><p>plain chrome</p></div>')
+
+    fireEvent.contextMenu(host.querySelector('p')!)
+
+    await screen.findByRole('menu')
+    expect(screen.queryByRole('menuitem', { name: /切换标签|toggle tabs/i })).toBeNull()
+  })
+
+  it('keeps the tab-strip toggle in non-managed shell menus', async () => {
+    appearanceSettingAvailable.mockReturnValue(true)
+    installBridge()
+    mountMenu()
+    const host = attach('<div><p>plain chrome</p></div>')
+
+    fireEvent.contextMenu(host.querySelector('p')!)
+
+    expect(await screen.findByRole('menuitem', { name: /切换标签|toggle tabs/i })).toBeTruthy()
   })
 
   it('skips plain right-clicks inside a skip-marked surface, but not links in it', async () => {

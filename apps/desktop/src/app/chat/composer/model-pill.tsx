@@ -22,7 +22,7 @@ import type { ChatBarState } from './types'
 // control in the row that can give width back continuously, so it absorbs the
 // squeeze between collapse stages instead of pushing Send past the edge.
 const PILL = cn(
-  'h-(--composer-control-size) min-w-0 max-w-40 shrink gap-1 rounded-md px-2 text-xs font-normal',
+  'h-(--composer-control-size) min-w-0 max-w-56 shrink gap-1 rounded-md px-2 text-xs font-normal',
   'text-(--ui-text-tertiary) hover:bg-(--chrome-action-hover) hover:text-foreground'
 )
 
@@ -89,6 +89,14 @@ export function ModelPill({
   const pinnedOverride =
     view.kind === 'primary' && !runtimeId && modelSource === 'manual' && Boolean(currentModel.trim())
 
+  const modelLabel = currentModel.trim()
+    ? formatModelStatusLabel(currentModel, { defaultEffort, fastMode, reasoningEffort })
+    : ''
+
+  const modelNameEnd = modelLabel.indexOf(' · ')
+  const modelName = modelNameEnd >= 0 ? modelLabel.slice(0, modelNameEnd) : modelLabel
+  const modelStatus = modelNameEnd >= 0 ? modelLabel.slice(modelNameEnd) : ''
+
   // The model resolves a beat after the gateway/session comes up. Rather than
   // flash a literal "No model", show a quiet loader (inherits the pill text
   // color at half opacity) until a model lands.
@@ -97,8 +105,19 @@ export function ModelPill({
   ) : (
     <>
       {currentModel.trim() ? (
-        <span className="truncate text-left [unicode-bidi:isolate]" data-testid="composer-model-label" dir="ltr">
-          {formatModelStatusLabel(currentModel, { defaultEffort, fastMode, reasoningEffort })}
+        <span
+          className="flex min-w-0 flex-1 overflow-hidden text-left [unicode-bidi:isolate]"
+          data-testid="composer-model-label"
+          dir="ltr"
+        >
+          <span aria-hidden="true" className="shrink-0">
+            {modelName}
+          </span>
+          {modelStatus && (
+            <span aria-hidden="true" className="min-w-0 truncate whitespace-nowrap">
+              {modelStatus}
+            </span>
+          )}
         </span>
       ) : (
         <GlyphSpinner className="opacity-50" spinner="braille" />
@@ -128,13 +147,16 @@ export function ModelPill({
     ? copy.modelTitle(currentProvider, currentModel || copy.modelNone)
     : copy.switchModel
 
-  const title = pinnedOverride ? `${baseTitle} — ${copy.modelPinned}` : baseTitle
+  const statusTitle = modelLabel ? `${baseTitle} — ${modelLabel}` : baseTitle
+  const title = pinnedOverride ? `${statusTitle} — ${copy.modelPinned}` : statusTitle
+  const pickerTitle = modelLabel ? `${copy.openModelPicker} — ${modelLabel}` : copy.openModelPicker
+  const pickerLabel = pinnedOverride ? `${pickerTitle} — ${copy.modelPinned}` : pickerTitle
 
   if (!model.modelMenuContent) {
     return (
-      <Tip label={pinnedOverride ? `${copy.openModelPicker} — ${copy.modelPinned}` : copy.openModelPicker} side="top">
+      <Tip label={pickerLabel} side="top">
         <Button
-          aria-label={copy.openModelPicker}
+          aria-label={pickerLabel}
           className={pillClass}
           disabled={disabled}
           onClick={() => setModelPickerOpen(true)}

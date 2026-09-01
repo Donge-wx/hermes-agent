@@ -23,8 +23,14 @@ const start = () => act(() => stream.handleEvent({ payload: {}, session_id: SID,
 const delta = (text: string) =>
   act(() => stream.handleEvent({ payload: { text }, session_id: SID, type: 'message.delta' }))
 
-const interim = (text: string) =>
-  act(() => stream.handleEvent({ payload: { text, already_streamed: true }, session_id: SID, type: 'message.interim' }))
+const interim = (text: string, alreadyStreamed = true) =>
+  act(() =>
+    stream.handleEvent({
+      payload: { text, already_streamed: alreadyStreamed },
+      session_id: SID,
+      type: 'message.interim'
+    })
+  )
 
 const complete = (text: string) =>
   act(() => stream.handleEvent({ payload: { text }, session_id: SID, type: 'message.complete' }))
@@ -152,6 +158,57 @@ describe('useMessageStream interim text sealing', () => {
     // Turn is still active — busy stays true
     expect(getState().busy).toBe(true)
     expect(getState().interimBoundaryPending).toBe(true)
+  })
+
+  it('keeps identical interim commentary when it was not already streamed', async () => {
+    mountStream()
+    await start()
+
+    await interim('same fresh commentary', false)
+    await interim('same fresh commentary', false)
+
+    expect(assistantMessages().filter(text => text === 'same fresh commentary')).toHaveLength(2)
+  })
+
+  it('ignores latest and earlier interim replays without splitting an active tool row', async () => {
+    mountStream()
+    await start()
+
+    await delta('earlier streamed segment')
+    await interim('earlier streamed segment')
+    await delta('latest streamed segment')
+    await interim('latest streamed segment')
+    await act(() =>
+      stream.handleEvent({
+        payload: { args: {}, name: 'terminal', tool_id: 'tool-1' },
+        session_id: SID,
+        type: 'tool.start'
+      })
+    )
+    const beforeReplay = getState()
+
+    await interim('latest streamed segment')
+    await interim('earlier streamed segment')
+
+    const afterReplay = getState()
+    expect(afterReplay.streamId).toBe(beforeReplay.streamId)
+    expect(afterReplay.messages).toEqual(beforeReplay.messages)
+
+    await act(() =>
+      stream.handleEvent({
+        payload: { name: 'terminal', result: 'ok', tool_id: 'tool-1' },
+        session_id: SID,
+        type: 'tool.complete'
+      })
+    )
+
+    expect(assistantMessages()).toEqual(['earlier streamed segment', 'latest streamed segment'])
+    const toolParts = getState()
+      .messages.flatMap(message => message.parts)
+      .filter(part => part.type === 'tool-call')
+
+    expect(toolParts).toHaveLength(1)
+    expect(toolParts[0].completedAt).toBeTypeOf('number')
   })
 
   it('settles an identical final onto a non-previewed interim (tool-call turn) instead of duplicating (#63679)', async () => {

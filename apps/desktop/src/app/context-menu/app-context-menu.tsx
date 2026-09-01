@@ -19,6 +19,7 @@ import {
 import { type Translations, useI18n } from '@/i18n'
 import { hostPathLabel, normalizeExternalUrl, openExternalLink } from '@/lib/external-link'
 import { formatCombo } from '@/lib/keybinds/combo'
+import { isEmployeeAppearanceSettingAvailable } from '@/lib/managed-employee-policy'
 import { isRemoteGateway } from '@/lib/media'
 import { reachablePreviewUrl } from '@/lib/preview-reach'
 import { openCommandPalette } from '@/store/command-palette'
@@ -569,12 +570,14 @@ function shellSections({ navigate, t }: ShellVerbs): ReactNode[][] {
       // The pointer-only way back to a hidden tab strip: right-clicking the
       // shell reaches this menu from anywhere, including a zone that has no
       // chrome left to right-click.
-      <Item
-        icon="layout-menubar"
-        key="shell-tabstrip"
-        label={t.keybinds.actions['view.toggleTabStrip']}
-        onSelect={() => void toggleTargetZoneTabStrip()}
-      />,
+      isEmployeeAppearanceSettingAvailable('appearance.tab-strip') ? (
+        <Item
+          icon="layout-menubar"
+          key="shell-tabstrip"
+          label={t.keybinds.actions['view.toggleTabStrip']}
+          onSelect={() => void toggleTargetZoneTabStrip()}
+        />
+      ) : null,
       <Item
         icon="settings-gear"
         key="shell-settings"

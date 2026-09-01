@@ -492,7 +492,7 @@ export function useMessageStream({
   )
 
   const finalizeInterimAssistantMessage = useCallback(
-    (sessionId: string, text: string, occurredAt = Date.now() / 1000) => {
+    (sessionId: string, text: string, alreadyStreamed?: boolean, occurredAt = Date.now() / 1000) => {
       updateSessionState(sessionId, state => {
         if (state.interrupted) {
           return state
@@ -505,6 +505,22 @@ export function useMessageStream({
         }
 
         const streamId = state.streamId
+        const latestVisibleUserIndex = state.messages.findLastIndex(
+          message => message.role === 'user' && !message.hidden
+        )
+        const matchesSealedInterimInCurrentTurn = state.messages
+          .slice(latestVisibleUserIndex + 1)
+          .some(
+            message =>
+              message.role === 'assistant' &&
+              !message.hidden &&
+              message.interim &&
+              chatMessageText(message).trim() === authoritativeText
+          )
+
+        if (alreadyStreamed === true && matchesSealedInterimInCurrentTurn) {
+          return state
+        }
 
         const replaceTextPart = (parts: ChatMessagePart[]) => {
           const visibleText = stripGeneratedImageEchoes(authoritativeText, generatedImageEchoSources(parts)).trim()

@@ -5,6 +5,7 @@
  */
 
 import { useContributions } from '@/contrib/react/use-contributions'
+import { type Locale, translatePlugin, type Translations, useI18n } from '@/i18n'
 import type { IconComponent } from '@/lib/icons'
 
 export const PALETTE_AREA = 'palette'
@@ -13,6 +14,8 @@ export const PALETTE_AREA = 'palette'
 export interface PaletteContribution {
   id: string
   label: string
+  i18nLabel?: string
+  resolveLabel?: (locale: Locale, t: Translations) => string
   /** Keybind action id — its live combo renders as the hotkey hint. */
   action?: string
   icon?: IconComponent
@@ -32,8 +35,21 @@ export interface PaletteContribution {
 
 /** Contributed palette rows, with stable render keys. */
 export function usePaletteContributions(): Array<PaletteContribution & { key: string }> {
+  const { locale, t } = useI18n()
+
   return useContributions(PALETTE_AREA)
-    .map(c => ({ key: `${c.source ?? 'core'}:${c.id}`, ...(c.data as PaletteContribution) }))
+    .map(c => {
+      const item = c.data as PaletteContribution
+      const pluginId = c.source?.startsWith('plugin:') ? c.source.slice('plugin:'.length) : null
+
+      return {
+        key: `${c.source ?? 'core'}:${c.id}`,
+        ...item,
+        label:
+          item.resolveLabel?.(locale, t) ??
+          (pluginId && item.i18nLabel ? translatePlugin(pluginId, locale, item.i18nLabel, []) : item.label)
+      }
+    })
     .filter(item => Boolean(item.label && item.run))
 }
 

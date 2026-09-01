@@ -18,6 +18,7 @@ import {
   KEYBINDS_AREA
 } from '@/lib/keybinds/actions'
 import { formatCombo } from '@/lib/keybinds/combo'
+import { isEmployeeKeybindActionAvailable } from '@/lib/managed-employee-policy'
 import { arraysEqual } from '@/lib/storage'
 import {
   $bindings,
@@ -40,6 +41,7 @@ export function KeybindSettings() {
   // Subscribe so contributed actions appear/disappear live in the map.
   useContributions(KEYBINDS_AREA)
   const actionList = allKeybindActions()
+  const readonlyList = KEYBIND_READONLY.filter(shortcut => isEmployeeKeybindActionAvailable(shortcut.id))
   const [query, setQuery] = useState('')
 
   const openCombo = bindings[KEYBIND_PANEL_ACTION]?.[0]
@@ -86,12 +88,12 @@ export function KeybindSettings() {
 
     const lower = query.toLowerCase()
 
-    return KEYBIND_READONLY.filter(shortcut => {
+    return readonlyList.filter(shortcut => {
       const label = k.actions[shortcut.id] ?? shortcut.id
 
       return label.toLowerCase().includes(lower) || shortcut.id.includes(lower)
     })
-  }, [isSearching, query, k.actions])
+  }, [isSearching, query, k.actions, readonlyList])
 
   return (
     <SettingsContent>
@@ -144,7 +146,7 @@ export function KeybindSettings() {
               action => action.category === category && action.id !== KEYBIND_PANEL_ACTION
             )
 
-            const readonly = KEYBIND_READONLY.filter(shortcut => shortcut.category === category)
+            const readonly = readonlyList.filter(shortcut => shortcut.category === category)
 
             if (actions.length === 0 && readonly.length === 0) {
               return null

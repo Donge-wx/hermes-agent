@@ -2,7 +2,9 @@ import { setupMockBackend, waitForAppReady, waitForDesktopApis } from './fixture
 import { expect, test } from './test'
 
 test.describe('My King managed employee feature policy', () => {
-  test('keeps approved operations visible while restricting administration and themes', async ({ browserName: _browserName }, testInfo) => {
+  test('keeps approved operations visible while restricting administration and themes', async ({
+    browserName: _browserName
+  }, testInfo) => {
     test.setTimeout(240_000)
     const fixture = await setupMockBackend()
 
@@ -16,20 +18,48 @@ test.describe('My King managed employee feature policy', () => {
         '/api/mcp/catalog'
       ])
 
+      await fixture.page.evaluate(() => {
+        window.localStorage.setItem(
+          'hermes.desktop.layoutTree.v2',
+          JSON.stringify({ type: 'group', id: 'managed-stale-terminal', panes: ['workspace', 'terminal'], active: 'terminal' })
+        )
+        window.localStorage.setItem('hermes.desktop.terminalTakeover', 'true')
+      })
+      await fixture.page.reload()
+      await waitForAppReady(fixture, 120_000)
+
+      await expect(fixture.page.locator('[data-tree-tab="terminal"], [data-narrow-overlay-tab="terminal"]')).toHaveCount(0)
+      await expect(fixture.page.locator('[data-terminal-slot], [data-terminal]')).toHaveCount(0)
+      await expect
+        .poll(() =>
+          fixture.page.evaluate(() => {
+            const raw = window.localStorage.getItem('hermes.desktop.layoutTree.v2')
+
+            return raw ? (JSON.parse(raw).panes as string[]) : []
+          })
+        )
+        .not.toContain('terminal')
+      await expect
+        .poll(() => fixture.page.evaluate(() => window.localStorage.getItem('hermes.desktop.terminalTakeover')))
+        .toBe('false')
+
       const captureResponsive = async (surface: string) => {
         for (const width of [1280, 768, 640]) {
           const pageUrl = fixture.page.url()
 
-          await fixture.app.evaluate(({ BrowserWindow: ElectronBrowserWindow }, target) => {
-            const window = ElectronBrowserWindow.getAllWindows().find(
-              candidate => candidate.webContents.getURL() === target.pageUrl
-            )
+          await fixture.app.evaluate(
+            ({ BrowserWindow: ElectronBrowserWindow }, target) => {
+              const window = ElectronBrowserWindow.getAllWindows().find(
+                candidate => candidate.webContents.getURL() === target.pageUrl
+              )
 
-            window?.unmaximize()
-            window?.setContentSize(target.width, 800, false)
-            window?.show()
-            window?.focus()
-          }, { pageUrl, width })
+              window?.unmaximize()
+              window?.setContentSize(target.width, 800, false)
+              window?.show()
+              window?.focus()
+            },
+            { pageUrl, width }
+          )
           await expect
             .poll(() => fixture.page.evaluate(() => window.innerWidth), { message: `${surface} viewport` })
             .toBe(width)
@@ -92,26 +122,58 @@ test.describe('My King managed employee feature policy', () => {
       await fixture.page.evaluate(() => {
         window.location.hash = '/settings?tab=config:appearance'
       })
-      await expect(fixture.page.locator('[data-slot="theme-card"]')).toHaveCount(1)
+      const appearanceContent = fixture.page.locator('[data-slot="settings-content"]')
+
+      for (const retainedAppearance of ['语言', '界面缩放', '消息回应', '默认折叠推理过程', '内嵌预览', '宠物']) {
+        await expect(appearanceContent.getByText(retainedAppearance, { exact: true }).first()).toBeVisible()
+      }
+
+      for (const managedAppearance of [
+        '主题',
+        '会话列表密度',
+        '标签栏',
+        '窗口透明',
+        '聊天背景',
+        '开场标识',
+        '悬浮输入框',
+        '工具调用显示'
+      ]) {
+        await expect(appearanceContent.getByText(managedAppearance, { exact: true })).toHaveCount(0)
+      }
+
+      await expect(fixture.page.locator('[data-slot="theme-card"]')).toHaveCount(0)
       await expect(fixture.page.locator('[data-slot="appearance-theme-search"]')).toHaveCount(0)
-      await expect.poll(() => fixture.page.evaluate(() => document.documentElement.dataset.hermesTheme)).toBe(
-        'liquid-glass'
-      )
+      await expect
+        .poll(() => fixture.page.evaluate(() => document.documentElement.dataset.hermesTheme))
+        .toBe('liquid-glass')
       await expect(fixture.page.getByText('终端字体', { exact: true })).toHaveCount(0)
       await fixture.app.evaluate(({ BrowserWindow: ElectronBrowserWindow }) => {
         const window = ElectronBrowserWindow.getAllWindows().at(0)
 
         window?.setContentSize(768, 800, false)
       })
-      const themeDescription = fixture.page.locator('[data-slot="theme-description"]')
-      await expect(themeDescription).toHaveCount(1)
-      await expect.poll(() => themeDescription.evaluate(element => element.scrollHeight <= element.clientHeight)).toBe(true)
-      await expect(fixture.page.locator('[data-slot="settings-intro"] [data-settings-intro-phrase]')).toHaveText([
-        '这些是仅桌面端的显示偏好。',
-        '模式控制明暗；',
-        '主题控制强调色与对话界面样式。'
-      ])
+      await expect(fixture.page.locator('[data-slot="settings-intro"]')).toBeVisible()
       await captureResponsive('appearance')
+
+      await fixture.page.evaluate(() => {
+        window.location.hash = '/settings?tab=keybinds'
+      })
+      const keybindContent = fixture.page.locator('[data-slot="settings-content"]')
+
+      await expect(keybindContent.getByText('键盘快捷键', { exact: true })).toBeVisible()
+      await expect(keybindContent.getByText('发送消息', { exact: true })).toBeVisible()
+
+      for (const restrictedKeybind of [
+        '配置',
+        '打开定时任务',
+        '打开智能体',
+        '显示终端',
+        '切换布局编辑模式',
+        '切换浅色/深色',
+        '切换标签'
+      ]) {
+        await expect(keybindContent.getByText(restrictedKeybind, { exact: true })).toHaveCount(0)
+      }
 
       await fixture.page.evaluate(() => {
         window.location.hash = '/skills'
@@ -152,12 +214,7 @@ test.describe('My King managed employee feature policy', () => {
       await expect.poll(() => fixture.page.evaluate(() => window.location.hash)).toContain('/messaging')
       await expect(fixture.page.getByText('钉钉', { exact: true }).first()).toBeVisible({ timeout: 30_000 })
 
-      for (const retainedPlatform of [
-        '钉钉',
-        '飞书',
-        '企业微信',
-        '微信'
-      ]) {
+      for (const retainedPlatform of ['钉钉', '飞书', '企业微信', '微信']) {
         await expect(fixture.page.getByText(retainedPlatform, { exact: true }).first()).toBeVisible()
       }
 
@@ -174,9 +231,13 @@ test.describe('My King managed employee feature policy', () => {
         await expect(fixture.page.locator('[data-slot="messaging-platform-name"]')).toHaveCount(4)
         await expect
           .poll(() =>
-            fixture.page.locator('[data-slot="messaging-platform-name"]').evaluateAll(labels =>
-              labels.every(label => label.scrollWidth <= label.clientWidth && label.scrollHeight <= label.clientHeight)
-            )
+            fixture.page
+              .locator('[data-slot="messaging-platform-name"]')
+              .evaluateAll(labels =>
+                labels.every(
+                  label => label.scrollWidth <= label.clientWidth && label.scrollHeight <= label.clientHeight
+                )
+              )
           )
           .toBe(true)
       }
@@ -217,7 +278,9 @@ test.describe('My King managed employee feature policy', () => {
 
       await palette.getByRole('combobox').fill('terminal')
       await expect(palette.getByText('Toggle terminal', { exact: true })).toHaveCount(0)
-      await expect.poll(() => fixture.page.evaluate(() => document.documentElement.dataset.hermesTheme)).toBe(committedTheme)
+      await expect
+        .poll(() => fixture.page.evaluate(() => document.documentElement.dataset.hermesTheme))
+        .toBe(committedTheme)
 
       await captureResponsive('command-palette')
     } finally {

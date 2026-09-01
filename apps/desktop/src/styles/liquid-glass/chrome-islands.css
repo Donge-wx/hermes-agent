@@ -18,13 +18,6 @@
 :root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
   [data-slot='sidebar-content']
   > [data-slot='sidebar-group']:first-child
-  [data-slot='sidebar-menu'] {
-  gap: var(--lg-space-3xs);
-}
-
-:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
-  [data-slot='sidebar-content']
-  > [data-slot='sidebar-group']:first-child
   [data-sidebar='menu-button'] {
   border-color: transparent;
   border-radius: var(--lg-radius-control);
@@ -207,8 +200,10 @@
   letter-spacing: 0.08em;
 }
 
-:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light'] [data-slot='sidebar-row-label'] {
-  font-size: var(--lg-type-control);
+:root[data-hermes-theme='liquid-glass'][data-hermes-mode='light']
+  [data-slot='session-row']
+  .hover-marquee {
+  font-size: var(--lg-type-sidebar-row);
   line-height: var(--lg-line-control);
 }
 

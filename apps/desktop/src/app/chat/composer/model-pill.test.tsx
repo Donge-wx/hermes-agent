@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { atom } from 'nanostores'
 import { afterEach, describe, expect, it } from 'vitest'
 
@@ -91,7 +91,7 @@ describe('ModelPill per-surface model label', () => {
     expect(screen.getByTestId('composer-model-label').getAttribute('dir')).toBe('ltr')
   })
 
-  it('shows the chat-bar model even when the primary global differs', () => {
+  it('shows the chat-bar model even when the primary global differs', async () => {
     setCurrentModel('primary/model')
     $activeSessionId.set('primary-runtime')
 
@@ -121,7 +121,25 @@ describe('ModelPill per-surface model label', () => {
       </SessionViewProvider>
     )
 
-    expect(screen.getByText('Sonnet · High')).toBeTruthy()
+    const label = screen.getByTestId('composer-model-label')
+    const visibleName = label.children.item(0)
+    const visibleStatus = label.children.item(1)
+
+    expect(label.getAttribute('dir')).toBe('ltr')
+    expect(label.getAttribute('title')).toBeNull()
+    expect(label.children.length).toBe(2)
+    expect(visibleName?.textContent).toBe('Sonnet')
+    expect(visibleName?.classList.contains('shrink-0')).toBe(true)
+    expect(visibleStatus?.textContent).toBe(' · High')
+    expect(visibleStatus?.classList.contains('min-w-0')).toBe(true)
+    expect(visibleStatus?.classList.contains('truncate')).toBe(true)
+    const trigger = screen.getByRole('button', { name: /Sonnet · High/ })
+    expect(trigger.getAttribute('aria-label')).toContain('Sonnet · High')
+    expect(trigger.classList.contains('max-w-56')).toBe(true)
+
+    fireEvent.pointerMove(trigger, { pointerType: 'mouse' })
+    const tooltip = await screen.findByRole('tooltip')
+    expect(tooltip.textContent).toContain('Sonnet · High')
     expect(screen.queryByText(/primary/i)).toBeNull()
   })
 })

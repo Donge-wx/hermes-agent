@@ -235,7 +235,6 @@
   --lg-size-sidebar-tab: 2.75rem;
   --lg-size-toolbar-island: 2rem;
   --lg-size-status-pill: 1.625rem;
-  --lg-size-session-row: 3rem;
   --lg-size-cognition-glyph: 1.5rem;
   --lg-size-cognition-dot: 0.3125rem;
   --lg-size-composer: 3.75rem;
@@ -257,6 +256,7 @@
   --lg-size-statusbar-compact: 1.375rem;
   --lg-type-control: 0.9375rem;
   --lg-type-body: 0.9375rem;
+  --lg-type-sidebar-row: 1rem;
   --lg-type-caption: 0.875rem;
   --lg-type-micro: 0.8125rem;
   --lg-type-section-heading: 1rem;

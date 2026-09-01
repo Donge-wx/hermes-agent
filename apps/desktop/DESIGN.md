@@ -73,6 +73,7 @@ not claims that Apple publishes identical CSS pixel measurements:
 | `--lg-size-switch-*`                                                                                  | `3rem × 1.75rem` / 48×28px                                              | settings toggle with a 22px thumb and visible focus ring                                                                                                                                                                                                                     |
 | `--lg-size-checkbox`                                                                                  | `1.25rem` / 20px                                                        | checkbox control; surrounding row remains the hit target                                                                                                                                                                                                                     |
 | `--lg-type-control`, `--lg-type-body`                                                                 | `0.9375rem` / 15px                                                      | control, navigation, menu labels, transcript prose, and primary detail copy; stays readable at the managed 90% default scale                                                                                                                                                 |
+| `--lg-type-sidebar-row`                                                                                | `1rem` / 16px                                                           | scoped primary session-row labels; one step above control copy without changing global navigation typography                                                                                                                                                |
 | `--lg-type-caption`                                                                                   | `0.875rem` / 14px                                                       | descriptions and secondary settings copy                                                                                                                                                                                                                                     |
 | `--lg-type-micro`                                                                                     | `0.8125rem` / 13px                                                      | status, counts, compact metadata, and section labels; never used for primary content                                                                                                                                                                                         |
 | `--mk-tertiary`                                                                                       | `#626a77`                                                               | 13px managed/browser authentication status copy; keeps the quiet tertiary role while maintaining at least WCAG AA contrast against the light auth canvas                                                                                                                     |
@@ -185,12 +186,13 @@ Shell chrome primitives:
 
 Conversation primitives:
 
-- **Session row lens.** Session rows use a 44px minimum target in Liquid Glass.
-  Resting rows stay transparent, hover adds a shallow refractive lens, and the
-  selected row uses an internal blue tint plus upper-left specular edge. Running,
-  unread, drag, branch, pin, menu, and density behavior remain owned by the
-  existing row; inert `data-selected`, `data-unread`, and `data-working` hooks
-  expose those states to the theme.
+- **Session row lens.** Session rows keep the existing row's compact, comfortable,
+  detailed, or card geometry; Liquid Glass owns material only and never imposes
+  a universal minimum height. Resting rows stay transparent, hover adds a
+  shallow refractive lens, and the selected row uses an internal blue tint plus
+  upper-left specular edge. Running, unread, drag, branch, pin, menu, and
+  density behavior remain owned by the existing row; inert `data-selected`,
+  `data-unread`, and `data-working` hooks expose those states to the theme.
 - **Human bubble.** Human messages are right-aligned blue-ice glass bubbles with
   a readable maximum measure, a stronger rim than assistant prose, and enough
   symmetric inset to keep short text optically centered. Restore and stop live
@@ -201,10 +203,11 @@ Conversation primitives:
   second blue line along its lower edge. Sticky, clamp, attachment, branch, reaction, edit, restore, and stop
   behavior is unchanged.
 - **Assistant reading sheet.** Assistant output uses a quiet full-measure reading
-  plane with a restrained My King blue edge cue, never a content-sized bubble.
+  plane with no raised edge cue, never a content-sized bubble.
   It is lighter than the human bubble and remains one continuous reading surface;
   paragraphs, tools, code, attachments, reactions, and footers do not become
-  nested cards.
+  nested cards. With `prefers-reduced-transparency: reduce`, the sheet remains
+  transparent and borderless, with no full-surface gradient, shadow, or edge cue.
 - **Cognition status.** Live response/loading rows and reasoning disclosures use
   a 24px abstract multi-point cognition glyph in a light inline status row, not
   a nested glass capsule. Eye-like white highlights are forbidden. Active reasoning is

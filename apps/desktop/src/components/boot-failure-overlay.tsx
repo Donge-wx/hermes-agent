@@ -10,6 +10,7 @@ import { useI18n } from '@/i18n'
 import { publicBrandText } from '@/lib/brand'
 import { openExternalLink } from '@/lib/external-link'
 import { ChevronLeft, ExternalLink, FileText, Loader2, LogIn, RefreshCw, SlidersHorizontal, Wrench } from '@/lib/icons'
+import { isEmployeeFeatureAvailable } from '@/lib/managed-employee-policy'
 import { $desktopBoot } from '@/store/boot'
 import { notify, notifyError } from '@/store/notifications'
 
@@ -60,9 +61,10 @@ export function BootFailureOverlay() {
   const [view, setView] = useState<RecoveryView>('recovery')
 
   const visible = Boolean(boot.error) && !boot.running
+  const rawLogsAvailable = isEmployeeFeatureAvailable('logs.raw')
 
   useEffect(() => {
-    if (!visible) {
+    if (!visible || !rawLogsAvailable) {
       return
     }
 
@@ -70,7 +72,7 @@ export function BootFailureOverlay() {
       ?.getRecentLogs()
       .then(res => setLogs(res.lines ?? []))
       .catch(() => undefined)
-  }, [boot.error, visible])
+  }, [boot.error, rawLogsAvailable, visible])
 
   // Resolve whether this boot failure is a remote-gateway reauth so we can
   // offer the actionable "Sign in" path instead of the local-only recovery
@@ -390,17 +392,19 @@ export function BootFailureOverlay() {
                   {action.label}
                 </Button>
               ))}
-              <Button onClick={openLogs} variant="ghost">
-                <FileText />
-                {copy.openLogs}
-              </Button>
+              {rawLogsAvailable ? (
+                <Button onClick={openLogs} variant="ghost">
+                  <FileText />
+                  {copy.openLogs}
+                </Button>
+              ) : null}
             </div>
             <p className="text-xs text-muted-foreground" data-slot="boot-failure-hint">
               {hint}
             </p>
           </div>
 
-          {logs.length > 0 ? (
+          {rawLogsAvailable && logs.length > 0 ? (
             <div className="grid gap-2" data-slot="boot-failure-logs">
               <Button
                 className="-ml-2 self-start font-medium"

@@ -10,7 +10,11 @@ import type { DesktopMarketplaceSearchItem } from '@/global'
 import { useI18n } from '@/i18n'
 import { triggerHaptic } from '@/lib/haptics'
 import { Check, Download, Loader2, Palette, Trash2 } from '@/lib/icons'
-import { isEmployeeFeatureAvailable, MANAGED_EMPLOYEE_MODE } from '@/lib/managed-employee-policy'
+import {
+  isEmployeeAppearanceSettingAvailable,
+  isEmployeeFeatureAvailable,
+  MANAGED_EMPLOYEE_MODE
+} from '@/lib/managed-employee-policy'
 import { selectableCardClass } from '@/lib/selectable-card'
 import { normalize } from '@/lib/text'
 import { cn } from '@/lib/utils'
@@ -102,7 +106,20 @@ function ThemePreview({ name, mode }: { name: string; mode: 'light' | 'dark' }) 
 // presets highlights nothing, and the row description keeps showing the
 // exact current percent.
 const UI_SCALE_PRESETS = ['90', '100', '110', '125', '150', '175'] as const
-const APPEARANCE_SEARCH_TARGETS = new Set<string>(Object.values(APPEARANCE_SETTING_IDS))
+
+const APPEARANCE_SEARCH_TARGETS = new Set<string>(
+  [
+    APPEARANCE_SETTING_IDS.backdrop,
+    APPEARANCE_SETTING_IDS.embeds,
+    APPEARANCE_SETTING_IDS.introSplash,
+    APPEARANCE_SETTING_IDS.language,
+    APPEARANCE_SETTING_IDS.theme,
+    APPEARANCE_SETTING_IDS.toolView,
+    APPEARANCE_SETTING_IDS.translucency,
+    APPEARANCE_SETTING_IDS.uiScale
+  ].filter(setting => isEmployeeAppearanceSettingAvailable(setting))
+)
+
 const appearanceSettingElementId = (id: string) => `setting-field-${id}`
 
 type UiScalePreset = (typeof UI_SCALE_PRESETS)[number]
@@ -475,116 +492,118 @@ export function AppearanceSettings() {
             title={t.language.label}
           />
 
-          <ListRow
-            below={
-              <>
-                {!MANAGED_EMPLOYEE_MODE && (
-                  <div className="mt-3">
-                    <input
-                      className="w-full rounded-lg border border-(--ui-stroke-tertiary) bg-(--ui-bg-quinary) px-3 py-1.5 text-[length:var(--conversation-caption-font-size)] outline-none placeholder:text-(--ui-text-tertiary) focus:border-(--ui-stroke-secondary)"
-                      data-slot="appearance-theme-search"
-                      onChange={event => setQuery(event.target.value)}
-                      placeholder={a.themeSearchPlaceholder}
-                      spellCheck={false}
-                      value={query}
-                    />
-                  </div>
-                )}
-
-                {/* Fixed-height scroll area so the (growing) theme list never
-                    runs the page long; the grid scrolls inside it. */}
-                <div className="mt-3 max-h-96 overflow-y-auto pr-1">
-                  {filteredThemes.length === 0 ? (
-                    needle ? (
-                      <p className="text-[length:var(--conversation-caption-font-size)] text-(--ui-text-tertiary)">
-                        {a.themeNoMatches(query.trim())}
-                      </p>
-                    ) : null
-                  ) : (
-                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                      {filteredThemes.map(theme => {
-                        const active = themeName === theme.name
-                        const removable = isUserTheme(theme.name)
-
-                        return (
-                          <div className="group relative" key={theme.name}>
-                            <button
-                              className={cn('w-full p-2 text-left', selectableCardClass({ active, prominent: true }))}
-                              data-slot="theme-card"
-                              onClick={() => {
-                                triggerHaptic('crisp')
-                                setTheme(theme.name)
-                              }}
-                              type="button"
-                            >
-                              <ThemePreview mode={resolvedMode} name={theme.name} />
-                              <div className="mt-3 px-1">
-                                <div className="truncate text-[length:var(--conversation-text-font-size)] font-medium">
-                                  {a.themeNames[theme.name] ?? theme.label}
-                                </div>
-                                <div
-                                  className={cn(
-                                    'mt-0.5 text-[length:var(--conversation-caption-font-size)] leading-(--conversation-caption-line-height) text-(--ui-text-tertiary)',
-                                    MANAGED_EMPLOYEE_MODE ? 'line-clamp-none' : 'line-clamp-2'
-                                  )}
-                                  data-slot="theme-description"
-                                >
-                                  {a.themeDescriptions[theme.name] ?? theme.description}
-                                </div>
-                              </div>
-                            </button>
-                            {removable && (
-                              <button
-                                aria-label={a.removeTheme}
-                                className="absolute right-1.5 top-1.5 grid size-6 place-items-center rounded-md bg-(--ui-bg-elevated)/80 text-(--ui-text-tertiary) opacity-0 backdrop-blur-sm transition hover:text-(--ui-red) focus-visible:opacity-100 group-hover:opacity-100"
-                                onClick={() => {
-                                  triggerHaptic('crisp')
-                                  removeUserTheme(theme.name)
-
-                                  // Re-normalize off the now-missing skin → default.
-                                  if (active) {
-                                    setTheme(theme.name)
-                                  }
-                                }}
-                                title={a.removeTheme}
-                                type="button"
-                              >
-                                <Trash2 className="size-3.5" />
-                              </button>
-                            )}
-                          </div>
-                        )
-                      })}
+          {isEmployeeAppearanceSettingAvailable(APPEARANCE_SETTING_IDS.theme) && (
+            <ListRow
+              below={
+                <>
+                  {!MANAGED_EMPLOYEE_MODE && (
+                    <div className="mt-3">
+                      <input
+                        className="w-full rounded-lg border border-(--ui-stroke-tertiary) bg-(--ui-bg-quinary) px-3 py-1.5 text-[length:var(--conversation-caption-font-size)] outline-none placeholder:text-(--ui-text-tertiary) focus:border-(--ui-stroke-secondary)"
+                        data-slot="appearance-theme-search"
+                        onChange={event => setQuery(event.target.value)}
+                        placeholder={a.themeSearchPlaceholder}
+                        spellCheck={false}
+                        value={query}
+                      />
                     </div>
                   )}
-                  {!MANAGED_EMPLOYEE_MODE && (
-                    <MarketplaceThemeResults installs={installs} onInstalled={name => setTheme(name)} query={query} />
+
+                  {/* Fixed-height scroll area so the (growing) theme list never
+                    runs the page long; the grid scrolls inside it. */}
+                  <div className="mt-3 max-h-96 overflow-y-auto pr-1">
+                    {filteredThemes.length === 0 ? (
+                      needle ? (
+                        <p className="text-[length:var(--conversation-caption-font-size)] text-(--ui-text-tertiary)">
+                          {a.themeNoMatches(query.trim())}
+                        </p>
+                      ) : null
+                    ) : (
+                      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                        {filteredThemes.map(theme => {
+                          const active = themeName === theme.name
+                          const removable = isUserTheme(theme.name)
+
+                          return (
+                            <div className="group relative" key={theme.name}>
+                              <button
+                                className={cn('w-full p-2 text-left', selectableCardClass({ active, prominent: true }))}
+                                data-slot="theme-card"
+                                onClick={() => {
+                                  triggerHaptic('crisp')
+                                  setTheme(theme.name)
+                                }}
+                                type="button"
+                              >
+                                <ThemePreview mode={resolvedMode} name={theme.name} />
+                                <div className="mt-3 px-1">
+                                  <div className="truncate text-[length:var(--conversation-text-font-size)] font-medium">
+                                    {a.themeNames[theme.name] ?? theme.label}
+                                  </div>
+                                  <div
+                                    className={cn(
+                                      'mt-0.5 text-[length:var(--conversation-caption-font-size)] leading-(--conversation-caption-line-height) text-(--ui-text-tertiary)',
+                                      MANAGED_EMPLOYEE_MODE ? 'line-clamp-none' : 'line-clamp-2'
+                                    )}
+                                    data-slot="theme-description"
+                                  >
+                                    {a.themeDescriptions[theme.name] ?? theme.description}
+                                  </div>
+                                </div>
+                              </button>
+                              {removable && (
+                                <button
+                                  aria-label={a.removeTheme}
+                                  className="absolute right-1.5 top-1.5 grid size-6 place-items-center rounded-md bg-(--ui-bg-elevated)/80 text-(--ui-text-tertiary) opacity-0 backdrop-blur-sm transition hover:text-(--ui-red) focus-visible:opacity-100 group-hover:opacity-100"
+                                  onClick={() => {
+                                    triggerHaptic('crisp')
+                                    removeUserTheme(theme.name)
+
+                                    // Re-normalize off the now-missing skin → default.
+                                    if (active) {
+                                      setTheme(theme.name)
+                                    }
+                                  }}
+                                  title={a.removeTheme}
+                                  type="button"
+                                >
+                                  <Trash2 className="size-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                    {!MANAGED_EMPLOYEE_MODE && (
+                      <MarketplaceThemeResults installs={installs} onInstalled={name => setTheme(name)} query={query} />
+                    )}
+                  </div>
+                  {showProfileNote && (
+                    <p className="mt-3 text-[length:var(--conversation-caption-font-size)] leading-(--conversation-caption-line-height) text-(--ui-text-tertiary)">
+                      {a.themeProfileNote(activeProfileName)}
+                    </p>
                   )}
+                </>
+              }
+              description={a.themeDesc}
+              id={appearanceSettingElementId(APPEARANCE_SETTING_IDS.theme)}
+              title={
+                <div className="flex items-center justify-between gap-3">
+                  <span>{a.themeTitle}</span>
+                  <SegmentedControl
+                    onChange={id => {
+                      triggerHaptic('crisp')
+                      setMode(id)
+                    }}
+                    options={modeOptions}
+                    value={mode}
+                  />
                 </div>
-                {showProfileNote && (
-                  <p className="mt-3 text-[length:var(--conversation-caption-font-size)] leading-(--conversation-caption-line-height) text-(--ui-text-tertiary)">
-                    {a.themeProfileNote(activeProfileName)}
-                  </p>
-                )}
-              </>
-            }
-            description={a.themeDesc}
-            id={appearanceSettingElementId(APPEARANCE_SETTING_IDS.theme)}
-            title={
-              <div className="flex items-center justify-between gap-3">
-                <span>{a.themeTitle}</span>
-                <SegmentedControl
-                  onChange={id => {
-                    triggerHaptic('crisp')
-                    setMode(id)
-                  }}
-                  options={modeOptions}
-                  value={mode}
-                />
-              </div>
-            }
-            wide
-          />
+              }
+              wide
+            />
+          )}
 
           <ListRow
             action={
@@ -604,39 +623,43 @@ export function AppearanceSettings() {
 
           {isEmployeeFeatureAvailable('terminal') && <TerminalFontSetting />}
 
-          <ListRow
-            action={
-              <SegmentedControl
-                onChange={id => {
-                  triggerHaptic('selection')
-                  setSessionListDensity(id)
-                }}
-                options={sessionDensityOptions}
-                value={sessionListDensity}
-              />
-            }
-            description={a.sessionDensityDesc}
-            title={a.sessionDensityTitle}
-          />
+          {isEmployeeAppearanceSettingAvailable(APPEARANCE_SETTING_IDS.sessionDensity) && (
+            <ListRow
+              action={
+                <SegmentedControl
+                  onChange={id => {
+                    triggerHaptic('selection')
+                    setSessionListDensity(id)
+                  }}
+                  options={sessionDensityOptions}
+                  value={sessionListDensity}
+                />
+              }
+              description={a.sessionDensityDesc}
+              title={a.sessionDensityTitle}
+            />
+          )}
 
-          <ListRow
-            action={
-              <SegmentedControl
-                onChange={id => {
-                  triggerHaptic('selection')
-                  setTabStripDefault(id)
-                }}
-                options={tabStripOptions}
-                value={tabStripDefault}
-              />
-            }
-            description={a.tabStripDesc}
-            title={a.tabStripTitle}
-          />
+          {isEmployeeAppearanceSettingAvailable(APPEARANCE_SETTING_IDS.tabStrip) && (
+            <ListRow
+              action={
+                <SegmentedControl
+                  onChange={id => {
+                    triggerHaptic('selection')
+                    setTabStripDefault(id)
+                  }}
+                  options={tabStripOptions}
+                  value={tabStripDefault}
+                />
+              }
+              description={a.tabStripDesc}
+              title={a.tabStripTitle}
+            />
+          )}
 
           {/* Linux has neither half of this setting (see TRANSLUCENCY_SUPPORTED),
               so the row is absent there rather than offering a dead lever. */}
-          {TRANSLUCENCY_SUPPORTED && (
+          {TRANSLUCENCY_SUPPORTED && isEmployeeAppearanceSettingAvailable(APPEARANCE_SETTING_IDS.translucency) && (
             <ListRow
               action={
                 <div
@@ -718,50 +741,56 @@ export function AppearanceSettings() {
             />
           )}
 
-          <ListRow
-            action={
-              <SegmentedControl
-                onChange={id => {
-                  triggerHaptic('selection')
-                  setBackdrop(id === 'on')
-                }}
-                options={[
-                  { id: 'off', label: t.common.off },
-                  { id: 'on', label: t.common.on }
-                ]}
-                value={backdrop ? 'on' : 'off'}
-              />
-            }
-            description={a.backdropDesc}
-            id={appearanceSettingElementId(APPEARANCE_SETTING_IDS.backdrop)}
-            title={a.backdropTitle}
-          />
+          {isEmployeeAppearanceSettingAvailable(APPEARANCE_SETTING_IDS.backdrop) && (
+            <ListRow
+              action={
+                <SegmentedControl
+                  onChange={id => {
+                    triggerHaptic('selection')
+                    setBackdrop(id === 'on')
+                  }}
+                  options={[
+                    { id: 'off', label: t.common.off },
+                    { id: 'on', label: t.common.on }
+                  ]}
+                  value={backdrop ? 'on' : 'off'}
+                />
+              }
+              description={a.backdropDesc}
+              id={appearanceSettingElementId(APPEARANCE_SETTING_IDS.backdrop)}
+              title={a.backdropTitle}
+            />
+          )}
 
-          <ListRow
-            action={
-              <SegmentedControl
-                onChange={id => {
-                  triggerHaptic('selection')
-                  setIntroSplash(id === 'on')
-                }}
-                options={[
-                  { id: 'off', label: t.common.off },
-                  { id: 'on', label: t.common.on }
-                ]}
-                value={introSplash ? 'on' : 'off'}
-              />
-            }
-            description={a.introSplashDesc}
-            id={appearanceSettingElementId(APPEARANCE_SETTING_IDS.introSplash)}
-            title={a.introSplashTitle}
-          />
+          {isEmployeeAppearanceSettingAvailable(APPEARANCE_SETTING_IDS.introSplash) && (
+            <ListRow
+              action={
+                <SegmentedControl
+                  onChange={id => {
+                    triggerHaptic('selection')
+                    setIntroSplash(id === 'on')
+                  }}
+                  options={[
+                    { id: 'off', label: t.common.off },
+                    { id: 'on', label: t.common.on }
+                  ]}
+                  value={introSplash ? 'on' : 'off'}
+                />
+              }
+              description={a.introSplashDesc}
+              id={appearanceSettingElementId(APPEARANCE_SETTING_IDS.introSplash)}
+              title={a.introSplashTitle}
+            />
+          )}
 
-          <ToggleRow
-            checked={composerPopoutGesturesEnabled}
-            description={a.composerPopoutDesc}
-            label={a.composerPopoutTitle}
-            onChange={setComposerPopoutGesturesEnabled}
-          />
+          {isEmployeeAppearanceSettingAvailable(APPEARANCE_SETTING_IDS.composerPopout) && (
+            <ToggleRow
+              checked={composerPopoutGesturesEnabled}
+              description={a.composerPopoutDesc}
+              label={a.composerPopoutTitle}
+              onChange={setComposerPopoutGesturesEnabled}
+            />
+          )}
 
           <ListRow
             action={
@@ -781,21 +810,23 @@ export function AppearanceSettings() {
             title={a.reactionsTitle}
           />
 
-          <ListRow
-            action={
-              <SegmentedControl
-                onChange={id => {
-                  triggerHaptic('selection')
-                  setToolViewMode(id)
-                }}
-                options={toolOptions}
-                value={toolViewMode}
-              />
-            }
-            description={a.toolViewDesc}
-            id={appearanceSettingElementId(APPEARANCE_SETTING_IDS.toolView)}
-            title={a.toolViewTitle}
-          />
+          {isEmployeeAppearanceSettingAvailable(APPEARANCE_SETTING_IDS.toolView) && (
+            <ListRow
+              action={
+                <SegmentedControl
+                  onChange={id => {
+                    triggerHaptic('selection')
+                    setToolViewMode(id)
+                  }}
+                  options={toolOptions}
+                  value={toolViewMode}
+                />
+              }
+              description={a.toolViewDesc}
+              id={appearanceSettingElementId(APPEARANCE_SETTING_IDS.toolView)}
+              title={a.toolViewTitle}
+            />
+          )}
 
           <ListRow
             action={

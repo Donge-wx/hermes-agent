@@ -9,8 +9,8 @@ import test from 'node:test'
 const pluginSource = readFileSync(new URL('../plugin.js', import.meta.url), 'utf8')
 
 test('dialog offers a delivery target picker with history and bot-chat options', () => {
-  assert.match(pluginSource, /Send results to/)
-  assert.match(pluginSource, /id: 'history', label: 'Run history only'/)
+  assert.match(pluginSource, /t\('routines\.sendResults'\)/)
+  assert.match(pluginSource, /id: 'history', label: t\('routines\.runHistory'\)/)
   assert.match(pluginSource, /id: 'bot-chat'/)
 })
 

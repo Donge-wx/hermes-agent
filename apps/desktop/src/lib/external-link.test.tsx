@@ -184,7 +184,7 @@ describe('external link helpers', () => {
     expect(link.querySelector('svg')).toBeTruthy()
   })
 
-  it('renders pretty links with fetched titles and no host suffix', async () => {
+  it('renders a deterministic local label without invoking title lookup', () => {
     const bridge = vi.fn().mockResolvedValue('From Fajardo: Full-Day Culebra Islands Catamaran Tour')
     installDesktopBridge({ fetchLinkTitle: bridge as unknown as Window['hermesDesktop']['fetchLinkTitle'] })
 
@@ -195,11 +195,8 @@ describe('external link helpers', () => {
 
     const link = screen.getByTitle(url)
     expect(link.textContent).toContain('From Fajardo Full Day Cordillera Islands Catamaran Tour')
-
-    await waitFor(() => {
-      expect(link.textContent).toContain('From Fajardo: Full-Day Culebra Islands Catamaran Tour')
-    })
     expect(link.textContent).not.toContain('getyourguide.com')
+    expect(bridge).not.toHaveBeenCalled()
   })
 
   it('shows host/path fallback when title is unavailable', () => {
@@ -250,15 +247,13 @@ describe('external link helpers', () => {
     expect(bridge).not.toHaveBeenCalled()
   })
 
-  it('still resolves a title when no label was authored', async () => {
+  it('keeps the local slug when no label was authored', () => {
     const bridge = installTitleBridge('Homelab Ops Issue 101')
 
     render(<PrettyLink href={FORGEJO_URL} />)
 
-    await waitFor(() => {
-      expect(screen.getByTitle(FORGEJO_URL).textContent).toContain('Homelab Ops Issue 101')
-    })
-    expect(bridge).toHaveBeenCalledTimes(1)
+    expect(screen.getByTitle(FORGEJO_URL).textContent).toContain('Issues')
+    expect(bridge).not.toHaveBeenCalled()
   })
 
   it('normalizes scheme-less links before opening', () => {

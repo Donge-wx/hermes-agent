@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Dialog as DialogPrimitive } from 'radix-ui'
 
 import { BrandMark } from '@/components/brand-mark'
 import { Button } from '@/components/ui/button'
@@ -90,6 +91,8 @@ export function MyKingEmployeeEnrollmentAssistant({ placement = 'settings' }: { 
   const [gateDismissed, setGateDismissed] = useState(false)
   const [sawEnrollmentProgress, setSawEnrollmentProgress] = useState(false)
   const [unbindOpen, setUnbindOpen] = useState(false)
+  const emailInputRef = useRef<HTMLInputElement>(null)
+  const previousFocusRef = useRef<HTMLElement | null>(null)
 
   useEffect(() => {
     if (!api) {
@@ -153,6 +156,25 @@ export function MyKingEmployeeEnrollmentAssistant({ placement = 'settings' }: { 
     return () => window.clearTimeout(timer)
   }, [activeStageIndex, connected, placement, sawEnrollmentProgress, status])
 
+  useEffect(() => {
+    if (placement !== 'gate' || !gateNode) {
+      return
+    }
+
+    const appRoot = document.getElementById('root')
+
+    if (!appRoot || appRoot.contains(gateNode)) {
+      return
+    }
+
+    const wasInert = appRoot.inert === true
+    appRoot.inert = true
+
+    return () => {
+      appRoot.inert = wasInert
+    }
+  }, [gateNode, placement])
+
   const run = async (operation: () => Promise<MyKingEmployeeEnrollmentStatus>) => {
     setSubmitting(true)
 
@@ -191,8 +213,20 @@ export function MyKingEmployeeEnrollmentAssistant({ placement = 'settings' }: { 
       <header className="employee-enrollment__header">
         {placement === 'gate' ? <BrandMark className="employee-enrollment__brand" decorative={false} /> : <Link2 />}
         <div>
-          <h2>{connected ? copy.connectedTitle : copy.title}</h2>
-          {!connected ? <p>{copy.description}</p> : null}
+          {placement === 'gate' ? (
+            <DialogPrimitive.Title asChild>
+              <h2>{connected ? copy.connectedTitle : copy.title}</h2>
+            </DialogPrimitive.Title>
+          ) : (
+            <h2>{connected ? copy.connectedTitle : copy.title}</h2>
+          )}
+          {placement === 'gate' ? (
+            <DialogPrimitive.Description asChild>
+              <p className={connected ? 'sr-only' : undefined}>{connected ? copy.secureConnection : copy.description}</p>
+            </DialogPrimitive.Description>
+          ) : !connected ? (
+            <p>{copy.description}</p>
+          ) : null}
         </div>
       </header>
 
@@ -250,6 +284,7 @@ export function MyKingEmployeeEnrollmentAssistant({ placement = 'settings' }: { 
                     inputMode="email"
                     onChange={event => setEmail(event.target.value)}
                     placeholder={copy.emailPlaceholder}
+                    ref={emailInputRef}
                     type="email"
                     value={email}
                   />
@@ -322,14 +357,31 @@ export function MyKingEmployeeEnrollmentAssistant({ placement = 'settings' }: { 
   )
 
   return placement === 'gate' ? (
-    <div
-      className="employee-enrollment-gate fixed inset-0 z-(--z-crash) grid place-items-center"
-      data-glass-opaque=""
-      data-slot="employee-enrollment-gate"
-      ref={setGateNode}
-    >
-      {content}
-    </div>
+    <DialogPrimitive.Root open>
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Content
+          aria-modal="true"
+          className="employee-enrollment-gate fixed inset-0 z-(--z-crash) grid place-items-center"
+          data-glass-opaque=""
+          data-slot="employee-enrollment-gate"
+          onCloseAutoFocus={event => {
+            event.preventDefault()
+            previousFocusRef.current?.focus()
+          }}
+          onEscapeKeyDown={event => event.preventDefault()}
+          onInteractOutside={event => event.preventDefault()}
+          onOpenAutoFocus={event => {
+            event.preventDefault()
+            previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+            emailInputRef.current?.focus()
+          }}
+          onPointerDownOutside={event => event.preventDefault()}
+          ref={setGateNode}
+        >
+          {content}
+        </DialogPrimitive.Content>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
   ) : (
     content
   )

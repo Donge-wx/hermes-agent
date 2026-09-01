@@ -21,9 +21,9 @@ const setPrimary = vi.fn()
 const test = vi.fn()
 const updateAll = vi.fn()
 
-function renderConnectionsRegistrySection() {
+function renderConnectionsRegistrySection(initialLocale: 'en' | 'zh' = 'en') {
   return render(
-    <I18nProvider configClient={null} initialLocale="en">
+    <I18nProvider configClient={null} initialLocale={initialLocale}>
       <ConnectionsRegistrySection />
     </I18nProvider>
   )
@@ -94,11 +94,20 @@ describe('ConnectionsRegistrySection', () => {
     renderConnectionsRegistrySection()
 
     await waitFor(() => expect(screen.getByText('Homelab')).toBeTruthy())
-    // Label and the managed pill share the copy, so expect both instances.
-    expect(screen.getAllByText('This device').length).toBeGreaterThan(0)
+    expect(screen.getByText('Local')).toBeTruthy()
     expect(screen.getByText('Current')).toBeTruthy()
     expect(screen.getAllByText('Primary').length).toBeGreaterThan(0)
     expect(list).toHaveBeenCalledTimes(1)
+  })
+
+  it('localizes the managed local label while preserving a remote label', async () => {
+    renderConnectionsRegistrySection('zh')
+
+    await waitFor(() => expect(screen.getByText('Homelab')).toBeTruthy())
+
+    expect(screen.getByText('本地')).toBeTruthy()
+    expect(screen.queryByText('This device')).toBeNull()
+    expect(screen.getByText('Homelab')).toBeTruthy()
   })
 
   it('opens the add-connection editor and saves with a required label', async () => {

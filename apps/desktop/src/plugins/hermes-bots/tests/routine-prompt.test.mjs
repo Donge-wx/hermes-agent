@@ -155,12 +155,17 @@ test('security: upgrade pauses persisted delegated routines before they can exec
 
 test('robustness: routine input rejects NUL before cron creation', () => {
   const { __routines } = load()
-  assert.equal(__routines.routineInputError('Normal title', 'Normal instruction'), null)
-  assert.match(__routines.routineInputError('Bad\0title', 'Normal instruction'), /NUL.*U\+0000/)
-  assert.match(__routines.routineInputError('Normal title', 'Bad\0instruction'), /NUL.*U\+0000/)
+  const copy = {
+    'routines.invalidName': 'Cronjob name cannot contain NUL (U+0000).',
+    'routines.invalidInstruction': 'Cronjob instruction cannot contain NUL (U+0000).'
+  }
+  const t = key => copy[key]
+  assert.equal(__routines.routineInputError('Normal title', 'Normal instruction', t), null)
+  assert.match(__routines.routineInputError('Bad\0title', 'Normal instruction', t), /NUL.*U\+0000/)
+  assert.match(__routines.routineInputError('Normal title', 'Bad\0instruction', t), /NUL.*U\+0000/)
   assert.match(
     pluginSource,
-    /const inputError = routineInputError\(title, task\)[\s\S]*if \(inputError\)[\s\S]*setError\(inputError\)[\s\S]*return[\s\S]*requestForBot\(bot, 'cron\.manage'/
+    /const inputError = routineInputError\(title, task, t\)[\s\S]*if \(inputError\)[\s\S]*setError\(inputError\)[\s\S]*return[\s\S]*requestForBot\(bot, 'cron\.manage'/
   )
 })
 

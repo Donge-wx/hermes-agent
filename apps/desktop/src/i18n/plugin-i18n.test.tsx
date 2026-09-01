@@ -1,6 +1,9 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 
+import { PALETTE_AREA, type PaletteContribution, usePaletteContributions } from '@/app/command-palette/contrib'
+import { registry } from '@/contrib/registry'
+
 import { I18nProvider, useI18n } from './context'
 import { createPluginI18n, registerPluginLocales, translatePlugin, usePluginI18n } from './plugin-i18n'
 import { setRuntimeI18nLocale } from './runtime'
@@ -82,6 +85,12 @@ function SwitchToJa() {
   )
 }
 
+function PaletteProbe() {
+  const [item] = usePaletteContributions()
+
+  return <p data-testid="palette-copy">{item?.label}</p>
+}
+
 describe('usePluginI18n', () => {
   it('re-renders on a locale switch', () => {
     const dispose = registerPluginLocales('hooked', {
@@ -103,6 +112,39 @@ describe('usePluginI18n', () => {
     expect(screen.getByTestId('copy').textContent).toBe('こんにちは')
 
     dispose()
+  })
+
+  it('resolves plugin palette metadata at launch and after a locale switch', () => {
+    const disposeLocales = registerPluginLocales('palette-plugin', {
+      en: { palette: { create: 'New Agent…' } },
+      ja: { palette: { create: '新しいエージェント…' } }
+    })
+
+    const disposeContribution = registry.register({
+      area: PALETTE_AREA,
+      data: {
+        id: 'palette-plugin.create',
+        i18nLabel: 'palette.create',
+        label: 'fallback',
+        run: () => {}
+      } satisfies PaletteContribution,
+      id: 'create',
+      source: 'plugin:palette-plugin'
+    })
+
+    render(
+      <I18nProvider configClient={null} initialLocale="en">
+        <SwitchToJa />
+        <PaletteProbe />
+      </I18nProvider>
+    )
+
+    expect(screen.getByTestId('palette-copy').textContent).toBe('New Agent…')
+    fireEvent.click(screen.getByRole('button'))
+    expect(screen.getByTestId('palette-copy').textContent).toBe('新しいエージェント…')
+
+    disposeContribution()
+    disposeLocales()
   })
 
   it('picks up a bundle registered after mount', () => {
