@@ -103,8 +103,7 @@ def _make_mock_daytona_env():
 class TestSSHBulkDownload:
     """Unit tests for _ssh_bulk_download."""
 
-    def test_ssh_bulk_download_runs_tar_over_ssh(self, ssh_mock_env, tmp_path):
-        """subprocess.run command should include tar cf - over SSH."""
+    def test_ssh_bulk_download_uses_compressed_managed_directories(self, ssh_mock_env, tmp_path):
         dest = tmp_path / "backup.tar"
 
         with patch.object(subprocess, "run", return_value=subprocess.CompletedProcess([], 0)) as mock_run:
@@ -114,9 +113,11 @@ class TestSSHBulkDownload:
         mock_run.assert_called_once()
         cmd = mock_run.call_args[0][0]
         cmd_str = " ".join(cmd)
-        assert "tar cf -" in cmd_str
+        assert "tar czf -" in cmd_str
         assert "-C /" in cmd_str
-        assert "home/testuser/.hermes" in cmd_str
+        assert "home/testuser/.hermes/skills" in cmd_str
+        assert "home/testuser/.hermes/cache" in cmd_str
+        assert "home/testuser/.hermes " not in cmd_str
         assert "ssh" in cmd_str
         assert "testuser@example.com" in cmd_str
 

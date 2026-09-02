@@ -7274,13 +7274,21 @@ class APIServerAdapter(BasePlatformAdapter):
                             if isinstance(raw_provider, str)
                             else ""
                         )
+                        agent_requested_provider = self._clean_runtime_id(
+                            getattr(agent, "requested_provider", ""), max_len=80
+                        )
+                        reported_provider = (
+                            agent_requested_provider
+                            if actual_provider == "custom" and agent_requested_provider
+                            else actual_provider
+                        )
                         actual_model = (
                             self._clean_runtime_id(raw_model)
                             if isinstance(raw_model, str)
                             else ""
                         )
-                        if actual_provider:
-                            runtime["provider"] = actual_provider
+                        if reported_provider:
+                            runtime["provider"] = reported_provider
                         else:
                             runtime.setdefault("provider", "")
                         if actual_model:
@@ -7298,7 +7306,11 @@ class APIServerAdapter(BasePlatformAdapter):
                                 or (requested_runtime or {}).get("model")
                             )
                             mismatched = (
-                                (expected_provider and actual_provider != expected_provider)
+                                (
+                                    expected_provider
+                                    and expected_provider
+                                    not in {actual_provider, agent_requested_provider}
+                                )
                                 or (expected_model and actual_model != expected_model)
                             )
                             if mismatched:

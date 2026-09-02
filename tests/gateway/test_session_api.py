@@ -741,6 +741,40 @@ async def test_confirmed_runtime_lock_rejects_actual_runtime_mismatch(adapter, m
         )
 
 
+@pytest.mark.asyncio
+async def test_confirmed_runtime_lock_accepts_named_custom_provider_identity(adapter, monkeypatch):
+    class FakeAgent:
+        session_prompt_tokens = 1
+        session_completion_tokens = 1
+        session_total_tokens = 2
+        session_id = "managed-session"
+        provider = "custom"
+        requested_provider = "nora-codex"
+        model = "gpt-5.6-luna"
+
+        def run_conversation(self, user_message, conversation_history, task_id):
+            return {"final_response": "ok", "session_id": self.session_id}
+
+    monkeypatch.setattr(adapter, "_create_agent", lambda **kwargs: FakeAgent())
+
+    result, usage = await adapter._run_agent(
+        user_message="hello",
+        conversation_history=[],
+        session_id="managed-session",
+        route={"provider": "nora-codex", "model": "gpt-5.6-luna"},
+        requested_runtime={
+            "provider": "nora-codex",
+            "model": "gpt-5.6-luna",
+        },
+        route_source="session_model_lock",
+        confirmed_runtime_lock=True,
+    )
+
+    assert result["runtime"]["provider"] == "nora-codex"
+    assert result["runtime"]["model"] == "gpt-5.6-luna"
+    assert usage["runtime"] == result["runtime"]
+
+
 def test_confirmed_runtime_lock_disables_global_fallback_model(adapter, monkeypatch):
     _patch_api_server_runtime(monkeypatch)
     monkeypatch.setattr(

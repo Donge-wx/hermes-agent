@@ -349,12 +349,14 @@ class SSHEnvironment(BaseEnvironment):
         logger.debug("SSH: bulk-uploaded %d file(s) via tar pipe", len(files))
 
     def _ssh_bulk_download(self, dest: Path) -> None:
-        """Download remote .hermes/ as a tar archive."""
-        # Tar from / with the full path so archive entries preserve absolute
-        # paths (e.g. home/user/.hermes/skills/f.py), matching _pushed_hashes keys.
+        """Download the remote directories managed by ``iter_sync_files``."""
         rel_base = f"{self._remote_home}/.hermes".lstrip("/")
+        remote_paths = [f"{rel_base}/skills", f"{rel_base}/cache"]
         ssh_cmd = self._build_ssh_command()
-        ssh_cmd.append(f"tar cf - -C / {shlex.quote(rel_base)}")
+        ssh_cmd.append(
+            "tar czf - -C / "
+            + " ".join(shlex.quote(path) for path in remote_paths)
+        )
         with open(dest, "wb") as f:
             result = subprocess.run(
                 ssh_cmd,
